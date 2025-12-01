@@ -1,0 +1,108 @@
+version: '3.8'
+
+networks:
+  public_net:
+    driver: bridge
+  app_net:
+    driver: bridge
+    internal: true
+  data_net:
+    driver: bridge
+    internal: true
+
+services:
+  ledger-db:
+    image: timescale/timescaledb:latest-pg15
+    container_name: ledger-db
+    restart: unless-stopped
+    networks:
+      - data_net
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: trading_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    secrets:
+      - db_password
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: unless-stopped
+    networks:
+      - data_net
+      - app_net
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ../backend
+    container_name: backend
+    restart: unless-stopped
+    networks:
+      - app_net
+      - data_net
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend:/app
+    secrets:
+      - db_password
+    depends_on:
+      ledger-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - POSTGRES_SERVER=ledger-db
+      - POSTGRES_DB=trading_db
+
+  strategy-engine:
+    build: ../strategy-engine
+    container_name: strategy-engine
+    restart: unless-stopped
+    networks:
+      - app_net
+      - data_net
+    ports:
+      - "8001:8001"
+    volumes:
+      - ../strategy-engine:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  ai-sentinel:
+    build: ../ai-sentinel
+    container_name: ai-sentinel
+    restart: unless-stopped
+    networks:
+      - app_net
+    # No ports exposed to host
+    # No internet access (internal network only) - handled by app_net being internal
+    # But app_net is internal, so it can't reach internet. 
+    # If it needs to reach OpenAI, it needs a proxy or we need to allow internet.
+    # Spec says "no internet access".
+    volumes:
+      - ../ai-sentinel:/app
+
+volumes:
+  postgres_data:
+  redis_data:
+
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
