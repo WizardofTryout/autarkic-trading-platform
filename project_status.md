@@ -161,17 +161,17 @@ Um die fehlenden Funktionen zu ergänzen und das "TradingView"-Logo zu entfernen
 ### Phase 6: User Management & Integration [x]
     - [x] Backend: User Model & Auth Endpoints
     - [x] Frontend: Login & Register Pages
-    - [ ] **User Profile & Settings**
-        - [ ] UI: User Profile Page (Manage Account)
-        - [ ] UI: Logout Button in Header
-        - [ ] Feature: Change Password
-        - [ ] Feature: Password Reset Flow (Forgot Password)
-    - [ ] **Strategy Management**
-        - [ ] Backend: Link Strategies to Users (Ownership)
-        - [ ] Backend: Strategy Categories & Favorites
-        - [ ] Frontend: My Strategies Dashboard
-        - [ ] Frontend: Upload/Edit Pine Scripts as User
-        - [ ] **Checkpoint 6.3**: Speicherung von User-spezifischen Strategien und Settings in der DB.
+    - [x] **User Profile & Settings**
+        - [x] UI: User Profile Page (Manage Account)
+        - [x] UI: Logout Button in Header
+        - [x] Feature: Change Password
+        - [x] Feature: Password Reset Flow (Forgot Password)
+    - [x] **Strategy Management**
+        - [x] Backend: Link Strategies to Users (Ownership)
+        - [x] Backend: Strategy Categories & Favorites
+        - [x] Frontend: My Strategies Dashboard
+        - [x] Frontend: Upload/Edit Pine Scripts as User
+        - [x] **Checkpoint 6.3**: Speicherung von User-spezifischen Strategien und Settings in der DB.
 
 ---
 
