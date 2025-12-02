@@ -4,6 +4,7 @@ from typing import Optional
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Autarkic Trading Agent"
     API_V1_STR: str = "/api/v1"
+    SECRET_KEY: str = "CHANGE_THIS_TO_A_SECURE_SECRET_KEY_IN_PRODUCTION"
     
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD_FILE: str = "/run/secrets/db_password"

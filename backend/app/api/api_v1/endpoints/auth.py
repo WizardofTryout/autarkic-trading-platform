@@ -4,12 +4,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
+from jose import jwt
 
 from app.services.vault import VaultService
 from app.api import deps
 from app.core import security
 from app.models.base import User
-from app.schemas.user import UserCreate, UserResponse, Token
+from app.schemas.user import UserCreate, UserResponse, Token, UserPasswordChange
 
 router = APIRouter()
 vault_service = VaultService()
@@ -64,6 +65,77 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
         data={"sub": user.email}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+@router.post("/password-change")
+async def change_password(
+    password_in: UserPasswordChange,
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    if not security.verify_password(password_in.old_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Incorrect old password")
+    
+    current_user.hashed_password = security.get_password_hash(password_in.new_password)
+    db.add(current_user)
+    await db.commit()
+    return {"message": "Password updated successfully"}
+
+    return {"message": "Password updated successfully"}
+
+class PasswordResetRequest(BaseModel):
+    email: str
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
+
+@router.post("/password-reset-request")
+async def request_password_reset(
+    request: PasswordResetRequest,
+    db: AsyncSession = Depends(deps.get_db)
+):
+    result = await db.execute(select(User).where(User.email == request.email))
+    user = result.scalars().first()
+    if user:
+        # Generate a reset token (valid for 15 mins)
+        reset_token = security.create_access_token(
+            data={"sub": user.email, "type": "reset"},
+            expires_delta=timedelta(minutes=15)
+        )
+        # Mock sending email - In production, use an email service
+        print(f"------------ PASSWORD RESET TOKEN FOR {user.email} ------------")
+        print(f"Token: {reset_token}")
+        print("---------------------------------------------------------------")
+        return {"message": "Password reset email sent (check console for token)"}
+    
+    # Always return success to prevent email enumeration
+    return {"message": "Password reset email sent (check console for token)"}
+
+@router.post("/password-reset-confirm")
+async def confirm_password_reset(
+    request: PasswordResetConfirm,
+    db: AsyncSession = Depends(deps.get_db)
+):
+    try:
+        payload = jwt.decode(
+            request.token, security.SECRET_KEY, algorithms=[security.ALGORITHM]
+        )
+        email = payload.get("sub")
+        token_type = payload.get("type")
+        if not email or token_type != "reset":
+            raise HTTPException(status_code=400, detail="Invalid token")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.hashed_password = security.get_password_hash(request.new_password)
+    db.add(user)
+    await db.commit()
+    return {"message": "Password reset successfully"}
 
 @router.get("/vault/status")
 async def get_vault_status():

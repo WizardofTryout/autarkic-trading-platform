@@ -47,6 +47,8 @@ class Strategy(Base):
     compiled_artifact = Column(LargeBinary) # Executable
     parameters = Column(JSONB, default={})
     status = Column(String, default="draft") # draft, testing, active, disabled
+    is_favorite = Column(Boolean, default=False)
+    category = Column(String, default="Personal")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     user = relationship("User", back_populates="strategies")
@@ -61,3 +63,18 @@ class LedgerEntry(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     signer_id = Column(UUID(as_uuid=True), nullable=False)
     hash = Column(String(64), unique=True, nullable=False)
+
+class UserSecret(Base):
+    __tablename__ = "user_secrets"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    key_name = Column(String, nullable=False) # e.g. "BINANCE_API_KEY"
+    encrypted_value = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    user = relationship("User", back_populates="secrets")
+
+# Update User relationship
+User.secrets = relationship("UserSecret", back_populates="user", cascade="all, delete-orphan")

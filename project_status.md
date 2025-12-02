@@ -158,10 +158,20 @@ Um die fehlenden Funktionen zu ergänzen und das "TradingView"-Logo zu entfernen
 - [x] **Checkpoint 5.6**: UI Polish (Chart Scaling, Right Axis, Price Relocation, Indicator Matrix).
 - [x] **Checkpoint 5.7**: Git Workflow Dokumentation & Automatisierung.
 
-### Phase 6: User Management & Integration
-- [ ] **Checkpoint 6.1**: Benutzer-Registrierung & Login Flow vervollständigen.
-- [ ] **Checkpoint 6.2**: Verknüpfung mit "Integrator Set" (Identity/User Mapping).
-- [ ] **Checkpoint 6.3**: Speicherung von User-spezifischen Strategien und Settings in der DB.
+### Phase 6: User Management & Integration [x]
+    - [x] Backend: User Model & Auth Endpoints
+    - [x] Frontend: Login & Register Pages
+    - [ ] **User Profile & Settings**
+        - [ ] UI: User Profile Page (Manage Account)
+        - [ ] UI: Logout Button in Header
+        - [ ] Feature: Change Password
+        - [ ] Feature: Password Reset Flow (Forgot Password)
+    - [ ] **Strategy Management**
+        - [ ] Backend: Link Strategies to Users (Ownership)
+        - [ ] Backend: Strategy Categories & Favorites
+        - [ ] Frontend: My Strategies Dashboard
+        - [ ] Frontend: Upload/Edit Pine Scripts as User
+        - [ ] **Checkpoint 6.3**: Speicherung von User-spezifischen Strategien und Settings in der DB.
 
 ---
 
