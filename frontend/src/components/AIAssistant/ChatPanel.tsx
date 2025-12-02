@@ -13,9 +13,11 @@ interface ChatPanelProps {
     isOpen: boolean;
     onClose: () => void;
     currentScript?: string;
+    initialMessage?: string;
+    analysisContext?: string;
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, initialMessage, analysisContext }) => {
     const { symbol, timeframe } = useTradingStore();
     const [messages, setMessages] = useState<Message[]>([
         { role: 'ai', content: 'Hello! I am your Trading Assistant. How can I help you today?', timestamp: new Date() }
@@ -33,6 +35,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript })
         scrollToBottom();
     }, [messages]);
 
+    useEffect(() => {
+        if (isOpen && initialMessage) {
+            setInput(initialMessage);
+        }
+    }, [isOpen, initialMessage]);
+
     const handleSend = async () => {
         if (!input.trim()) return;
 
@@ -45,7 +53,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript })
             const context = includeContext ? {
                 symbol,
                 timeframe,
-                script: currentScript
+                script: currentScript,
+                analysis_content: analysisContext
             } : undefined;
 
             const response = await chatWithAI(userMsg.content, context);
@@ -88,8 +97,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript })
                 {messages.map((msg, idx) => (
                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[85%] rounded-lg p-3 ${msg.role === 'user'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-800 text-gray-200 border border-gray-700'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-800 text-gray-200 border border-gray-700'
                             }`}>
                             <div className="text-xs opacity-50 mb-1 flex items-center gap-1">
                                 {msg.role === 'ai' ? <Bot size={12} /> : <User size={12} />}

@@ -11,6 +11,7 @@ import ResetPassword from './components/Auth/ResetPassword';
 import SettingsPage from './components/SettingsPage';
 import SymbolSearch from './components/SymbolSearch';
 import ChatPanel from './components/AIAssistant/ChatPanel';
+import ResearchPanel from './components/Research/ResearchPanel';
 import { useAuthStore } from './store/authStore';
 import { useTradingStore } from './store/tradingStore';
 import { Bot, LogOut, User, Settings } from 'lucide-react';
@@ -29,6 +30,15 @@ function App() {
   const { symbol, timeframe } = useTradingStore();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [currentScript, setCurrentScript] = useState('');
+  const [activeTab, setActiveTab] = useState<'chart' | 'analysis'>('chart');
+  const [chatInitialMessage, setChatInitialMessage] = useState('');
+  const [currentAnalysis, setCurrentAnalysis] = useState<string | undefined>(undefined);
+
+  const handleDiscussAnalysis = (analysis: string) => {
+    setCurrentAnalysis(analysis);
+    setChatInitialMessage(`I have a question about the current analysis for ${symbol}.`);
+    setIsChatOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 font-sans flex flex-col">
@@ -41,6 +51,24 @@ function App() {
           {isAuthenticated && <SymbolSearch />}
         </div>
 
+        {/* Center Navigation Toggle */}
+        {isAuthenticated && (
+          <div className="bg-gray-900/50 border border-gray-700 rounded-full p-1 flex gap-1">
+            <button
+              onClick={() => setActiveTab('chart')}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'chart' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Chart
+            </button>
+            <button
+              onClick={() => setActiveTab('analysis')}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'analysis' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Analysis
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center gap-4">
           {isAuthenticated ? (
             <>
@@ -51,7 +79,7 @@ function App() {
               >
                 <Bot className="w-5 h-5" />
               </button>
-              <Link to="/" className="text-gray-300 hover:text-white transition-colors">Dashboard</Link>
+              <Link to="/" onClick={() => setActiveTab('chart')} className="text-gray-300 hover:text-white transition-colors">Dashboard</Link>
               <div className="relative group">
                 <button className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors focus:outline-none">
                   <User className="w-5 h-5" />
@@ -105,20 +133,32 @@ function App() {
             <ProtectedRoute>
               <div className="flex flex-col h-[calc(100vh-64px)]">
                 <div className="flex-1 flex overflow-hidden">
-                  {/* Chart Area */}
-                  <div className="flex-1 flex flex-col min-w-0 border-r border-gray-800">
+                  {/* Main Viewer Area (Chart or Analysis) */}
+                  <div className="flex-1 flex flex-col min-w-0 border-r border-gray-800 relative">
+
                     <div className="flex-1 relative">
-                      <AdvancedFinancialChart
-                        data={[]}
-                        symbol={symbol}
-                        timeframe={timeframe}
-                        height={500}
-                      />
+                      {activeTab === 'chart' ? (
+                        <AdvancedFinancialChart
+                          data={[]}
+                          symbol={symbol}
+                          timeframe={timeframe}
+                          height={500}
+                        />
+                      ) : (
+                        <ResearchPanel
+                          symbol={symbol}
+                          onDiscuss={handleDiscussAnalysis}
+                          onBack={() => setActiveTab('chart')}
+                        />
+                      )}
                     </div>
-                    {/* Pine Script Editor Panel */}
-                    <div className="h-1/3 border-t border-gray-800 bg-gray-900">
-                      <PineScriptPanel onScriptChange={setCurrentScript} />
-                    </div>
+
+                    {/* Pine Script Editor Panel (Only visible in Chart mode) */}
+                    {activeTab === 'chart' && (
+                      <div className="h-1/3 border-t border-gray-800 bg-gray-900">
+                        <PineScriptPanel onScriptChange={setCurrentScript} />
+                      </div>
+                    )}
                   </div>
 
                   {/* Sidebar (Order Entry) */}
@@ -137,6 +177,8 @@ function App() {
             isOpen={isChatOpen}
             onClose={() => setIsChatOpen(false)}
             currentScript={currentScript}
+            initialMessage={chatInitialMessage}
+            analysisContext={currentAnalysis}
           />
         )}
       </main>

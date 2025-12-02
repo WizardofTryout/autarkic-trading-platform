@@ -104,7 +104,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
             console.log('fetchData started for timeframe:', selectedTimeframe);
             try {
                 // const { getMarketData } = await import('../../services/api'); // Removed dynamic import
-                const rawData = await getMarketData("BTC/USDT", selectedTimeframe);
+                const rawData = await getMarketData(symbol, selectedTimeframe);
                 console.log('fetchData rawData:', rawData);
 
                 if (Array.isArray(rawData)) {
@@ -137,7 +137,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
         };
 
         fetchData();
-    }, [selectedTimeframe]);
+    }, [selectedTimeframe, symbol]);
 
     // Local state for indicator visibility
     const [visibleIndicators, setVisibleIndicators] = useState({
@@ -201,7 +201,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
         const volumeScale = d3.scaleLinear()
             .domain([0, d3.max(visibleData, (d: IndicatorData) => d.volume) || 0])
-            .range([dimensions.height - margin.bottom - 40, dimensions.height - margin.bottom]);
+            .range([dimensions.height - margin.bottom, dimensions.height - margin.bottom - volumeHeight]);
 
         // Main chart group
         const chartGroup = svg.append('g');
@@ -519,7 +519,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                 .attr('x', (d: IndicatorData) => xScale(d.date) - 2)
                 .attr('y', (d: IndicatorData) => volumeScale(d.volume || 0))
                 .attr('width', 4)
-                .attr('height', (d: IndicatorData) => volumeHeight - volumeScale(d.volume || 0))
+                .attr('height', (d: IndicatorData) => (dimensions.height - margin.bottom) - volumeScale(d.volume || 0))
                 .attr('fill', (d: IndicatorData) => d.close > d.open ? '#10B981' : '#EF4444')
                 .attr('opacity', 0.6);
 
@@ -657,6 +657,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
             const timeStr = dateObj.toISOString().replace('T', ' ').substring(0, 19);
 
             const newCandleData = {
+                date: dateObj,
                 time: timeStr,
                 open: candle.open,
                 high: candle.high,

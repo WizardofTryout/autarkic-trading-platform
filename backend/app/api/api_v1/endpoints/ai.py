@@ -70,6 +70,8 @@ async def chat_with_ai(
                 user_context += f"\n\nCurrent Symbol: {request.context['symbol']}"
             if "timeframe" in request.context:
                 user_context += f"\nTimeframe: {request.context['timeframe']}"
+            if "analysis_content" in request.context:
+                user_context += f"\n\nCurrent Analysis Context:\n{request.context['analysis_content']}"
 
         full_prompt = f"{system_context}\n{user_context}\n\nUser: {request.message}"
         
