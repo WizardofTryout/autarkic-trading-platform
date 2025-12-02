@@ -24,3 +24,16 @@ This document serves as the single source of truth for general development workf
 - **FastAPI** for all API endpoints.
 - **Pydantic** for data validation.
 - **SQLAlchemy** (Async) for database interactions.
+
+## 4. Version Control & Git Workflow
+### 🚀 Automated Commits & Pushes
+- **Capability**: The AI agent is authorized to perform Git commits and pushes to the remote repository.
+- **Trigger**:
+    - Explicit user request (e.g., "Please push changes").
+    - Completion of a significant Milestone or Task.
+- **Workflow**:
+    1.  **Check Status**: `git status` to verify changes.
+    2.  **Stage Changes**: `git add .` (or specific files).
+    3.  **Commit**: `git commit -m "Type: Description of changes"` (e.g., "Feat: Implemented User Login").
+    4.  **Push**: `git push` to the current branch.
+- **Note**: Always ensure the branch is up-to-date before pushing.
