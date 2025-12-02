@@ -65,6 +65,11 @@ export const executeStrategy = async (script: string, symbol: string = "BTC/USDT
     return response.json();
 };
 
+export const getMarketData = async (symbol: string = "BTC/USDT", timeframe: string = "1h") => {
+    const response = await fetch(`${API_BASE}/market/ohlcv?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`);
+    return response.json();
+};
+
 export const getStrategies = async () => {
     const response = await fetch(`${API_BASE}/strategies/`);
     if (!response.ok) {

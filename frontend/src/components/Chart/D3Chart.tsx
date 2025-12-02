@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import * as d3 from 'd3';
 import {
     addTechnicalIndicators,
@@ -7,7 +7,9 @@ import {
     type TradingSignal
 } from '../../utils/technicalIndicators';
 import IndicatorMatrix from '../IndicatorMatrix';
-import { LayoutGrid } from 'lucide-react';
+import { useBinanceWebSocket } from '../../hooks/useBinanceWebSocket';
+import { getMarketData } from '../../services/api';
+import { LayoutGrid, Info, X } from 'lucide-react';
 
 interface CandlestickData {
     time: string | number;
@@ -54,7 +56,84 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
     const [indicatorData, setIndicatorData] = useState<IndicatorData[]>([]);
     const [tradingSignal, setTradingSignal] = useState<TradingSignal>({ type: 'neutral', strength: 0, reasons: [] });
     const [executionSignals, setExecutionSignals] = useState<any[]>([]);
+    const [selectedTimeframe, setSelectedTimeframe] = useState('1h');
     const [isMatrixOpen, setIsMatrixOpen] = useState(false);
+    const [isOverlayVisible, setIsOverlayVisible] = useState(true);
+
+    console.log('D3Chart Body Executing. Selected Timeframe:', selectedTimeframe);
+
+    // Force initial fetch on mount
+    useEffect(() => {
+        console.log('Mount effect: Fetching initial data for', selectedTimeframe);
+        const fetchInitialData = async () => {
+            try {
+                const rawData = await getMarketData("BTC/USDT", selectedTimeframe);
+                console.log('Mount effect rawData:', rawData);
+                if (Array.isArray(rawData)) {
+                    const parseDate = d3.timeParse('%Y-%m-%d %H:%M:%S');
+                    const processedData = rawData.map((item: any) => {
+                        const date = parseDate(item.time) || new Date(item.time);
+                        return {
+                            date,
+                            time: date.getTime() / 1000,
+                            open: item.open,
+                            high: item.high,
+                            low: item.low,
+                            close: item.close,
+                            volume: item.volume
+                        };
+                    }).sort((a, b) => a.date.getTime() - b.date.getTime());
+                    const dataWithIndicators = addTechnicalIndicators(processedData);
+                    console.log('Mount effect setting indicatorData with', dataWithIndicators.length, 'items');
+                    setIndicatorData(dataWithIndicators);
+                }
+            } catch (error) {
+                console.error("Mount effect failed:", error);
+            }
+        };
+        fetchInitialData();
+    }, []); // Empty dependency array for mount only
+
+    // Fetch market data when timeframe changes
+    useEffect(() => {
+        const fetchData = async () => {
+            console.log('fetchData started for timeframe:', selectedTimeframe);
+            try {
+                // const { getMarketData } = await import('../../services/api'); // Removed dynamic import
+                const rawData = await getMarketData("BTC/USDT", selectedTimeframe);
+                console.log('fetchData rawData:', rawData);
+
+                if (Array.isArray(rawData)) {
+                    console.log('fetchData processing', rawData.length, 'items');
+                    // Process raw data to match IndicatorData format
+                    const parseDate = d3.timeParse('%Y-%m-%d %H:%M:%S');
+                    const processedData = rawData.map((item: any) => {
+                        const date = parseDate(item.time) || new Date(item.time);
+                        return {
+                            date,
+                            time: date.getTime() / 1000, // Unix timestamp for indicators
+                            open: item.open,
+                            high: item.high,
+                            low: item.low,
+                            close: item.close,
+                            volume: item.volume
+                        };
+                    }).sort((a, b) => a.date.getTime() - b.date.getTime());
+
+                    // Calculate indicators
+                    const dataWithIndicators = addTechnicalIndicators(processedData);
+                    console.log('fetchData setting indicatorData with', dataWithIndicators.length, 'items');
+                    setIndicatorData(dataWithIndicators);
+                } else {
+                    console.warn('fetchData: rawData is not an array', rawData);
+                }
+            } catch (error) {
+                console.error("Failed to fetch market data:", error);
+            }
+        };
+
+        fetchData();
+    }, [selectedTimeframe]);
 
     // Local state for indicator visibility
     const [visibleIndicators, setVisibleIndicators] = useState({
@@ -64,77 +143,13 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
         sma: showIndicators,
         volume: showVolume
     });
-    // const [selectedTool, setSelectedTool] = useState<'trendline' | 'fibonacci' | 'none'>('none');
-    // const [isDrawing, setIsDrawing] = useState(false);
-    // const [drawStartPoint, setDrawStartPoint] = useState<{ x: number, y: number } | null>(null);
 
-    // Konvertiere und bereite Daten auf
-    useEffect(() => {
-        if (data.length === 0) return;
-
-        const parseDate = d3.timeParse('%Y-%m-%d');
-        const formattedData: ChartData[] = data.map((item) => {
-            let date: Date;
-
-            if (typeof item.time === 'string') {
-                date = parseDate(item.time) || new Date(item.time) || new Date();
-            } else {
-                date = new Date(item.time * 1000);
-            }
-
-            return {
-                date,
-                open: item.open,
-                high: item.high,
-                low: item.low,
-                close: item.close,
-                volume: item.volume || Math.floor(Math.random() * 1000000) + 100000,
-            };
-        }).sort((a, b) => a.date.getTime() - b.date.getTime());
-
-        // Berechne technische Indikatoren
-        const calculateSMA = (data: ChartData[], period: number) => {
-            return data.map((item, index) => {
-                if (index < period - 1) return { ...item };
-
-                const sum = data.slice(index - period + 1, index + 1)
-                    .reduce((acc, curr) => acc + curr.close, 0);
-
-                return {
-                    ...item,
-                    sma20: sum / period
-                };
-            });
-        };
-
-        const calculateEMA = (data: ChartData[], period: number) => {
-            const k = 2 / (period + 1);
-            return data.map((item, index) => {
-                if (index === 0) return { ...item, ema20: item.close };
-
-                const prevEMA = data[index - 1].ema20 || item.close;
-                return {
-                    ...item,
-                    ema20: item.close * k + prevEMA * (1 - k)
-                };
-            });
-        };
-
-        let processedData = calculateSMA(formattedData, 20);
-        processedData = calculateEMA(processedData, 20);
-
-        // Calculate technical indicators if enabled
-        const dataWithTime = processedData.map(item => ({
-            ...item,
-            time: item.date.getTime() / 1000 // Convert to Unix timestamp
-        }));
-        const dataWithIndicators = addTechnicalIndicators(dataWithTime);
-        setIndicatorData(dataWithIndicators);
-
-        // Calculate trading signals
-        const signals = getTradingSignals(dataWithIndicators);
-        setTradingSignal(signals);
-    }, [data]);
+    // Konvertiere und bereite Daten auf - REMOVED to prevent overwriting fetched data
+    // useEffect(() => {
+    //     if (data.length === 0) return;
+    //     console.log('Processing initial data prop:', data.length);
+    //     ...
+    // }, [data]);
 
     // Dimensionen basierend auf Container-Größe
     useEffect(() => {
@@ -157,58 +172,79 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
     useEffect(() => {
         if (!svgRef.current || indicatorData.length === 0) return;
 
+        console.log('D3Chart Rendering with data:', indicatorData.length, indicatorData[0]);
+
         const svg = d3.select(svgRef.current);
         svg.selectAll("*").remove();
 
+        // Constants
+        const VISIBLE_CANDLES = 100;
+        const visibleData = indicatorData.slice(-VISIBLE_CANDLES);
 
-
-        const margin = { top: 20, right: 60, bottom: visibleIndicators.volume ? 120 : 60, left: 60 };
+        const margin = { top: 20, right: 60, bottom: visibleIndicators.volume ? 120 : 60, left: 10 }; // Reduced left margin, right margin for axis
         const chartHeight = visibleIndicators.volume ? dimensions.height * 0.7 : dimensions.height - margin.top - margin.bottom;
         const volumeHeight = visibleIndicators.volume ? dimensions.height * 0.2 : 0;
         const width = dimensions.width - margin.left - margin.right;
 
         // Scales
         const xScale = d3.scaleTime()
-            .domain(d3.extent(indicatorData, (d: IndicatorData) => d.date) as [Date, Date])
+            .domain(d3.extent(visibleData, (d: IndicatorData) => d.date) as [Date, Date])
             .range([margin.left, dimensions.width - margin.right]);
 
         const yScale = d3.scaleLinear()
-            .domain(d3.extent(indicatorData, (d: IndicatorData) => Math.max(d.high, d.low)) as [number, number])
+            .domain(d3.extent(visibleData, (d: IndicatorData) => Math.max(d.high, d.low)) as [number, number])
             .range([dimensions.height - margin.bottom - 100, margin.top]);
 
         const volumeScale = d3.scaleLinear()
-            .domain([0, d3.max(indicatorData, (d: IndicatorData) => d.volume) || 0])
+            .domain([0, d3.max(visibleData, (d: IndicatorData) => d.volume) || 0])
             .range([dimensions.height - margin.bottom - 40, dimensions.height - margin.bottom]);
 
         // Main chart group
-        const chartGroup = svg.append('g')
-            .attr('transform', `translate(${margin.left}, ${margin.top})`);
+        const chartGroup = svg.append('g');
+        // .attr('transform', `translate(${margin.left}, ${margin.top})`); // No translation needed if ranges handle margins
 
         // Axes
         const xAxis = d3.axisBottom(xScale)
             .tickFormat((domainValue: d3.AxisDomain) => {
                 const date = domainValue as Date;
+                if (['1m', '5m', '15m', '30m', '1h', '4h'].includes(selectedTimeframe)) {
+                    return d3.timeFormat('%H:%M')(date);
+                }
                 return d3.timeFormat('%m/%d')(date);
             });
 
-        const yAxis = d3.axisLeft(yScale)
+        // Right Y-Axis
+        const yAxisRight = d3.axisRight(yScale)
             .tickFormat((domainValue: d3.AxisDomain) => {
                 const value = domainValue as number;
-                return `$${value.toFixed(0)} `;
+                return `$${value.toFixed(2)}`;
             });
 
         chartGroup.append('g')
-            .attr('transform', `translate(0, ${chartHeight})`)
+            .attr('transform', `translate(0, ${chartHeight + margin.top})`) // Position at bottom of chart area
             .call(xAxis as any)
             .attr('class', 'text-gray-400');
 
         chartGroup.append('g')
-            .call(yAxis as any)
+            .attr('transform', `translate(${dimensions.width - margin.right}, 0)`) // Position at right edge
+            .call(yAxisRight as any)
             .attr('class', 'text-gray-400');
+
+        // Gridlines (Optional but helpful)
+        const make_y_gridlines = () => d3.axisLeft(yScale).ticks(5);
+        chartGroup.append("g")
+            .attr("class", "grid")
+            .attr("opacity", 0.1)
+            .call(make_y_gridlines()
+                .tickSize(-width)
+                .tickFormat(() => "") as any
+            )
+            .attr('transform', `translate(${margin.left}, 0)`);
+
 
         // Candlesticks
         const candlesticks = chartGroup.selectAll('.candlestick')
-            .data(indicatorData)
+            .data(visibleData.filter(d => d.open !== undefined && d.close !== undefined && d.high !== undefined && d.low !== undefined))
             .enter()
             .append('g')
             .attr('class', 'candlestick');
@@ -224,19 +260,29 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
         // Candle bodies
         candlesticks.append('rect')
-            .attr('x', (d: IndicatorData) => xScale(d.date) - 3)
+            .attr('x', (d: IndicatorData) => xScale(d.date) - 3) // Fixed width for now, could be dynamic based on width/count
             .attr('y', (d: IndicatorData) => yScale(Math.max(d.open, d.close)))
             .attr('width', 6)
-            .attr('height', (d: IndicatorData) => Math.abs(yScale(d.open) - yScale(d.close)) || 1)
+            .attr('height', (d: IndicatorData) => {
+                const h = Math.abs(yScale(d.open) - yScale(d.close));
+                return Math.max(h, 1); // Ensure min height of 1px
+            })
             .attr('fill', (d: IndicatorData) => d.close > d.open ? '#10B981' : '#EF4444')
             .attr('stroke', (d: IndicatorData) => d.close > d.open ? '#10B981' : '#EF4444');
 
-        // Execution Signals (Arrows)
-        if (executionSignals.length > 0) {
+        // Execution Signals (Arrows) - Filtered for visible range
+        const visibleSignals = executionSignals.filter(s => {
+            const t = new Date(s.timestamp).getTime();
+            const minTime = visibleData[0].date.getTime();
+            const maxTime = visibleData[visibleData.length - 1].date.getTime();
+            return t >= minTime && t <= maxTime;
+        });
+
+        if (visibleSignals.length > 0) {
             const signalGroup = chartGroup.append('g').attr('class', 'signals');
 
             signalGroup.selectAll('.signal-marker')
-                .data(executionSignals)
+                .data(visibleSignals)
                 .enter()
                 .append('path')
                 .attr('d', (d: any) => {
@@ -263,10 +309,10 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
         // Technical indicators
         if (visibleIndicators.sma || visibleIndicators.rsi || visibleIndicators.bollingerBands || visibleIndicators.macd) {
             // RSI Indicator (if enabled)
-            if (visibleIndicators.rsi && indicatorData.some(d => d.rsi !== undefined)) {
+            if (visibleIndicators.rsi && visibleData.some(d => d.rsi !== undefined)) {
                 const rsiHeight = 80;
                 const rsiGroup = svg.append('g')
-                    .attr('transform', `translate(${margin.left}, ${dimensions.height - rsiHeight - 20})`);
+                    .attr('transform', `translate(0, ${dimensions.height - rsiHeight - 20})`); // No left margin translation needed if xScale handles it
 
                 const rsiScale = d3.scaleLinear()
                     .domain([0, 100])
@@ -277,7 +323,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                     .y((d: IndicatorData) => rsiScale(d.rsi || 50))
                     .curve(d3.curveMonotoneX);
 
-                const validRSIData = indicatorData.filter((d: IndicatorData) => d.rsi !== undefined);
+                const validRSIData = visibleData.filter((d: IndicatorData) => d.rsi !== undefined);
                 if (validRSIData.length > 0) {
                     rsiGroup.append('path')
                         .datum(validRSIData)
@@ -288,8 +334,8 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
                     // RSI levels (30 and 70)
                     rsiGroup.append('line')
-                        .attr('x1', 0)
-                        .attr('x2', dimensions.width - margin.left - margin.right)
+                        .attr('x1', margin.left)
+                        .attr('x2', dimensions.width - margin.right)
                         .attr('y1', rsiScale(70))
                         .attr('y2', rsiScale(70))
                         .attr('stroke', '#EF4444')
@@ -297,8 +343,8 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                         .attr('opacity', 0.5);
 
                     rsiGroup.append('line')
-                        .attr('x1', 0)
-                        .attr('x2', dimensions.width - margin.left - margin.right)
+                        .attr('x1', margin.left)
+                        .attr('x2', dimensions.width - margin.right)
                         .attr('y1', rsiScale(30))
                         .attr('y2', rsiScale(30))
                         .attr('stroke', '#10B981')
@@ -308,7 +354,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
             }
 
             // Bollinger Bands (if enabled)
-            if (visibleIndicators.bollingerBands && indicatorData.some(d => d.bollingerBands)) {
+            if (visibleIndicators.bollingerBands && visibleData.some(d => d.bollingerBands)) {
                 const upperLine = d3.line<IndicatorData>()
                     .x((d: IndicatorData) => xScale(d.date))
                     .y((d: IndicatorData) => yScale(d.bollingerBands?.upper || 0))
@@ -328,7 +374,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                     .defined((d: IndicatorData) => d.bollingerBands?.middle !== null && d.bollingerBands?.middle !== undefined);
 
                 // Filter for valid Bollinger data but keep all data points for continuous lines
-                const validBollingerData = indicatorData.filter((d: IndicatorData) =>
+                const validBollingerData = visibleData.filter((d: IndicatorData) =>
                     d.bollingerBands?.upper !== null && d.bollingerBands?.upper !== undefined &&
                     d.bollingerBands?.lower !== null && d.bollingerBands?.lower !== undefined &&
                     d.bollingerBands?.middle !== null && d.bollingerBands?.middle !== undefined);
@@ -350,7 +396,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
                     // Upper band
                     chartGroup.append('path')
-                        .datum(indicatorData)  // Use all data, let the line.defined() handle gaps
+                        .datum(visibleData)  // Use all data, let the line.defined() handle gaps
                         .attr('fill', 'none')
                         .attr('stroke', '#6366F1')
                         .attr('stroke-width', 1.5)
@@ -360,7 +406,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
                     // Lower band
                     chartGroup.append('path')
-                        .datum(indicatorData)  // Use all data, let the line.defined() handle gaps
+                        .datum(visibleData)  // Use all data, let the line.defined() handle gaps
                         .attr('fill', 'none')
                         .attr('stroke', '#6366F1')
                         .attr('stroke-width', 1.5)
@@ -370,7 +416,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
                     // Middle band (20-period SMA)
                     chartGroup.append('path')
-                        .datum(indicatorData)  // Use all data, let the line.defined() handle gaps
+                        .datum(visibleData)  // Use all data, let the line.defined() handle gaps
                         .attr('fill', 'none')
                         .attr('stroke', '#6366F1')
                         .attr('stroke-width', 2)
@@ -380,12 +426,12 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
             }
 
             // MACD Indicator (if enabled)
-            if (visibleIndicators.macd && indicatorData.some(d => d.macd)) {
+            if (visibleIndicators.macd && visibleData.some(d => d.macd)) {
                 const macdHeight = 100;
                 const macdGroup = svg.append('g')
-                    .attr('transform', `translate(${margin.left}, ${dimensions.height - macdHeight - 120})`);
+                    .attr('transform', `translate(0, ${dimensions.height - macdHeight - 120})`);
 
-                const macdValues = indicatorData
+                const macdValues = visibleData
                     .filter(d => d.macd)
                     .map(d => [d.macd!.macd, d.macd!.signal, d.macd!.histogram])
                     .flat();
@@ -404,7 +450,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                     .y((d: IndicatorData) => macdScale(d.macd?.signal || 0))
                     .curve(d3.curveMonotoneX);
 
-                const validMACDData = indicatorData.filter((d: IndicatorData) => d.macd);
+                const validMACDData = visibleData.filter((d: IndicatorData) => d.macd);
                 if (validMACDData.length > 0) {
                     // MACD line
                     macdGroup.append('path')
@@ -444,7 +490,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                     .y((d: IndicatorData) => yScale(d.sma20 || 0))
                     .curve(d3.curveMonotoneX);
 
-                const validSMAData = indicatorData.filter((d: IndicatorData) => d.sma20);
+                const validSMAData = visibleData.filter((d: IndicatorData) => d.sma20);
                 if (validSMAData.length > 0) {
                     chartGroup.append('path')
                         .datum(validSMAData)
@@ -459,10 +505,10 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
         // Volume chart
         if (visibleIndicators.volume) {
             const volumeGroup = svg.append('g')
-                .attr('transform', `translate(${margin.left}, ${margin.top + chartHeight + 40})`);
+                .attr('transform', `translate(0, ${margin.top + chartHeight + 40})`);
 
             volumeGroup.selectAll('.volume-bar')
-                .data(indicatorData)
+                .data(visibleData)
                 .enter()
                 .append('rect')
                 .attr('class', 'volume-bar')
@@ -482,6 +528,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
             volumeGroup.append('g')
                 .call(volumeAxis as any)
+                .attr('transform', `translate(${margin.left}, 0)`)
                 .attr('class', 'text-gray-400');
         }
 
@@ -492,15 +539,15 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
         focus.append('line')
             .attr('class', 'x-hover-line hover-line')
-            .attr('y1', 0)
-            .attr('y2', chartHeight)
+            .attr('y1', margin.top)
+            .attr('y2', chartHeight + margin.top)
             .style('stroke', '#6B7280')
             .style('stroke-dasharray', '3,3');
 
         focus.append('line')
             .attr('class', 'y-hover-line hover-line')
-            .attr('x1', 0)
-            .attr('x2', width)
+            .attr('x1', margin.left)
+            .attr('x2', dimensions.width - margin.right)
             .style('stroke', '#6B7280')
             .style('stroke-dasharray', '3,3');
 
@@ -508,6 +555,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
             .attr('class', 'overlay')
             .attr('width', width)
             .attr('height', chartHeight)
+            .attr('transform', `translate(${margin.left}, ${margin.top})`)
             .style('fill', 'none')
             .style('pointer-events', 'all')
             .on('mouseover', () => focus.style('display', null))
@@ -517,9 +565,9 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                 const x0 = xScale.invert(mouseX);
                 // Mouse position to data mapping
                 const bisect = d3.bisector<IndicatorData, Date>((d: IndicatorData) => d.date).left;
-                const i = bisect(indicatorData, x0, 1);
-                const d0 = indicatorData[i - 1];
-                const d1 = indicatorData[i];
+                const i = bisect(visibleData, x0, 1);
+                const d0 = visibleData[i - 1];
+                const d1 = visibleData[i];
                 const d = d1 && x0.getTime() - d0.date.getTime() > d1.date.getTime() - x0.getTime() ? d1 : d0;
 
                 if (d) {
@@ -528,9 +576,101 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                 }
             });
 
-
-
     }, [indicatorData, dimensions, visibleIndicators, executionSignals]);
+
+    // Fetch market data when timeframe changes
+    useEffect(() => {
+        const fetchData = async () => {
+            console.log('fetchData started for timeframe:', selectedTimeframe);
+            try {
+                // const { getMarketData } = await import('../../services/api'); // Removed dynamic import
+                const rawData = await getMarketData("BTC/USDT", selectedTimeframe);
+                console.log('fetchData rawData:', rawData);
+
+                if (Array.isArray(rawData)) {
+                    console.log('fetchData processing', rawData.length, 'items');
+                    // Process raw data to match IndicatorData format
+                    const parseDate = d3.timeParse('%Y-%m-%d %H:%M:%S');
+                    const processedData = rawData.map((item: any) => {
+                        const date = parseDate(item.time) || new Date(item.time);
+                        return {
+                            date,
+                            time: date.getTime() / 1000, // Unix timestamp for indicators
+                            open: item.open,
+                            high: item.high,
+                            low: item.low,
+                            close: item.close,
+                            volume: item.volume
+                        };
+                    }).sort((a, b) => a.date.getTime() - b.date.getTime());
+
+                    // Calculate indicators
+                    const dataWithIndicators = addTechnicalIndicators(processedData);
+                    console.log('fetchData setting indicatorData with', dataWithIndicators.length, 'items');
+                    setIndicatorData(dataWithIndicators);
+                } else {
+                    console.warn('fetchData: rawData is not an array', rawData);
+                }
+            } catch (error) {
+                console.error("Failed to fetch market data:", error);
+            }
+        };
+
+        fetchData();
+    }, [selectedTimeframe]);
+
+    // Real-time updates via Binance WebSocket
+    const handleRealTimeUpdate = useCallback((candle: any) => {
+        setIndicatorData(prevData => {
+            if (prevData.length === 0) return prevData;
+
+            const lastCandle = prevData[prevData.length - 1];
+            // We need to be careful about formats.
+            // Let's assume for now we just update the last one if it looks "current" 
+            // or append if it's clearly new.
+
+            // Simplification: If the incoming candle timestamp is > last candle timestamp (parsed), append.
+            // Else update.
+
+            // Actually, if newTime > lastTime, it means the previous candle closed and this is a new one?
+            // Or is lastCandle.time the start time?
+            // Binance k.t is start time.
+
+            // If k.t > lastCandle.time, it's a new candle.
+            // If k.t == lastCandle.time, it's an update.
+
+            // We need to parse lastCandle.time correctly.
+            // Backend sends local time string? Or UTC?
+            // CCXT usually sends UTC.
+
+            // Let's try to match strictly.
+            const lastTime = new Date(lastCandle.time).getTime();
+            const newTime = candle.timestamp;
+
+            // Format time string for the new candle to match backend format
+            const dateObj = new Date(newTime);
+            // Simple YYYY-MM-DD HH:MM:SS format
+            const timeStr = dateObj.toISOString().replace('T', ' ').substring(0, 19);
+
+            const newCandleData = {
+                time: timeStr,
+                open: candle.open,
+                high: candle.high,
+                low: candle.low,
+                close: candle.close,
+                volume: candle.volume
+            };
+
+            if (newTime > lastTime + 1000) { // Tolerance
+                return [...prevData, newCandleData];
+            } else {
+                // Update last candle
+                const newData = [...prevData];
+                newData[newData.length - 1] = newCandleData;
+                return newData;
+            }
+        });
+    }, []);
 
     const currentData = indicatorData[indicatorData.length - 1];
 
@@ -540,20 +680,26 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
             <div className="flex items-center justify-between p-4 border-b border-gray-700">
                 <div className="flex items-center space-x-4">
                     <h3 className="text-white font-semibold">Advanced Financial Chart</h3>
-                    <div className="text-sm text-gray-400">
-                        Powered by D3.js • Live Data Updates
+
+                    {/* Timeframe Selector */}
+                    <div className="flex bg-gray-800 rounded-lg p-1 space-x-1">
+                        {['1m', '5m', '15m', '30m', '1h', '4h', '1d'].map((tf) => (
+                            <button
+                                key={tf}
+                                onClick={() => setSelectedTimeframe(tf)}
+                                className={`px-2 py-1 text-xs font-medium rounded ${selectedTimeframe === tf
+                                    ? 'bg-blue-600 text-white'
+                                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                                    } transition-colors`}
+                            >
+                                {tf}
+                            </button>
+                        ))}
                     </div>
                 </div>
 
                 <div className="flex items-center space-x-4">
-                    <button
-                        onClick={() => setIsMatrixOpen(true)}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
-                    >
-                        <LayoutGrid size={16} />
-                        Indicators
-                    </button>
-                    <div className="flex items-center space-x-4 text-sm">
+                    <div className="flex items-center space-x-4 text-sm mr-4">
                         <label className="flex items-center text-gray-300 cursor-pointer hover:text-white">
                             <input
                                 type="checkbox"
@@ -570,7 +716,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                                 onChange={(e) => setVisibleIndicators(prev => ({ ...prev, bollingerBands: e.target.checked }))}
                                 className="mr-2"
                             />
-                            Bollinger Bands
+                            BB
                         </label>
                         <label className="flex items-center text-gray-300 cursor-pointer hover:text-white">
                             <input
@@ -597,9 +743,25 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                                 onChange={(e) => setVisibleIndicators(prev => ({ ...prev, volume: e.target.checked }))}
                                 className="mr-2"
                             />
-                            Volume
+                            Vol
                         </label>
                     </div>
+
+                    <button
+                        onClick={() => setIsMatrixOpen(true)}
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+                    >
+                        <LayoutGrid size={16} />
+                        Indicators
+                    </button>
+
+                    <button
+                        onClick={() => setIsOverlayVisible(!isOverlayVisible)}
+                        className={`p-1.5 rounded-md transition-colors ${isOverlayVisible ? 'text-blue-400 bg-gray-700' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                        title="Toggle Chart Info"
+                    >
+                        <Info size={18} />
+                    </button>
                 </div>
             </div>
 
@@ -657,45 +819,58 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                 />
 
                 {/* Trading Signal & Technical Analysis Indicators */}
-                <div className="absolute top-4 right-4 space-y-2">
-                    {/* Trading Signal */}
-                    {tradingSignal && (
-                        <div className="bg-gray-800 bg-opacity-95 rounded-lg p-3 text-xs border border-gray-600">
-                            <div className="flex items-center space-x-2 mb-2">
-                                <div className={`w - 2 h - 2 rounded - full ${tradingSignal.type === 'buy' ? 'bg-green-500' :
-                                    tradingSignal.type === 'sell' ? 'bg-red-500' : 'bg-yellow-500'
-                                    } `}></div>
-                                <span className={`font - semibold ${tradingSignal.type === 'buy' ? 'text-green-400' :
-                                    tradingSignal.type === 'sell' ? 'text-red-400' : 'text-yellow-400'
-                                    } `}>
-                                    {tradingSignal.type.toUpperCase()} Signal
-                                </span>
-                                <span className="text-gray-400">
-                                    ({tradingSignal.strength}%)
-                                </span>
-                            </div>
-                            {tradingSignal.reasons.length > 0 && (
-                                <div className="text-gray-300">
-                                    {tradingSignal.reasons.join(', ')}
+                {isOverlayVisible && (
+                    <div className="absolute top-4 left-4 space-y-2 w-64">
+                        {/* Trading Signal */}
+                        {tradingSignal && (
+                            <div className="bg-gray-800 bg-opacity-95 rounded-lg p-3 text-xs border border-gray-600 shadow-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center space-x-2">
+                                        <div className={`w-2 h-2 rounded-full ${tradingSignal.type === 'buy' ? 'bg-green-500' :
+                                            tradingSignal.type === 'sell' ? 'bg-red-500' : 'bg-yellow-500'
+                                            } `}></div>
+                                        <span className={`font-semibold ${tradingSignal.type === 'buy' ? 'text-green-400' :
+                                            tradingSignal.type === 'sell' ? 'text-red-400' : 'text-yellow-400'
+                                            } `}>
+                                            {tradingSignal.type.toUpperCase()} Signal
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={() => setIsOverlayVisible(false)}
+                                        className="text-gray-400 hover:text-white"
+                                    >
+                                        <X size={14} />
+                                    </button>
                                 </div>
-                            )}
-                        </div>
-                    )}
+                                <div className="flex items-center justify-between">
+                                    <span className="text-gray-400">Strength:</span>
+                                    <span className="text-gray-300">
+                                        {tradingSignal.strength}%
+                                    </span>
+                                </div>
+                                {tradingSignal.reasons.length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-gray-700 text-gray-400">
+                                        {tradingSignal.reasons.join(', ')}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
-                    {/* Technical Indicators Status */}
-                    <div className="bg-gray-800 bg-opacity-95 rounded-lg p-3 text-xs border border-gray-600">
-                        <div className="text-white font-semibold mb-2">Phase 1 Indicators</div>
-                        <div className="space-y-1">
-                            <div className="text-green-400">✓ D3 Candlesticks</div>
-                            <div className="text-blue-400">✓ OHLC Display</div>
-                            <div className="text-purple-400">✓ RSI (14-period)</div>
-                            <div className="text-indigo-400">✓ Bollinger Bands</div>
-                            <div className="text-blue-500">✓ MACD</div>
-                            <div className="text-yellow-400">✓ SMA (20-period)</div>
-                            <div className="text-green-500">✓ Trading Signals</div>
+                        {/* Technical Indicators Status */}
+                        <div className="bg-gray-800 bg-opacity-95 rounded-lg p-3 text-xs border border-gray-600 shadow-lg">
+                            <div className="text-white font-semibold mb-2">Phase 1 Indicators</div>
+                            <div className="space-y-1">
+                                <div className="text-green-400">✓ D3 Candlesticks</div>
+                                <div className="text-blue-400">✓ OHLC Display</div>
+                                <div className="text-purple-400">✓ RSI (14-period)</div>
+                                <div className="text-indigo-400">✓ Bollinger Bands</div>
+                                <div className="text-blue-500">✓ MACD</div>
+                                <div className="text-yellow-400">✓ SMA (20-period)</div>
+                                <div className="text-green-500">✓ Trading Signals</div>
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
             </div>
 
             {/* Legend */}
@@ -748,8 +923,8 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
                         if (strategy && strategy.script) {
                             // 2. Execute the strategy
-                            console.log('Executing strategy:', strategy.name);
-                            const result = await executeStrategy(strategy.script);
+                            console.log('Executing strategy:', strategy.name, 'Timeframe:', selectedTimeframe);
+                            const result = await executeStrategy(strategy.script, "BTC/USDT", selectedTimeframe);
 
                             if (result.success) {
                                 console.log('Execution successful:', result);

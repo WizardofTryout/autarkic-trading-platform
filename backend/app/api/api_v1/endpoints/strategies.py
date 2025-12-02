@@ -96,7 +96,20 @@ async def execute_strategy(request: ExecutionRequest):
         import pandas as pd
         import numpy as np
         
-        dates = pd.date_range(end=pd.Timestamp.now(), periods=100, freq=request.timeframe)
+        # Map timeframe string to pandas frequency
+        # 1m, 5m, 15m, 30m, 1h, 4h, 1d
+        tf_map = {
+            "1m": "1min",
+            "5m": "5min",
+            "15m": "15min",
+            "30m": "30min",
+            "1h": "1h",
+            "4h": "4h",
+            "1d": "1D"
+        }
+        freq = tf_map.get(request.timeframe, "1h")
+        
+        dates = pd.date_range(end=pd.Timestamp.now(), periods=100, freq=freq)
         # Generate synthetic price data with some trend
         close = np.linspace(40000, 45000, 100) + np.random.normal(0, 500, 100)
         
