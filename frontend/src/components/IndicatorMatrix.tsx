@@ -29,6 +29,7 @@ const IndicatorMatrix: React.FC<IndicatorMatrixProps> = ({ isOpen, onClose, onSe
     const loadStrategies = async () => {
         try {
             const data = await getStrategies();
+            console.log('Loaded strategies:', data);
             setStrategies(data);
         } catch (error) {
             console.error('Failed to load strategies:', error);
@@ -75,8 +76,8 @@ const IndicatorMatrix: React.FC<IndicatorMatrixProps> = ({ isOpen, onClose, onSe
                                 key={tab}
                                 onClick={() => setActiveTab(tab as any)}
                                 className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeTab === tab
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-800 text-gray-400 hover:text-white'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-800 text-gray-400 hover:text-white'
                                     }`}
                             >
                                 {tab.charAt(0).toUpperCase() + tab.slice(1)}

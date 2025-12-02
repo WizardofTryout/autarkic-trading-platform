@@ -6,6 +6,8 @@ import {
     type IndicatorData,
     type TradingSignal
 } from '../../utils/technicalIndicators';
+import IndicatorMatrix from '../IndicatorMatrix';
+import { LayoutGrid } from 'lucide-react';
 
 interface CandlestickData {
     time: string | number;
@@ -51,6 +53,17 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
     const [dimensions, setDimensions] = useState({ width: 800, height });
     const [indicatorData, setIndicatorData] = useState<IndicatorData[]>([]);
     const [tradingSignal, setTradingSignal] = useState<TradingSignal>({ type: 'neutral', strength: 0, reasons: [] });
+    const [executionSignals, setExecutionSignals] = useState<any[]>([]);
+    const [isMatrixOpen, setIsMatrixOpen] = useState(false);
+
+    // Local state for indicator visibility
+    const [visibleIndicators, setVisibleIndicators] = useState({
+        rsi: showRSI,
+        bollingerBands: showBollingerBands,
+        macd: showMACD,
+        sma: showIndicators,
+        volume: showVolume
+    });
     // const [selectedTool, setSelectedTool] = useState<'trendline' | 'fibonacci' | 'none'>('none');
     // const [isDrawing, setIsDrawing] = useState(false);
     // const [drawStartPoint, setDrawStartPoint] = useState<{ x: number, y: number } | null>(null);
@@ -147,9 +160,11 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
         const svg = d3.select(svgRef.current);
         svg.selectAll("*").remove();
 
-        const margin = { top: 20, right: 60, bottom: showVolume ? 120 : 60, left: 60 };
-        const chartHeight = showVolume ? dimensions.height * 0.7 : dimensions.height - margin.top - margin.bottom;
-        const volumeHeight = showVolume ? dimensions.height * 0.2 : 0;
+
+
+        const margin = { top: 20, right: 60, bottom: visibleIndicators.volume ? 120 : 60, left: 60 };
+        const chartHeight = visibleIndicators.volume ? dimensions.height * 0.7 : dimensions.height - margin.top - margin.bottom;
+        const volumeHeight = visibleIndicators.volume ? dimensions.height * 0.2 : 0;
         const width = dimensions.width - margin.left - margin.right;
 
         // Scales
@@ -216,10 +231,39 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
             .attr('fill', (d: IndicatorData) => d.close > d.open ? '#10B981' : '#EF4444')
             .attr('stroke', (d: IndicatorData) => d.close > d.open ? '#10B981' : '#EF4444');
 
+        // Execution Signals (Arrows)
+        if (executionSignals.length > 0) {
+            const signalGroup = chartGroup.append('g').attr('class', 'signals');
+
+            signalGroup.selectAll('.signal-marker')
+                .data(executionSignals)
+                .enter()
+                .append('path')
+                .attr('d', (d: any) => {
+                    // Triangle pointing up or down
+                    return d.type === 'long' || d.type === 'buy' || d.type === 'entry_long'
+                        ? d3.symbol().type(d3.symbolTriangle).size(100)()
+                        : d3.symbol().type(d3.symbolTriangle).size(100)();
+                })
+                .attr('transform', (d: any) => {
+                    const date = new Date(d.timestamp);
+                    const y = yScale(d.price);
+                    // Rotate 180 degrees for sell/short signals
+                    const rotation = d.type === 'long' || d.type === 'buy' || d.type === 'entry_long' ? 0 : 180;
+                    // Offset slightly from the candle
+                    const yOffset = d.type === 'long' || d.type === 'buy' || d.type === 'entry_long' ? 15 : -15;
+                    return `translate(${xScale(date)}, ${y + yOffset}) rotate(${rotation})`;
+                })
+                .attr('fill', (d: any) => d.type === 'long' || d.type === 'buy' || d.type === 'entry_long' ? '#10B981' : '#EF4444')
+                .attr('stroke', '#fff')
+                .attr('stroke-width', 1);
+        }
+
         // Technical indicators
-        if (showIndicators) {
+        // Technical indicators
+        if (visibleIndicators.sma || visibleIndicators.rsi || visibleIndicators.bollingerBands || visibleIndicators.macd) {
             // RSI Indicator (if enabled)
-            if (showRSI && indicatorData.some(d => d.rsi !== undefined)) {
+            if (visibleIndicators.rsi && indicatorData.some(d => d.rsi !== undefined)) {
                 const rsiHeight = 80;
                 const rsiGroup = svg.append('g')
                     .attr('transform', `translate(${margin.left}, ${dimensions.height - rsiHeight - 20})`);
@@ -264,7 +308,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
             }
 
             // Bollinger Bands (if enabled)
-            if (showBollingerBands && indicatorData.some(d => d.bollingerBands)) {
+            if (visibleIndicators.bollingerBands && indicatorData.some(d => d.bollingerBands)) {
                 const upperLine = d3.line<IndicatorData>()
                     .x((d: IndicatorData) => xScale(d.date))
                     .y((d: IndicatorData) => yScale(d.bollingerBands?.upper || 0))
@@ -336,7 +380,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
             }
 
             // MACD Indicator (if enabled)
-            if (showMACD && indicatorData.some(d => d.macd)) {
+            if (visibleIndicators.macd && indicatorData.some(d => d.macd)) {
                 const macdHeight = 100;
                 const macdGroup = svg.append('g')
                     .attr('transform', `translate(${margin.left}, ${dimensions.height - macdHeight - 120})`);
@@ -394,24 +438,26 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
             }
 
             // SMA Line (backward compatibility)
-            const smaLine = d3.line<IndicatorData>()
-                .x((d: IndicatorData) => xScale(d.date))
-                .y((d: IndicatorData) => yScale(d.sma20 || 0))
-                .curve(d3.curveMonotoneX);
+            if (visibleIndicators.sma) {
+                const smaLine = d3.line<IndicatorData>()
+                    .x((d: IndicatorData) => xScale(d.date))
+                    .y((d: IndicatorData) => yScale(d.sma20 || 0))
+                    .curve(d3.curveMonotoneX);
 
-            const validSMAData = indicatorData.filter((d: IndicatorData) => d.sma20);
-            if (validSMAData.length > 0) {
-                chartGroup.append('path')
-                    .datum(validSMAData)
-                    .attr('fill', 'none')
-                    .attr('stroke', '#F59E0B')
-                    .attr('stroke-width', 2)
-                    .attr('d', smaLine);
+                const validSMAData = indicatorData.filter((d: IndicatorData) => d.sma20);
+                if (validSMAData.length > 0) {
+                    chartGroup.append('path')
+                        .datum(validSMAData)
+                        .attr('fill', 'none')
+                        .attr('stroke', '#F59E0B')
+                        .attr('stroke-width', 2)
+                        .attr('d', smaLine);
+                }
             }
         }
 
         // Volume chart
-        if (showVolume) {
+        if (visibleIndicators.volume) {
             const volumeGroup = svg.append('g')
                 .attr('transform', `translate(${margin.left}, ${margin.top + chartHeight + 40})`);
 
@@ -482,7 +528,9 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                 }
             });
 
-    }, [indicatorData, dimensions, showIndicators, showVolume, showRSI, showBollingerBands, showMACD]);
+
+
+    }, [indicatorData, dimensions, visibleIndicators, executionSignals]);
 
     const currentData = indicatorData[indicatorData.length - 1];
 
@@ -497,52 +545,61 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                     </div>
                 </div>
 
-                <div className="flex items-center space-x-4 text-sm">
-                    <label className="flex items-center text-gray-300">
-                        <input
-                            type="checkbox"
-                            checked={showRSI}
-                            onChange={() => { }}
-                            className="mr-2"
-                        />
-                        RSI
-                    </label>
-                    <label className="flex items-center text-gray-300">
-                        <input
-                            type="checkbox"
-                            checked={showBollingerBands}
-                            onChange={() => { }}
-                            className="mr-2"
-                        />
-                        Bollinger Bands
-                    </label>
-                    <label className="flex items-center text-gray-300">
-                        <input
-                            type="checkbox"
-                            checked={showMACD}
-                            onChange={() => { }}
-                            className="mr-2"
-                        />
-                        MACD
-                    </label>
-                    <label className="flex items-center text-gray-300">
-                        <input
-                            type="checkbox"
-                            checked={showIndicators}
-                            onChange={() => { }}
-                            className="mr-2"
-                        />
-                        SMA
-                    </label>
-                    <label className="flex items-center text-gray-300">
-                        <input
-                            type="checkbox"
-                            checked={showVolume}
-                            onChange={() => { }}
-                            className="mr-2"
-                        />
-                        Volume
-                    </label>
+                <div className="flex items-center space-x-4">
+                    <button
+                        onClick={() => setIsMatrixOpen(true)}
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+                    >
+                        <LayoutGrid size={16} />
+                        Indicators
+                    </button>
+                    <div className="flex items-center space-x-4 text-sm">
+                        <label className="flex items-center text-gray-300 cursor-pointer hover:text-white">
+                            <input
+                                type="checkbox"
+                                checked={visibleIndicators.rsi}
+                                onChange={(e) => setVisibleIndicators(prev => ({ ...prev, rsi: e.target.checked }))}
+                                className="mr-2"
+                            />
+                            RSI
+                        </label>
+                        <label className="flex items-center text-gray-300 cursor-pointer hover:text-white">
+                            <input
+                                type="checkbox"
+                                checked={visibleIndicators.bollingerBands}
+                                onChange={(e) => setVisibleIndicators(prev => ({ ...prev, bollingerBands: e.target.checked }))}
+                                className="mr-2"
+                            />
+                            Bollinger Bands
+                        </label>
+                        <label className="flex items-center text-gray-300 cursor-pointer hover:text-white">
+                            <input
+                                type="checkbox"
+                                checked={visibleIndicators.macd}
+                                onChange={(e) => setVisibleIndicators(prev => ({ ...prev, macd: e.target.checked }))}
+                                className="mr-2"
+                            />
+                            MACD
+                        </label>
+                        <label className="flex items-center text-gray-300 cursor-pointer hover:text-white">
+                            <input
+                                type="checkbox"
+                                checked={visibleIndicators.sma}
+                                onChange={(e) => setVisibleIndicators(prev => ({ ...prev, sma: e.target.checked }))}
+                                className="mr-2"
+                            />
+                            SMA
+                        </label>
+                        <label className="flex items-center text-gray-300 cursor-pointer hover:text-white">
+                            <input
+                                type="checkbox"
+                                checked={visibleIndicators.volume}
+                                onChange={(e) => setVisibleIndicators(prev => ({ ...prev, volume: e.target.checked }))}
+                                className="mr-2"
+                            />
+                            Volume
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -560,7 +617,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                         } `}>
                         ${currentData.close.toFixed(2)}
                     </span>
-                    {showIndicators && (
+                    {visibleIndicators.sma && (
                         <>
                             <span className="text-gray-400">SMA20:</span>
                             <span className="text-yellow-400 font-mono">
@@ -568,7 +625,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                             </span>
                         </>
                     )}
-                    {showRSI && currentData.rsi && (
+                    {visibleIndicators.rsi && currentData.rsi && (
                         <>
                             <span className="text-gray-400">RSI:</span>
                             <span className={`font - mono ${currentData.rsi > 70 ? 'text-red-400' :
@@ -578,7 +635,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                             </span>
                         </>
                     )}
-                    {showMACD && currentData.macd && (
+                    {visibleIndicators.macd && currentData.macd && (
                         <>
                             <span className="text-gray-400">MACD:</span>
                             <span className={`font - mono ${currentData.macd.histogram > 0 ? 'text-green-400' : 'text-red-400'
@@ -644,25 +701,25 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
             {/* Legend */}
             <div className="flex items-center justify-between p-3 bg-gray-800 text-xs border-t border-gray-700">
                 <div className="flex items-center space-x-4">
-                    {showIndicators && (
+                    {visibleIndicators.sma && (
                         <div className="flex items-center">
                             <div className="w-3 h-0.5 bg-yellow-500 mr-2"></div>
                             <span className="text-gray-400">SMA(20)</span>
                         </div>
                     )}
-                    {showRSI && (
+                    {visibleIndicators.rsi && (
                         <div className="flex items-center">
                             <div className="w-3 h-0.5 bg-purple-500 mr-2"></div>
                             <span className="text-gray-400">RSI(14)</span>
                         </div>
                     )}
-                    {showBollingerBands && (
+                    {visibleIndicators.bollingerBands && (
                         <div className="flex items-center">
                             <div className="w-3 h-0.5 bg-indigo-500 mr-2"></div>
                             <span className="text-gray-400">Bollinger Bands</span>
                         </div>
                     )}
-                    {showMACD && (
+                    {visibleIndicators.macd && (
                         <div className="flex items-center">
                             <div className="w-3 h-0.5 bg-blue-500 mr-2"></div>
                             <span className="text-gray-400">MACD(12,26,9)</span>
@@ -673,6 +730,52 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                     Phase 1 Technical Indicators • Mathematical Accuracy Verified
                 </div>
             </div>
+
+            <IndicatorMatrix
+                isOpen={isMatrixOpen}
+                onClose={() => setIsMatrixOpen(false)}
+                onSelect={async (strategyId) => {
+                    console.log('Selected strategy:', strategyId);
+                    setIsMatrixOpen(false);
+
+                    try {
+                        // 1. Fetch strategy details (to get the script)
+                        // In a real app, we might need a separate call or pass the full object
+                        // For now, we'll fetch all strategies and find the one matching ID
+                        const { getStrategies, executeStrategy } = await import('../../services/api');
+                        const strategies = await getStrategies();
+                        const strategy = strategies.find((s: any) => s.id === strategyId);
+
+                        if (strategy && strategy.script) {
+                            // 2. Execute the strategy
+                            console.log('Executing strategy:', strategy.name);
+                            const result = await executeStrategy(strategy.script);
+
+                            if (result.success) {
+                                console.log('Execution successful:', result);
+
+                                // 3. Update Chart State with Signals
+                                // Transform backend signals to chart format if needed
+                                // For now, we'll just use the first signal type for the main display
+                                // or visualize all of them.
+
+                                // Let's overlay the signals on the chart
+                                // We need to store them in state
+                                setExecutionSignals(result.signals);
+                                alert(`Strategy executed! Found ${result.signals.length} signals.`);
+                            } else {
+                                console.error('Execution failed:', result.error);
+                                alert('Strategy execution failed: ' + result.error);
+                            }
+                        } else {
+                            alert('Strategy script not found.');
+                        }
+                    } catch (error) {
+                        console.error('Error executing strategy:', error);
+                        alert('Failed to execute strategy.');
+                    }
+                }}
+            />
         </div>
     );
 };

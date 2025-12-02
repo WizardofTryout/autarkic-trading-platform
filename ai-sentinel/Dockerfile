@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install AI Frameworks
-RUN pip install metagpt pyautogen
+# RUN pip install metagpt
+RUN pip install pyautogen
 
 # Copy application code (placeholder)
 # COPY . /app
