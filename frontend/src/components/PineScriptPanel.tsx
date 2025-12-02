@@ -1,7 +1,16 @@
 import React, { useRef, useState } from 'react';
 import { saveStrategy } from '../services/api';
+import CodeMirror from '@uiw/react-codemirror';
+import { javascript } from '@codemirror/lang-javascript';
+import { vscodeDark } from '@uiw/codemirror-theme-vscode';
+import { Maximize2, Minimize2 } from 'lucide-react';
 
-const PineScriptPanel: React.FC = () => {
+interface PineScriptPanelProps {
+  isMaximized?: boolean;
+  onToggleMaximize?: () => void;
+}
+
+const PineScriptPanel: React.FC<PineScriptPanelProps> = ({ isMaximized, onToggleMaximize }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [strategyName, setStrategyName] = useState('My Strategy');
   const [pineScriptCode, setPineScriptCode] = useState(`//@version=5
@@ -43,9 +52,10 @@ if rsi > 70
     try {
       await saveStrategy({ name: strategyName, script_code: pineScriptCode });
       console.log('Pine Script saved successfully');
-      // Here you might want to trigger a refresh of a strategy list
+      alert('Strategy saved successfully! Check the Indicators menu.');
     } catch (error) {
       console.error('Error saving Pine Script:', error);
+      alert('Failed to save strategy.');
     } finally {
       setIsUploading(false);
     }
@@ -53,27 +63,66 @@ if rsi > 70
 
   return (
     <div className="h-full flex flex-col bg-gray-900 min-h-0">
-      <div className="border-b border-gray-700 p-3 sm:p-4 flex-shrink-0 bg-gray-800">
-        <h2 className="text-lg sm:text-xl font-bold text-white">Pine Script Editor</h2>
-        <div className="flex items-center gap-4 mt-2">
-          <label htmlFor="strategyName" className="text-sm font-medium text-gray-300">Strategy Name:</label>
-          <input
-            id="strategyName"
-            type="text"
-            value={strategyName}
-            onChange={(e) => setStrategyName(e.target.value)}
-            className="bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-600"
-          />
+      <div className="border-b border-gray-700 p-3 sm:p-4 flex-shrink-0 bg-gray-800 flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg sm:text-xl font-bold text-white">Pine Script Editor</h2>
+          <div className="flex items-center gap-2">
+            <label htmlFor="strategyName" className="text-sm font-medium text-gray-300">Name:</label>
+            <input
+              id="strategyName"
+              type="text"
+              value={strategyName}
+              onChange={(e) => setStrategyName(e.target.value)}
+              className="bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-600"
+            />
+          </div>
         </div>
+
+        {onToggleMaximize && (
+          <button
+            onClick={onToggleMaximize}
+            className="text-gray-400 hover:text-white p-1 rounded hover:bg-gray-700 transition-colors"
+            title={isMaximized ? "Restore" : "Maximize"}
+          >
+            {isMaximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </button>
+        )}
       </div>
 
-      <div className="flex-1 p-0 min-h-0 overflow-hidden relative">
-        <textarea
-          className="w-full h-full bg-gray-950 text-green-400 p-4 font-mono text-sm resize-none focus:outline-none border-none"
+      <div className="flex-1 p-0 min-h-0 relative overflow-hidden">
+        <CodeMirror
           value={pineScriptCode}
-          onChange={(e) => setPineScriptCode(e.target.value)}
-          placeholder="Enter your Pine Script code here..."
-          spellCheck={false}
+          height="100%"
+          theme={vscodeDark}
+          extensions={[javascript({ jsx: true })]}
+          onChange={(value) => setPineScriptCode(value)}
+          className="h-full text-sm"
+          basicSetup={{
+            lineNumbers: true,
+            highlightActiveLineGutter: true,
+            highlightSpecialChars: true,
+            history: true,
+            foldGutter: true,
+            drawSelection: true,
+            dropCursor: true,
+            allowMultipleSelections: true,
+            indentOnInput: true,
+            syntaxHighlighting: true,
+            bracketMatching: true,
+            closeBrackets: true,
+            autocompletion: true,
+            rectangularSelection: true,
+            crosshairCursor: true,
+            highlightActiveLine: true,
+            highlightSelectionMatches: true,
+            closeBracketsKeymap: true,
+            defaultKeymap: true,
+            searchKeymap: true,
+            historyKeymap: true,
+            foldKeymap: true,
+            completionKeymap: true,
+            lintKeymap: true,
+          }}
         />
       </div>
 

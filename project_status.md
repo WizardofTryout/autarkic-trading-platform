@@ -129,25 +129,25 @@ Das System bietet ein solides technisches Fundament (Backend, Docker, DB), ist a
 Um die fehlenden Funktionen zu ergänzen und das "TradingView"-Logo zu entfernen, werden wir die Komponenten aus der Legacy App (August 2025) migrieren.
 
 ### Phase 1: Vorbereitung & Dependencies
-- [ ] **Checkpoint 1.1**: `d3` und `@types/d3` im `frontend` installieren.
-- [ ] **Checkpoint 1.2**: Hilfsfunktionen (`technicalIndicators.ts`) aus der Legacy App kopieren.
+- [x] **Checkpoint 1.1**: `d3` und `@types/d3` im `frontend` installieren.
+- [x] **Checkpoint 1.2**: Hilfsfunktionen (`technicalIndicators.ts`) aus der Legacy App kopieren.
 
 ### Phase 2: Settings & API Keys
-- [ ] **Checkpoint 2.1**: `SettingsPage.tsx` kopieren und an Tailwind v4 anpassen.
-- [ ] **Checkpoint 2.2**: API-Service (`api.ts`) um Methoden zum Speichern/Laden von Settings erweitern.
-- [ ] **Checkpoint 2.3**: Backend-Endpunkt (`/api/v1/settings`) für sichere Speicherung implementieren.
-- [ ] **Checkpoint 2.4**: Routing im Frontend anpassen (`App.tsx`), um die Settings-Seite erreichbar zu machen.
+- [x] **Checkpoint 2.1**: `SettingsPage.tsx` kopieren und an Tailwind v4 anpassen.
+- [x] **Checkpoint 2.2**: API-Service (`api.ts`) um Methoden zum Speichern/Laden von Settings erweitern.
+- [x] **Checkpoint 2.3**: Backend-Endpunkt (`/api/v1/settings`) für sichere Speicherung implementieren.
+- [x] **Checkpoint 2.4**: Routing im Frontend anpassen (`App.tsx`), um die Settings-Seite erreichbar zu machen.
 
 ### Phase 3: Pine Script Editor
-- [ ] **Checkpoint 3.1**: `PineScriptPanel.tsx` und `pine-script-engine/` kopieren.
-- [ ] **Checkpoint 3.2**: Editor-Komponente in das Layout integrieren (z.B. als neuer Tab oder Modal).
-- [ ] **Checkpoint 3.3**: "Save & Compile" Button mit dem Backend-Transpiler verbinden.
+- [x] **Checkpoint 3.1**: `PineScriptPanel.tsx` und `pine-script-engine/` kopieren.
+- [x] **Checkpoint 3.2**: Editor-Komponente in das Layout integrieren (z.B. als neuer Tab oder Modal).
+- [x] **Checkpoint 3.3**: "Save & Compile" Button mit dem Backend-Transpiler verbinden.
 
 ### Phase 4: Charting Migration (Logo Removal)
-- [ ] **Checkpoint 4.1**: `AdvancedFinancialChart.tsx` (D3-basiert) als `D3Chart.tsx` in das Projekt kopieren.
-- [ ] **Checkpoint 4.2**: `TradingChart.tsx` (Lightweight Charts) durch `D3Chart.tsx` ersetzen oder als Option anbieten.
-- [ ] **Checkpoint 4.3**: Sicherstellen, dass Marktdaten korrekt in das D3-Format konvertiert werden.
-- [ ] **Checkpoint 4.4**: Verifikation der Indikatoren und Zeichenwerkzeuge.
+- [x] **Checkpoint 4.1**: `AdvancedFinancialChart.tsx` (D3-basiert) als `D3Chart.tsx` in das Projekt kopieren.
+- [x] **Checkpoint 4.2**: `TradingChart.tsx` (Lightweight Charts) durch `D3Chart.tsx` ersetzen oder als Option anbieten.
+- [x] **Checkpoint 4.3**: Sicherstellen, dass Marktdaten korrekt in das D3-Format konvertiert werden.
+- [x] **Checkpoint 4.4**: Verifikation der Indikatoren und Zeichenwerkzeuge.
 
 ---
 

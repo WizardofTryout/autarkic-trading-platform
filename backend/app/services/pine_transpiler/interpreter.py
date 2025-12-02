@@ -41,30 +41,34 @@ def execute_pine_script(parsed_script: dict, market_data: dict):
         op = condition["operator"]
         output_variable = condition["output"]
 
-        # Get the last value of the series for comparison
+        # Get the value series
         lhs_val = context.get(lhs_name)
-        if isinstance(lhs_val, pd.Series):
-            lhs_val = lhs_val.iloc[-1]
-
         rhs_val = context.get(rhs_name)
-        if isinstance(rhs_val, pd.Series):
-            rhs_val = rhs_val.iloc[-1]
 
         # If RHS is not a variable, it might be a literal value
         if rhs_val is None:
             try:
                 rhs_val = float(rhs_name)
             except ValueError:
-                print(f"Warning: Could not resolve RHS value '{rhs_name}'")
+                # print(f"Warning: Could not resolve RHS value '{rhs_name}'")
                 continue
 
-        if lhs_val is not None and rhs_val is not None:
+        if lhs_val is not None:
             if op == '>':
-                result = bool(lhs_val > rhs_val)
+                result = lhs_val > rhs_val
             elif op == '<':
-                result = bool(lhs_val < rhs_val)
+                result = lhs_val < rhs_val
+            elif op == '==':
+                result = lhs_val == rhs_val
+            elif op == '>=':
+                result = lhs_val >= rhs_val
+            elif op == '<=':
+                result = lhs_val <= rhs_val
+            elif op == '!=':
+                result = lhs_val != rhs_val
             else:
                 result = False
+            
             condition_results[output_variable] = result
 
-    return condition_results
+    return condition_results, context

@@ -41,17 +41,34 @@ export const saveSettings = async (settings: Settings) => {
     return response.json();
 };
 
-export const saveStrategy = async (strategy: Strategy): Promise<Strategy> => {
-    // TODO: Implement backend endpoint for strategies
-    console.log('Mock saving strategy:', strategy);
-    return strategy;
-    /*
-    const response = await fetch(`${API_BASE}/strategies`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(strategy)
+export const saveStrategy = async (strategy: { name: string; script_code: string }) => {
+    const response = await fetch(`${API_BASE}/strategies/save`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ script: strategy.script_code }),
     });
     if (!response.ok) throw new Error('Failed to save strategy');
     return response.json();
-    */
+};
+
+export const executeStrategy = async (script: string, symbol: string = "BTC/USDT", timeframe: string = "1h") => {
+    const response = await fetch(`${API_BASE}/strategies/execute`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ script, symbol, timeframe }),
+    });
+    if (!response.ok) throw new Error('Failed to execute strategy');
+    return response.json();
+};
+
+export const getStrategies = async () => {
+    const response = await fetch(`${API_BASE}/strategies/`);
+    if (!response.ok) {
+        throw new Error('Failed to fetch strategies');
+    }
+    return response.json();
 };
