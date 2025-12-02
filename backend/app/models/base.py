@@ -65,12 +65,16 @@ class LedgerEntry(Base):
     hash = Column(String(64), unique=True, nullable=False)
 
 class UserSecret(Base):
-    __tablename__ = "user_secrets"
+    __tablename__ = "user_api_keys"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    key_name = Column(String, nullable=False) # e.g. "BINANCE_API_KEY"
+    key_name = Column(String, nullable=False) # e.g. "My Gemini Key"
+    provider = Column(String, nullable=False, default="gemini") # gemini, openai, anthropic, ollama, binance, bitget
+    model = Column(String, nullable=True) # e.g. "gemini-1.5-pro", "claude-3-opus", "llama3"
     encrypted_value = Column(String, nullable=False)
+    is_valid = Column(Boolean, default=False)
+    last_validated = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
