@@ -149,6 +149,18 @@ Um die fehlenden Funktionen zu ergänzen und das "TradingView"-Logo zu entfernen
 - [x] **Checkpoint 4.3**: Sicherstellen, dass Marktdaten korrekt in das D3-Format konvertiert werden.
 - [x] **Checkpoint 4.4**: Verifikation der Indikatoren und Zeichenwerkzeuge.
 
+### Phase 5: Trading Engine & Execution (Current Focus)
+- [x] **Checkpoint 5.1**: Backend-Endpunkt (`/execute`) für Pine Script Ausführung implementieren.
+- [x] **Checkpoint 5.2**: `D3Chart.tsx` mit Execution-API verbinden.
+- [x] **Checkpoint 5.3**: Visualisierung von Kauf-/Verkaufssignalen im Chart.
+- [ ] **Checkpoint 5.4**: Anbindung echter Marktdaten (statt Mock-Daten).
+- [ ] **Checkpoint 5.5**: Implementierung von Timeframe-Auswahl (1m, 30m, 1h, 4h).
+
+### Phase 6: User Management & Integration
+- [ ] **Checkpoint 6.1**: Benutzer-Registrierung & Login Flow vervollständigen.
+- [ ] **Checkpoint 6.2**: Verknüpfung mit "Integrator Set" (Identity/User Mapping).
+- [ ] **Checkpoint 6.3**: Speicherung von User-spezifischen Strategien und Settings in der DB.
+
 ---
 
 ## 7. Technische Spezifikation: Pine Script Transpiler & Management
