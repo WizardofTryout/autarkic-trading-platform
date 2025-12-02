@@ -153,8 +153,10 @@ Um die fehlenden Funktionen zu ergänzen und das "TradingView"-Logo zu entfernen
 - [x] **Checkpoint 5.1**: Backend-Endpunkt (`/execute`) für Pine Script Ausführung implementieren.
 - [x] **Checkpoint 5.2**: `D3Chart.tsx` mit Execution-API verbinden.
 - [x] **Checkpoint 5.3**: Visualisierung von Kauf-/Verkaufssignalen im Chart.
-- [ ] **Checkpoint 5.4**: Anbindung echter Marktdaten (statt Mock-Daten).
-- [ ] **Checkpoint 5.5**: Implementierung von Timeframe-Auswahl (1m, 30m, 1h, 4h).
+- [x] **Checkpoint 5.4**: Anbindung echter Marktdaten (Binance WebSocket für Ticker & Klines).
+- [x] **Checkpoint 5.5**: Implementierung von Timeframe-Auswahl (1m, 5m, 15m, 30m, 1h, 4h, 1d) mit dynamischer Achsen-Formatierung.
+- [x] **Checkpoint 5.6**: UI Polish (Chart Scaling, Right Axis, Price Relocation, Indicator Matrix).
+- [x] **Checkpoint 5.7**: Git Workflow Dokumentation & Automatisierung.
 
 ### Phase 6: User Management & Integration
 - [ ] **Checkpoint 6.1**: Benutzer-Registrierung & Login Flow vervollständigen.
