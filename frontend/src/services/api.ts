@@ -139,6 +139,102 @@ export const changePassword = async (oldPassword: string, newPassword: string) =
     return response.json();
 };
 
+// --- API Key Management ---
+
+export interface APIKey {
+    key_name: string;
+    provider: string;
+    model?: string;
+    id: string;
+    masked_key: string;
+    is_valid: boolean;
+    last_validated?: string;
+}
+
+export interface APIKeyCreate {
+    key_name: string;
+    provider: string;
+    model?: string;
+    api_key: string;
+}
+
+export const getAPIKeys = async (): Promise<APIKey[]> => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/settings/keys`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) throw new Error('Failed to fetch API keys');
+    return response.json();
+};
+
+export const addAPIKey = async (data: APIKeyCreate): Promise<APIKey> => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/settings/keys`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to add API key');
+    }
+    return response.json();
+};
+
+export const deleteAPIKey = async (id: string): Promise<void> => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/settings/keys/${id}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) throw new Error('Failed to delete API key');
+};
+
+export const validateAPIKey = async (provider: string, api_key: string, model?: string, ollama_url?: string): Promise<boolean> => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/settings/keys/validate`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ provider, api_key, model, ollama_url }),
+    });
+    if (!response.ok) return false;
+    const data = await response.json();
+    return data.is_valid;
+};
+
+export const getSymbols = async (): Promise<string[]> => {
+    const response = await fetch(`${API_BASE}/market/symbols`);
+    if (!response.ok) throw new Error('Failed to fetch symbols');
+    return response.json();
+};
+
+export const chatWithAI = async (message: string, context?: any) => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/ai/chat`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ message, context }),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'AI Chat failed');
+    }
+    return response.json();
+};
+
 export const requestPasswordReset = async (email: string) => {
     const response = await fetch(`${API_BASE}/auth/password-reset-request`, {
         method: 'POST',

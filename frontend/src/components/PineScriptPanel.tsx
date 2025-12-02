@@ -8,9 +8,10 @@ import { Maximize2, Minimize2 } from 'lucide-react';
 interface PineScriptPanelProps {
   isMaximized?: boolean;
   onToggleMaximize?: () => void;
+  onScriptChange?: (script: string) => void;
 }
 
-const PineScriptPanel: React.FC<PineScriptPanelProps> = ({ isMaximized, onToggleMaximize }) => {
+const PineScriptPanel: React.FC<PineScriptPanelProps> = ({ isMaximized, onToggleMaximize, onScriptChange }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [strategyName, setStrategyName] = useState('My Strategy');
   const [pineScriptCode, setPineScriptCode] = useState(`//@version=5
@@ -95,7 +96,10 @@ if rsi > 70
           height="100%"
           theme={vscodeDark}
           extensions={[javascript({ jsx: true })]}
-          onChange={(value) => setPineScriptCode(value)}
+          onChange={(value) => {
+            setPineScriptCode(value);
+            onScriptChange?.(value);
+          }}
           className="h-full text-sm"
           basicSetup={{
             lineNumbers: true,

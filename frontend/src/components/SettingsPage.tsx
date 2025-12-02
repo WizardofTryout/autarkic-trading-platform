@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { getSettings, saveSettings } from '../services/api';
 import type { Settings } from '../services/api';
+import APIKeyManager from './Settings/APIKeyManager';
 
 const SettingsPage: React.FC = () => {
     const [settings, setSettings] = useState<Settings>({
-        bitgetApiKey: '',
-        binanceApiKey: '',
-        aiApiKey: '',
+        bitgetApiKey: '', // Legacy, kept for type compatibility but unused in UI
+        binanceApiKey: '', // Legacy
+        aiApiKey: '',      // Legacy
         ollamaUrl: 'http://localhost:11434',
         investmentPerTrade: 100,
         riskRewardRatio: '1:2',
@@ -38,60 +39,8 @@ const SettingsPage: React.FC = () => {
             <h1 className="text-3xl font-bold mb-8 text-white">Settings</h1>
 
             <div className="space-y-8">
-                <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-lg">
-                    <h2 className="text-xl font-semibold mb-6 text-blue-400 border-b border-gray-700 pb-2">API Keys</h2>
-                    <div className="grid grid-cols-1 gap-6">
-                        <div className="space-y-2">
-                            <label htmlFor="bitgetApiKey" className="block text-sm font-medium text-gray-300">Bitget API Key</label>
-                            <input
-                                id="bitgetApiKey"
-                                type="password"
-                                className="w-full bg-gray-900 border border-gray-700 p-3 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                                value={settings.bitgetApiKey}
-                                onChange={handleChange}
-                                placeholder="Enter your Bitget API Key"
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <label htmlFor="binanceApiKey" className="block text-sm font-medium text-gray-300">Binance API Key</label>
-                            <input
-                                id="binanceApiKey"
-                                type="password"
-                                className="w-full bg-gray-900 border border-gray-700 p-3 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                                value={settings.binanceApiKey}
-                                onChange={handleChange}
-                                placeholder="Enter your Binance API Key"
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <label htmlFor="aiApiKey" className="block text-sm font-medium text-gray-300">AI Provider API Key</label>
-                            <input
-                                id="aiApiKey"
-                                type="password"
-                                className="w-full bg-gray-900 border border-gray-700 p-3 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                                value={settings.aiApiKey}
-                                onChange={handleChange}
-                                placeholder="OpenAI, Claude, or other provider key"
-                            />
-                            <p className="text-xs text-gray-500">Required for AI analysis features.</p>
-                        </div>
-
-                        <div className="space-y-2">
-                            <label htmlFor="ollamaUrl" className="block text-sm font-medium text-gray-300">Ollama URL</label>
-                            <input
-                                id="ollamaUrl"
-                                type="text"
-                                className="w-full bg-gray-900 border border-gray-700 p-3 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                                value={settings.ollamaUrl}
-                                onChange={handleChange}
-                                placeholder="http://localhost:11434"
-                            />
-                            <p className="text-xs text-gray-500">URL for local Ollama instance (if used).</p>
-                        </div>
-                    </div>
-                </div>
+                {/* New API Key Manager */}
+                <APIKeyManager />
 
                 <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-lg">
                     <h2 className="text-xl font-semibold mb-6 text-green-400 border-b border-gray-700 pb-2">Trading Parameters</h2>

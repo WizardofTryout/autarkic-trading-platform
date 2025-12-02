@@ -28,6 +28,8 @@ interface AdvancedFinancialChartProps {
     showRSI?: boolean;
     showBollingerBands?: boolean;
     showMACD?: boolean;
+    symbol?: string;
+    timeframe?: string;
 }
 
 interface ChartData {
@@ -48,7 +50,9 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
     showVolume = true,
     showRSI = true,
     showBollingerBands = true,
-    showMACD = true
+    showMACD = true,
+    symbol = "BTC/USDT",
+    timeframe = "1h"
 }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -62,12 +66,12 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
     console.log('D3Chart Body Executing. Selected Timeframe:', selectedTimeframe);
 
-    // Force initial fetch on mount
+    // Force initial fetch on mount or when symbol/timeframe changes
     useEffect(() => {
-        console.log('Mount effect: Fetching initial data for', selectedTimeframe);
+        console.log('Effect: Fetching data for', symbol, timeframe);
         const fetchInitialData = async () => {
             try {
-                const rawData = await getMarketData("BTC/USDT", selectedTimeframe);
+                const rawData = await getMarketData(symbol, timeframe);
                 console.log('Mount effect rawData:', rawData);
                 if (Array.isArray(rawData)) {
                     const parseDate = d3.timeParse('%Y-%m-%d %H:%M:%S');
@@ -92,7 +96,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
             }
         };
         fetchInitialData();
-    }, []); // Empty dependency array for mount only
+    }, [symbol, timeframe]); // Re-run when symbol or timeframe changes
 
     // Fetch market data when timeframe changes
     useEffect(() => {

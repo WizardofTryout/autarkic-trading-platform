@@ -175,7 +175,44 @@ Um die fehlenden Funktionen zu ergänzen und das "TradingView"-Logo zu entfernen
 
 ---
 
-## 7. Technische Spezifikation: Pine Script Transpiler & Management
+### 7. Strategie für Live Trading Engine (Paper Trading First)
+Wir verfolgen einen **"Paper Trading First"** Ansatz. Das Ziel ist es, die Engine so weit zu entwickeln, dass sie mit echten Marktdaten arbeitet, aber Trades zunächst nur simuliert ("Trockenübung").
+
+*   **Stufe A: Echte Daten (Realtime Data)**
+    *   Der `/execute` Endpunkt und die Engine nutzen echte historische Daten und Live-Daten (via WebSocket/CCXT) anstelle von Mock-Daten.
+    *   Ziel: Signale basieren auf der Realität.
+
+*   **Stufe B: Paper Execution (Simulation)**
+    *   Die Engine führt die Logik aus (Kauf/Verkauf), sendet aber **keine** echte Order an die Börse.
+    *   Stattdessen wird der Trade in der Datenbank protokolliert, als ob er stattgefunden hätte.
+    *   Dies ermöglicht umfangreiche Testläufe ohne finanzielles Risiko.
+
+*   **Stufe C: Der "Kill Switch" (Real Money)**
+    *   Implementierung eines globalen Schalters (konfigurierbar in Settings).
+    *   Nur wenn dieser aktiviert ist UND gültige API-Keys vorliegen, werden Orders tatsächlich an Binance/Bitget gesendet.
+    *   Technisch ist dies nur ein kleiner Schritt von Stufe B ("If RealMoney: ccxt.create_order() else: log_trade()").
+
+## 8. Neue Anforderungen & Erweiterungen (Next Steps)
+
+Basierend auf dem aktuellen Feedback werden folgende Erweiterungen priorisiert:
+
+### 8.1 UI Professionalisierung & Charting
+*   **Symbol-Auswahl**: Dropdown/Suche zur Auswahl verschiedener Handelspaare (z.B. BTC/USDT, ETH/USDT) für den Chart.
+*   **Technische Analyse Tools**:
+    *   Integration von Zeichenwerkzeugen (Trendlinien, Support/Resistance).
+    *   Detaillierte Mouse-Over Informationen (OHLC, Indikator-Werte) im Fadenkreuz.
+*   **Pine Script Editor Integration**: Vollständige UI-Integration des Editors unterhalb des Charts.
+
+### 8.2 AI Assistant Integration
+Ein intelligenter Assistent, der den User direkt in der Plattform unterstützt (nutzt den hinterlegten AI API Key):
+*   **Coding Assistant**: Hilft beim Erstellen, Debuggen und Optimieren von Pine Scripts.
+*   **Research Agent**: Kann auf Knopfdruck aktuelle News und Sentiment-Analysen zum angezeigten Handelspaar durchführen.
+*   **Kontext-Aware**: Der Assistent "kennt" den aktuellen Chart und das offene Skript.
+
+---
+
+## 9. Technische Spezifikation: Pine Script Transpiler & Management
+(Bisheriger Inhalt von Punkt 7...)
 
 Die Integration von Pine Script erfolgt nicht direkt, sondern über eine Transpiler-Pipeline, um digitale Souveränität zu gewährleisten und Abhängigkeiten von TradingView-Servern zu vermeiden.
 

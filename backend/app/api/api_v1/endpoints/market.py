@@ -69,3 +69,41 @@ async def get_ohlcv(
         return []
     finally:
         await exchange.close()
+
+# Simple in-memory cache for symbols
+_symbols_cache = {
+    "data": [],
+    "last_updated": None
+}
+
+@router.get("/symbols")
+async def get_symbols():
+    """
+    Get available trading pairs from Binance.
+    Cached for 1 hour.
+    """
+    global _symbols_cache
+    now = datetime.now()
+    
+    # Check cache (1 hour expiry)
+    if _symbols_cache["data"] and _symbols_cache["last_updated"]:
+        if (now - _symbols_cache["last_updated"]).total_seconds() < 3600:
+            return _symbols_cache["data"]
+            
+    exchange = ccxt.binance()
+    try:
+        markets = await exchange.load_markets()
+        # Filter for USDT pairs to keep it simple for now
+        symbols = [s for s in markets.keys() if s.endswith("/USDT")]
+        symbols.sort()
+        
+        _symbols_cache = {
+            "data": symbols,
+            "last_updated": now
+        }
+        return symbols
+    except Exception as e:
+        print(f"Error fetching symbols: {e}")
+        return _symbols_cache["data"] # Return stale data if available
+    finally:
+        await exchange.close()
