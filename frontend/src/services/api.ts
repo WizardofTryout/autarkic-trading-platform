@@ -77,3 +77,30 @@ export const getStrategies = async () => {
     }
     return response.json();
 };
+export const login = async (email: string, password: string) => {
+    const formData = new FormData();
+    formData.append('username', email); // OAuth2 expects 'username'
+    formData.append('password', password);
+
+    const response = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!response.ok) throw new Error('Login failed');
+    return response.json();
+};
+
+export const register = async (email: string, password: string, username: string) => {
+    const response = await fetch(`${API_BASE}/auth/register`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, username }),
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Registration failed');
+    }
+    return response.json();
+};
