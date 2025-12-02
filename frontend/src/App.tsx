@@ -13,6 +13,9 @@ import { useBinanceTicker } from './hooks/useBinanceTicker';
 
 import LoginPage from './components/Auth/LoginPage';
 import RegisterPage from './components/Auth/RegisterPage';
+import UserProfile from './components/Auth/UserProfile';
+import ForgotPassword from './components/Auth/ForgotPassword';
+import ResetPassword from './components/Auth/ResetPassword';
 import { useAuthStore } from './store/authStore';
 import { Navigate } from 'react-router-dom';
 
@@ -40,6 +43,8 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/" element={
           <ProtectedRoute>
             <div className="p-4 flex-shrink-0">
@@ -49,6 +54,7 @@ function App() {
                   <nav className="flex gap-4 ml-8">
                     <Link to="/" className="text-gray-300 hover:text-white transition-colors">Dashboard</Link>
                     <Link to="/settings" className="text-gray-300 hover:text-white transition-colors">Settings</Link>
+                    <Link to="/profile" className="text-gray-300 hover:text-white transition-colors">Profile</Link>
                   </nav>
                 </div>
                 <div className="flex items-center gap-4">
@@ -109,10 +115,28 @@ function App() {
                   <nav className="flex gap-4 ml-8">
                     <Link to="/" className="text-gray-300 hover:text-white transition-colors">Dashboard</Link>
                     <Link to="/settings" className="text-gray-300 hover:text-white transition-colors">Settings</Link>
+                    <Link to="/profile" className="text-gray-300 hover:text-white transition-colors">Profile</Link>
                   </nav>
                 </div>
               </div>
               <SettingsPage />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <div className="p-4">
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-4">
+                  <h1 className="text-2xl font-bold">Autarkic Trading Agent</h1>
+                  <nav className="flex gap-4 ml-8">
+                    <Link to="/" className="text-gray-300 hover:text-white transition-colors">Dashboard</Link>
+                    <Link to="/settings" className="text-gray-300 hover:text-white transition-colors">Settings</Link>
+                    <Link to="/profile" className="text-gray-300 hover:text-white transition-colors">Profile</Link>
+                  </nav>
+                </div>
+              </div>
+              <UserProfile />
             </div>
           </ProtectedRoute>
         } />

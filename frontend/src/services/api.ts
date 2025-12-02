@@ -1,3 +1,4 @@
+import { useAuthStore } from '../store/authStore';
 const API_BASE = 'http://localhost:8000/api/v1';
 
 export interface Settings {
@@ -20,7 +21,12 @@ export interface Strategy {
 }
 
 export const getSettings = async (): Promise<Settings> => {
-    const response = await fetch(`${API_BASE}/settings`);
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/settings`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
     if (!response.ok) {
         throw new Error("Failed to fetch settings");
     }
@@ -28,10 +34,12 @@ export const getSettings = async (): Promise<Settings> => {
 };
 
 export const saveSettings = async (settings: Settings) => {
+    const token = useAuthStore.getState().token;
     const response = await fetch(`${API_BASE}/settings`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(settings),
     });
@@ -42,10 +50,12 @@ export const saveSettings = async (settings: Settings) => {
 };
 
 export const saveStrategy = async (strategy: { name: string; script_code: string }) => {
+    const token = useAuthStore.getState().token;
     const response = await fetch(`${API_BASE}/strategies/save`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ script: strategy.script_code }),
     });
@@ -54,10 +64,12 @@ export const saveStrategy = async (strategy: { name: string; script_code: string
 };
 
 export const executeStrategy = async (script: string, symbol: string = "BTC/USDT", timeframe: string = "1h") => {
+    const token = useAuthStore.getState().token;
     const response = await fetch(`${API_BASE}/strategies/execute`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ script, symbol, timeframe }),
     });
@@ -71,7 +83,12 @@ export const getMarketData = async (symbol: string = "BTC/USDT", timeframe: stri
 };
 
 export const getStrategies = async () => {
-    const response = await fetch(`${API_BASE}/strategies/`);
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/strategies/`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
     if (!response.ok) {
         throw new Error('Failed to fetch strategies');
     }
@@ -101,6 +118,52 @@ export const register = async (email: string, password: string, username: string
     if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Registration failed');
+    }
+    return response.json();
+};
+
+export const changePassword = async (oldPassword: string, newPassword: string) => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/auth/password-change`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to change password');
+    }
+    return response.json();
+};
+
+export const requestPasswordReset = async (email: string) => {
+    const response = await fetch(`${API_BASE}/auth/password-reset-request`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+    });
+    if (!response.ok) {
+        throw new Error('Failed to request password reset');
+    }
+    return response.json();
+};
+
+export const confirmPasswordReset = async (token: string, newPassword: string) => {
+    const response = await fetch(`${API_BASE}/auth/password-reset-confirm`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token, new_password: newPassword }),
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to reset password');
     }
     return response.json();
 };

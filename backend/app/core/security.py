@@ -3,8 +3,10 @@ from typing import Optional, Union
 from jose import jwt
 from passlib.context import CryptContext
 
-# Configuration (should be in config.py, but hardcoded for now/MVP)
-SECRET_KEY = "CHANGE_THIS_TO_A_SECURE_SECRET_KEY_IN_PRODUCTION"
+from app.core.config import settings
+
+# Configuration
+SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
