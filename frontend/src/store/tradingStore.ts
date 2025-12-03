@@ -39,11 +39,13 @@ interface Portfolio {
 interface TradingState {
     symbol: string;
     timeframe: string;
+    currentPrice: number | null; // Added currentPrice
     currentAnalysis: string | null;
     portfolio: Portfolio | null;
 
     setSymbol: (symbol: string) => void;
     setTimeframe: (timeframe: string) => void;
+    setCurrentPrice: (price: number) => void; // Added setter
     setCurrentAnalysis: (analysis: string | null) => void;
 
     fetchPortfolio: () => Promise<void>;
@@ -54,11 +56,13 @@ interface TradingState {
 export const useTradingStore = create<TradingState>((set, get) => ({
     symbol: 'BTC/USDT',
     timeframe: '1h',
+    currentPrice: null,
     currentAnalysis: null,
     portfolio: null,
 
     setSymbol: (symbol) => set({ symbol }),
     setTimeframe: (timeframe) => set({ timeframe }),
+    setCurrentPrice: (price) => set({ currentPrice: price }),
     setCurrentAnalysis: (analysis) => set({ currentAnalysis: analysis }),
 
     fetchPortfolio: async () => {

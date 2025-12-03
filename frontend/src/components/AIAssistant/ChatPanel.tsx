@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { chatWithAI, generateStrategy } from '../../services/api';
 import { useTradingStore } from '../../store/tradingStore';
-import { Send, Bot, User, Code, Loader2, X, Sparkles, Copy, ArrowDownToLine } from 'lucide-react';
+import { Send, Bot, User, Code, Loader2, X, Sparkles, Copy, ArrowDownToLine, Square } from 'lucide-react';
 
 interface Message {
     role: 'user' | 'ai';
@@ -18,10 +18,11 @@ interface ChatPanelProps {
     analysisContext?: string;
     onLoadCode?: (code: string) => void; // Callback to load code into editor
     defaultMode?: 'chat' | 'strategy';
+    layoutMode?: 'overlay' | 'embedded';
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, initialMessage, analysisContext, onLoadCode, defaultMode = 'chat' }) => {
-    const { symbol, timeframe } = useTradingStore();
+const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, initialMessage, analysisContext, onLoadCode, defaultMode = 'chat', layoutMode = 'overlay' }) => {
+    const { symbol, timeframe, portfolio, currentPrice } = useTradingStore();
     const [messages, setMessages] = useState<Message[]>([
         { role: 'ai', content: 'Hello! I am your Trading Assistant. How can I help you today?', timestamp: new Date() }
     ]);
@@ -30,6 +31,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, i
     const [includeContext, setIncludeContext] = useState(true);
     const [isStrategyMode, setIsStrategyMode] = useState(defaultMode === 'strategy'); // Toggle for Strategy Builder
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -45,6 +47,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, i
         }
     }, [isOpen, initialMessage]);
 
+    const handleStop = () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+            setIsLoading(false);
+            setMessages(prev => [...prev, { role: 'ai', content: '[Request cancelled by user]', timestamp: new Date() }]);
+        }
+    };
+
     const handleSend = async () => {
         if (!input.trim()) return;
 
@@ -53,10 +64,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, i
         setInput('');
         setIsLoading(true);
 
+        // Create new AbortController
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
         try {
             if (isStrategyMode) {
                 // Strategy Generation Mode
-                const response = await generateStrategy(userMsg.content, includeContext ? currentScript : undefined);
+                const response = await generateStrategy(userMsg.content, includeContext ? currentScript : undefined, controller.signal);
 
                 const aiMsg: Message = {
                     role: 'ai',
@@ -68,14 +83,98 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, i
 
             } else {
                 // Normal Chat Mode
-                const context = includeContext ? {
-                    symbol,
-                    timeframe,
-                    script: currentScript,
-                    analysis_content: analysisContext
-                } : undefined;
+                let context: any = undefined;
 
-                const response = await chatWithAI(userMsg.content, context);
+                if (includeContext) {
+                    // Fetch recent market data for context
+                    let recentCandles: any[] = [];
+                    let technicalAnalysis: any = null;
+
+                    try {
+                        // Dynamically import getMarketData to avoid circular dependencies if any, 
+                        // or just use the imported one. 
+                        // We need to import getMarketData at the top.
+                        const { getMarketData } = await import('../../services/api');
+                        const { addTechnicalIndicators } = await import('../../utils/technicalIndicators');
+
+                        // Fetch 200 candles to ensure valid indicator calculations (EMA/MACD need history)
+                        const data = await getMarketData(symbol, timeframe, 200);
+
+                        if (Array.isArray(data)) {
+                            // 1. Calculate Indicators
+                            const dataWithIndicators = addTechnicalIndicators(data.map((d: any) => ({
+                                ...d,
+                                time: d.timestamp || d.time // Ensure time format
+                            })));
+
+                            const latest = dataWithIndicators[dataWithIndicators.length - 1];
+
+                            if (latest) {
+                                technicalAnalysis = {
+                                    rsi: latest.rsi,
+                                    macd: latest.macd,
+                                    bollinger_bands: latest.bollingerBands,
+                                    sma20: latest.sma20,
+                                    volume: latest.volume,
+                                    close: latest.close
+                                };
+                            }
+
+                            // 2. Prepare Recent History (Last 100 candles for AI analysis)
+                            recentCandles = dataWithIndicators.slice(-100).map((c: any) => ({
+                                time: new Date(c.time).toISOString(),
+                                open: c.open,
+                                high: c.high,
+                                low: c.low,
+                                close: c.close,
+                                volume: c.volume,
+                                // Include key indicators in history too if needed, but raw price is usually enough for AI to see patterns
+                                rsi: c.rsi,
+                                sma20: c.sma20
+                            }));
+                        }
+                    } catch (err) {
+                        console.error("Failed to fetch context data", err);
+                    }
+
+                    // Calculate PnL for positions manually to ensure accuracy
+                    const positionsWithPnL = portfolio?.positions?.filter(p => p.symbol === symbol).map(p => {
+                        let pnl = 0;
+                        let pnlPercent = 0;
+                        if (currentPrice && p.entry_price) {
+                            if (p.side.toUpperCase() === 'LONG' || p.side.toUpperCase() === 'BUY') {
+                                pnl = (currentPrice - p.entry_price) * p.size;
+                                pnlPercent = ((currentPrice - p.entry_price) / p.entry_price) * 100;
+                            } else {
+                                pnl = (p.entry_price - currentPrice) * p.size;
+                                pnlPercent = ((p.entry_price - currentPrice) / p.entry_price) * 100;
+                            }
+                        }
+                        return {
+                            ...p,
+                            unrealized_pnl: pnl,
+                            unrealized_pnl_percent: pnlPercent,
+                            current_price: currentPrice
+                        };
+                    }) || [];
+
+                    context = {
+                        symbol,
+                        timeframe,
+                        current_price: currentPrice,
+                        portfolio: portfolio ? {
+                            balance: portfolio.balance,
+                            positions: positionsWithPnL,
+                            open_orders: portfolio.orders?.filter(o => o.symbol === symbol) || []
+                        } : null,
+                        recent_candles: recentCandles,
+                        technical_analysis: technicalAnalysis,
+                        script: currentScript,
+                        analysis_content: analysisContext
+                    };
+                }
+
+                const response = await chatWithAI(userMsg.content, context, controller.signal);
 
                 const aiMsg: Message = {
                     role: 'ai',
@@ -85,6 +184,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, i
                 setMessages(prev => [...prev, aiMsg]);
             }
         } catch (error: any) {
+            if (error.name === 'AbortError') {
+                console.log('Request aborted');
+                return; // Already handled in handleStop
+            }
             const errorMsg: Message = {
                 role: 'ai',
                 content: `Error: ${error.message || 'Something went wrong.'}`,
@@ -92,14 +195,21 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, i
             };
             setMessages(prev => [...prev, errorMsg]);
         } finally {
-            setIsLoading(false);
+            if (abortControllerRef.current === controller) {
+                setIsLoading(false);
+                abortControllerRef.current = null;
+            }
         }
     };
 
-    if (!isOpen) return null;
+    if (!isOpen && layoutMode === 'overlay') return null;
+    if (!isOpen && layoutMode === 'embedded') return null; // Or handle visibility differently for embedded
+
+    const overlayClasses = "fixed right-0 top-16 bottom-0 w-96 bg-gray-900 border-l border-gray-700 shadow-2xl z-30 transition-transform transform translate-x-0";
+    const embeddedClasses = "w-full h-full bg-gray-900 border-t border-b border-gray-800 flex flex-col";
 
     return (
-        <div className="fixed right-0 top-16 bottom-0 w-96 bg-gray-900 border-l border-gray-700 shadow-2xl flex flex-col z-30 transition-transform transform translate-x-0">
+        <div className={`flex flex-col ${layoutMode === 'overlay' ? overlayClasses : embeddedClasses}`}>
             {/* Header */}
             <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800">
                 <div className="flex items-center gap-2">
@@ -183,9 +293,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, i
                         Include Context
                     </label>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-end">
                     <textarea
-                        className="flex-1 bg-gray-900 border border-gray-600 rounded-md p-2 text-white text-sm focus:outline-none focus:border-blue-500 resize-none"
+                        className="flex-1 bg-gray-900 border border-gray-600 rounded-md p-2 text-white text-sm focus:outline-none focus:border-blue-500 resize-y min-h-[40px] max-h-[200px]"
                         rows={2}
                         placeholder={isStrategyMode ? "Describe your strategy (e.g. Buy when RSI < 30)..." : "Ask me anything..."}
                         value={input}
@@ -197,13 +307,23 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, i
                             }
                         }}
                     />
-                    <button
-                        onClick={handleSend}
-                        disabled={isLoading || !input.trim()}
-                        className={`${isStrategyMode ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'} disabled:opacity-50 disabled:cursor-not-allowed text-white p-2 rounded-md transition-colors flex items-center justify-center w-10`}
-                    >
-                        <Send className="w-4 h-4" />
-                    </button>
+                    {isLoading ? (
+                        <button
+                            onClick={handleStop}
+                            className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-md transition-colors flex items-center justify-center w-10 h-10"
+                            title="Stop Generation"
+                        >
+                            <Square className="w-4 h-4 fill-current" />
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleSend}
+                            disabled={!input.trim()}
+                            className={`${isStrategyMode ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'} disabled:opacity-50 disabled:cursor-not-allowed text-white p-2 rounded-md transition-colors flex items-center justify-center w-10 h-10`}
+                        >
+                            <Send className="w-4 h-4" />
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
