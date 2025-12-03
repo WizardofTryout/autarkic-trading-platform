@@ -304,11 +304,120 @@ class PaperTradingService:
 
         await self.db.commit()
 
+    async def check_positions(self, account_id: uuid.UUID):
+        """
+        Checks open positions against current market price for SL/TP triggers.
+        """
+        # 1. Get Open Positions
+        res_pos = await self.db.execute(select(PaperPosition).where(PaperPosition.account_id == account_id))
+        positions = res_pos.scalars().all()
+        
+        if not positions:
+            return
+
+        # Group by symbol
+        positions_by_symbol = {}
+        for pos in positions:
+            if pos.symbol not in positions_by_symbol:
+                positions_by_symbol[pos.symbol] = []
+            positions_by_symbol[pos.symbol].append(pos)
+            
+        # 2. Check each symbol
+        for symbol, pos_list in positions_by_symbol.items():
+            try:
+                # Get current price
+                current_price_float = await self.market_service.get_current_price(symbol)
+                if not current_price_float:
+                    continue
+                current_price = Decimal(str(current_price_float))
+                
+                for pos in pos_list:
+                    trigger_type = None # "STOP_LOSS" or "TAKE_PROFIT"
+                    
+                    # Check Conditions
+                    if pos.side == "LONG":
+                        if pos.stop_loss and current_price <= pos.stop_loss:
+                            trigger_type = "STOP_LOSS"
+                        elif pos.take_profit and current_price >= pos.take_profit:
+                            trigger_type = "TAKE_PROFIT"
+                    elif pos.side == "SHORT":
+                        if pos.stop_loss and current_price >= pos.stop_loss:
+                            trigger_type = "STOP_LOSS"
+                        elif pos.take_profit and current_price <= pos.take_profit:
+                            trigger_type = "TAKE_PROFIT"
+                            
+                    if trigger_type:
+                        # Execute Close
+                        print(f"Triggering {trigger_type} for {symbol} {pos.side} at {current_price}")
+                        
+                        # 1. Calculate PnL
+                        if pos.side == "LONG":
+                            pnl = (current_price - pos.entry_price) * pos.size
+                        else:
+                            pnl = (pos.entry_price - current_price) * pos.size
+                            
+                        # 2. Create Closing Order (Market)
+                        close_side = "SELL" if pos.side == "LONG" else "BUY"
+                        
+                        order = PaperOrder(
+                            account_id=account_id,
+                            symbol=symbol,
+                            side=close_side,
+                            type="MARKET",
+                            amount=pos.margin, # Not exactly accurate but indicative
+                            quantity=pos.size,
+                            filled_quantity=pos.size,
+                            status="FILLED",
+                            leverage=pos.leverage,
+                            price=current_price,
+                            stop_loss=None,
+                            take_profit=None
+                        )
+                        self.db.add(order)
+                        
+                        # 3. Create Trade
+                        fee_rate = Decimal("0.001")
+                        position_value = pos.size * current_price
+                        fee = position_value * fee_rate
+                        
+                        trade = PaperTrade(
+                            account_id=account_id,
+                            order_id=order.id,
+                            symbol=symbol,
+                            side=close_side,
+                            price=current_price,
+                            quantity=pos.size,
+                            fee=fee,
+                            fee_currency="USDT",
+                            realized_pnl=pnl
+                        )
+                        self.db.add(trade)
+                        
+                        # 4. Update Account Balance
+                        # Balance += Margin + PnL - Fee
+                        # (Margin was deducted at open, now we return it + profit/loss)
+                        
+                        account_res = await self.db.execute(select(PaperAccount).where(PaperAccount.id == account_id))
+                        account = account_res.scalars().first()
+                        
+                        account.balance += pos.margin + pnl - fee
+                        
+                        # 5. Delete Position
+                        await self.db.delete(pos)
+                        
+            except Exception as e:
+                print(f"Error checking positions for {symbol}: {e}")
+                continue
+                
+        await self.db.commit()
+
     async def get_portfolio(self, user_id: uuid.UUID):
         account = await self.get_or_create_account(user_id)
         
         # Check for fills before returning
         await self.check_fills(account.id)
+        # Check for SL/TP triggers
+        await self.check_positions(account.id)
         
         # Fetch Positions
         res_pos = await self.db.execute(select(PaperPosition).where(PaperPosition.account_id == account.id))

@@ -39,5 +39,16 @@ class MarketService:
         finally:
             await self.exchange.close()
 
+    async def get_current_price(self, symbol: str) -> float:
+        """
+        Fetch current price (ticker) from Binance.
+        """
+        try:
+            ticker = await self.exchange.fetch_ticker(symbol)
+            return ticker['last']
+        except Exception as e:
+            print(f"Error fetching ticker for {symbol}: {e}")
+            return None
+
     async def close(self):
         await self.exchange.close()
