@@ -18,6 +18,8 @@ class PaperOrderCreate(BaseModel):
     price: Optional[float] = None
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
+    is_trailing_stop: bool = False
+    trailing_percent: Optional[float] = None
 
 class ResetRequest(BaseModel):
     confirm: bool
@@ -39,7 +41,9 @@ async def place_order(
             order_type=order_in.type,
             price=order_in.price,
             stop_loss=order_in.stop_loss,
-            take_profit=order_in.take_profit
+            take_profit=order_in.take_profit,
+            is_trailing_stop=order_in.is_trailing_stop,
+            trailing_percent=order_in.trailing_percent
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

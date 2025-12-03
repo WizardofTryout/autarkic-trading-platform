@@ -13,6 +13,8 @@ interface Position {
     leverage: number;
     take_profit?: number;
     stop_loss?: number;
+    is_trailing_stop?: boolean;
+    trailing_percent?: number;
 }
 
 interface Order {
@@ -45,7 +47,7 @@ interface TradingState {
     setCurrentAnalysis: (analysis: string | null) => void;
 
     fetchPortfolio: () => Promise<void>;
-    placeOrder: (symbol: string, side: 'buy' | 'sell', amount: number, leverage: number, type?: 'MARKET' | 'LIMIT', price?: number, stopLoss?: number, takeProfit?: number) => Promise<void>;
+    placeOrder: (symbol: string, side: 'buy' | 'sell', amount: number, leverage: number, type?: 'MARKET' | 'LIMIT', price?: number, stopLoss?: number, takeProfit?: number, isTrailingStop?: boolean, trailingPercent?: number) => Promise<void>;
     resetAccount: () => Promise<void>;
 }
 
@@ -69,7 +71,7 @@ export const useTradingStore = create<TradingState>((set, get) => ({
         }
     },
 
-    placeOrder: async (symbol, side, amount, leverage, type = 'MARKET', price, stopLoss, takeProfit) => {
+    placeOrder: async (symbol, side, amount, leverage, type = 'MARKET', price, stopLoss, takeProfit, isTrailingStop, trailingPercent) => {
         try {
             await api.post('/paper/order', {
                 symbol,
@@ -79,7 +81,9 @@ export const useTradingStore = create<TradingState>((set, get) => ({
                 type,
                 price,
                 stop_loss: stopLoss,
-                take_profit: takeProfit
+                take_profit: takeProfit,
+                is_trailing_stop: isTrailingStop,
+                trailing_percent: trailingPercent
             });
             await get().fetchPortfolio(); // Refresh after order
         } catch (error) {

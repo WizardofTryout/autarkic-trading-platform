@@ -39,7 +39,7 @@ class PaperTradingService:
             
         return await self.get_or_create_account(user_id)
 
-    async def place_order(self, user_id: uuid.UUID, symbol: str, side: str, amount_usdt: float, leverage: int = 1, order_type: str = "MARKET", price: float = None, stop_loss: float = None, take_profit: float = None):
+    async def place_order(self, user_id: uuid.UUID, symbol: str, side: str, amount_usdt: float, leverage: int = 1, order_type: str = "MARKET", price: float = None, stop_loss: float = None, take_profit: float = None, is_trailing_stop: bool = False, trailing_percent: float = None):
         account = await self.get_or_create_account(user_id)
         
         # 1. Get Real Price (needed for Market orders and validation)
@@ -81,7 +81,9 @@ class PaperTradingService:
                 leverage=leverage,
                 price=limit_price,
                 stop_loss=Decimal(str(stop_loss)) if stop_loss else None,
-                take_profit=Decimal(str(take_profit)) if take_profit else None
+                take_profit=Decimal(str(take_profit)) if take_profit else None,
+                is_trailing_stop=is_trailing_stop,
+                trailing_percent=Decimal(str(trailing_percent)) if trailing_percent else None
             )
             self.db.add(order)
             await self.db.commit()
@@ -106,7 +108,9 @@ class PaperTradingService:
                 leverage=leverage,
                 price=current_price,
                 stop_loss=Decimal(str(stop_loss)) if stop_loss else None,
-                take_profit=Decimal(str(take_profit)) if take_profit else None
+                take_profit=Decimal(str(take_profit)) if take_profit else None,
+                is_trailing_stop=is_trailing_stop,
+                trailing_percent=Decimal(str(trailing_percent)) if trailing_percent else None
             )
             self.db.add(order)
             
@@ -147,6 +151,9 @@ class PaperTradingService:
                     # Update TP/SL if provided (overwrite or keep? Overwrite for now)
                     if stop_loss: position.stop_loss = Decimal(str(stop_loss))
                     if take_profit: position.take_profit = Decimal(str(take_profit))
+                    # Update Trailing settings
+                    position.is_trailing_stop = is_trailing_stop
+                    if trailing_percent: position.trailing_percent = Decimal(str(trailing_percent))
                 else:
                     # Reduce/Close Position logic (simplified)
                     close_qty = min(position.size, quantity)
@@ -175,7 +182,9 @@ class PaperTradingService:
                     leverage=leverage,
                     margin=margin,
                     stop_loss=Decimal(str(stop_loss)) if stop_loss else None,
-                    take_profit=Decimal(str(take_profit)) if take_profit else None
+                    take_profit=Decimal(str(take_profit)) if take_profit else None,
+                    is_trailing_stop=is_trailing_stop,
+                    trailing_percent=Decimal(str(trailing_percent)) if trailing_percent else None
                 )
                 self.db.add(position)
     
@@ -334,6 +343,26 @@ class PaperTradingService:
                 for pos in pos_list:
                     trigger_type = None # "STOP_LOSS" or "TAKE_PROFIT"
                     
+                    # --- Trailing Stop Logic ---
+                    if pos.is_trailing_stop and pos.trailing_percent and pos.stop_loss:
+                        # Assume stored as percentage value (e.g. 1.0 for 1%)
+                        trailing_pct_val = Decimal(str(pos.trailing_percent))
+                        trailing_factor = trailing_pct_val / 100
+                        
+                        if pos.side in ["LONG", "BUY"]:
+                            # New SL = Current Price * (1 - factor)
+                            new_sl = current_price * (1 - trailing_factor)
+                            if new_sl > pos.stop_loss:
+                                print(f"Trailing SL Update for {symbol} LONG: {pos.stop_loss} -> {new_sl}")
+                                pos.stop_loss = new_sl
+                                
+                        elif pos.side in ["SHORT", "SELL"]:
+                            # New SL = Current Price * (1 + factor)
+                            new_sl = current_price * (1 + trailing_factor)
+                            if new_sl < pos.stop_loss:
+                                print(f"Trailing SL Update for {symbol} SHORT: {pos.stop_loss} -> {new_sl}")
+                                pos.stop_loss = new_sl
+
                     # Debug logging
                     # print(f"Checking {symbol} {pos.side}: Price={current_price}, SL={pos.stop_loss}, TP={pos.take_profit}")
                     

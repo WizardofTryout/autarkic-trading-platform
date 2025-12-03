@@ -125,6 +125,8 @@ class PaperPosition(Base):
     liquidation_price = Column(Numeric(precision=20, scale=8), nullable=True)
     stop_loss = Column(Numeric(precision=20, scale=8), nullable=True)
     take_profit = Column(Numeric(precision=20, scale=8), nullable=True)
+    is_trailing_stop = Column(Boolean, default=False)
+    trailing_percent = Column(Numeric(precision=5, scale=4), nullable=True) # e.g. 0.05 for 5%
     margin = Column(Numeric(precision=20, scale=8), default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -143,6 +145,8 @@ class PaperOrder(Base):
     price = Column(Numeric(precision=20, scale=8), nullable=True) # For Limit orders
     stop_loss = Column(Numeric(precision=20, scale=8), nullable=True)
     take_profit = Column(Numeric(precision=20, scale=8), nullable=True)
+    is_trailing_stop = Column(Boolean, default=False)
+    trailing_percent = Column(Numeric(precision=5, scale=4), nullable=True)
     amount = Column(Numeric(precision=20, scale=8), nullable=False) # In Quote Currency (USDT) usually, or Base? Let's say Size in Base Asset for simplicity, or Amount in USDT. Let's stick to Size (Base Asset) or Amount (Quote). For simplicity in UI we used USDT amount. Let's store size (BTC) and filled_size.
     # Actually, UI sends USDT amount. We should convert to size.
     quantity = Column(Numeric(precision=20, scale=8), nullable=False) # Base asset quantity (e.g. 0.1 BTC)

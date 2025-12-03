@@ -6,9 +6,10 @@ interface ApprovalModalProps {
     onCancel: () => void;
     action: string;
     amount: string;
+    isLoading?: boolean;
 }
 
-export const ApprovalModal: React.FC<ApprovalModalProps> = ({ isOpen, onConfirm, onCancel, action, amount }) => {
+export const ApprovalModal: React.FC<ApprovalModalProps> = ({ isOpen, onConfirm, onCancel, action, amount, isLoading = false }) => {
     if (!isOpen) return null;
 
     return (
@@ -21,15 +22,24 @@ export const ApprovalModal: React.FC<ApprovalModalProps> = ({ isOpen, onConfirm,
                 <div className="flex gap-4">
                     <button
                         onClick={onCancel}
-                        className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white"
+                        disabled={isLoading}
+                        className={`flex-1 py-2 rounded text-white ${isLoading ? 'bg-gray-600 cursor-not-allowed opacity-50' : 'bg-gray-700 hover:bg-gray-600'}`}
                     >
                         Cancel
                     </button>
                     <button
                         onClick={onConfirm}
-                        className="flex-1 py-2 bg-yellow-600 hover:bg-yellow-500 rounded text-white font-bold"
+                        disabled={isLoading}
+                        className={`flex-1 py-2 rounded text-white font-bold flex items-center justify-center gap-2 ${isLoading ? 'bg-yellow-700 cursor-not-allowed opacity-50' : 'bg-yellow-600 hover:bg-yellow-500'}`}
                     >
-                        Confirm
+                        {isLoading ? (
+                            <>
+                                <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                Processing...
+                            </>
+                        ) : (
+                            'Confirm'
+                        )}
                     </button>
                 </div>
             </div>

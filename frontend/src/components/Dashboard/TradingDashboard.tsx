@@ -122,7 +122,10 @@ export const TradingDashboard: React.FC = () => {
                                         <td className="p-3 text-gray-300">
                                             <div className="flex flex-col text-xs">
                                                 <span className="text-green-400">TP: {pos.take_profit?.toFixed(2) || '-'}</span>
-                                                <span className="text-red-400">SL: {pos.stop_loss?.toFixed(2) || '-'}</span>
+                                                <span className="text-red-400 flex items-center gap-1">
+                                                    SL: {pos.stop_loss?.toFixed(2) || '-'}
+                                                    {pos.is_trailing_stop && <span className="text-[10px] px-1 bg-purple-500/20 text-purple-400 rounded">Trailing</span>}
+                                                </span>
                                             </div>
                                         </td>
                                         <td className="p-3 text-gray-300">{pos.margin.toFixed(2)} USDT</td>
