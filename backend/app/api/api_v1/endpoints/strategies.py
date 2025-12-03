@@ -431,6 +431,22 @@ async def execute_strategy(
         traceback.print_exc()
         return ExecutionResult(success=False, error=str(e))
 
+class BacktestRequest(BaseModel):
+    script: str
+    symbol: str
+    timeframe: str
+    start_date: datetime
+    end_date: datetime
+    initial_capital: Optional[float] = 10000.0
+    take_profit: Optional[float] = 0.0
+    stop_loss: Optional[float] = 0.0
+
+class BacktestResult(BaseModel):
+    metrics: Dict[str, Any]
+    trades: List[Dict[str, Any]]
+    equity_curve: List[Dict[str, Any]]
+    error: Optional[str] = None
+
 @router.post("/backtest", response_model=BacktestResult)
 async def run_backtest(
     request: BacktestRequest,
@@ -445,7 +461,9 @@ async def run_backtest(
             timeframe=request.timeframe,
             start_date=request.start_date,
             end_date=request.end_date,
-            initial_capital=request.initial_capital
+            initial_capital=request.initial_capital,
+            take_profit=request.take_profit,
+            stop_loss=request.stop_loss
         )
         if "error" in result:
              return BacktestResult(metrics={}, trades=[], equity_curve=[], error=result["error"])

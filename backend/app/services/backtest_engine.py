@@ -8,7 +8,7 @@ class BacktestEngine:
     def __init__(self):
         self.market_service = MarketService()
 
-    async def run_backtest(self, script: str, symbol: str, timeframe: str, start_date: datetime, end_date: datetime, initial_capital: float = 10000.0):
+    async def run_backtest(self, script: str, symbol: str, timeframe: str, start_date: datetime, end_date: datetime, initial_capital: float = 10000.0, take_profit: float = 0, stop_loss: float = 0):
         # 1. Fetch Historical Data
         print(f"Fetching historical data for {symbol} from {start_date} to {end_date}...")
         ohlcv_data = await self.market_service.fetch_historical_data_range(symbol, timeframe, start_date, end_date)
@@ -18,6 +18,7 @@ class BacktestEngine:
 
         # Convert to DataFrame
         df = pd.DataFrame(ohlcv_data)
+        # Ensure timestamp is datetime
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df.set_index('timestamp', inplace=True)
         
@@ -35,16 +36,28 @@ class BacktestEngine:
             parsed = parse_pine_script(script)
             # execute_pine_script returns (live_signals_list, context_dict)
             # We only need context for backtesting to get the full series
-            _, context = execute_pine_script(parsed, market_data)
+            signals_list, context = execute_pine_script(parsed, market_data)
+            
+            # Convert signals list to a lookup dict for faster access: timestamp -> list of actions
+            signal_map = {}
+            for sig in signals_list:
+                ts = sig["timestamp"]
+                # Ensure ts is Timestamp for consistent lookup
+                if isinstance(ts, str):
+                    ts = pd.to_datetime(ts)
+                if ts not in signal_map:
+                    signal_map[ts] = []
+                signal_map[ts].append(sig)
+                
         except Exception as e:
-            return {"error": f"Script execution failed: {str(e)}"}
+            return {"error": f"Runtime Error: {str(e)}"}
 
         # 3. Simulate Trades
         print("Simulating trades...")
-        trades = []
-        equity_curve = []
         
         capital = initial_capital
+        equity_curve = []
+        trades = []
         position = None # None, 'LONG', 'SHORT'
         entry_price = 0
         entry_time = None
@@ -53,53 +66,101 @@ class BacktestEngine:
         # Fee configuration (e.g., 0.1% per trade)
         fee_rate = 0.001 
         
-        # Combine signals into a single timeline
-        # We need to iterate through the dataframe index to simulate time
-        
-        # Identify signal columns from parsed strategy calls
-        long_signals = pd.Series(False, index=df.index)
-        short_signals = pd.Series(False, index=df.index)
-        close_signals = pd.Series(False, index=df.index)
-
-        print(f"Strategy Calls: {parsed.get('strategy_calls', [])}")
-        for call in parsed.get("strategy_calls", []):
-            func = call["function"]
-            args = call["args"]
-            
-            condition = None
-            direction = "long" # default
-            
-            for arg in args:
-                if arg == "strategy.long": direction = "long"
-                elif arg == "strategy.short": direction = "short"
-                elif arg.startswith("when="):
-                    cond_name = arg.split("=")[1]
-                    condition = context.get(cond_name)
-                    print(f"Condition '{cond_name}' found in context: {condition is not None}")
-                    if condition is not None and isinstance(condition, pd.Series):
-                        print(f"Condition '{cond_name}' True count: {condition.sum()}")
-            
-            if condition is not None and isinstance(condition, pd.Series):
-                # Fill NaNs with False
-                condition = condition.fillna(False)
-                
-                if func == "entry":
-                    if direction == "long":
-                        long_signals = long_signals | condition
-                    else:
-                        short_signals = short_signals | condition
-                elif func == "close":
-                    close_signals = close_signals | condition
-        
-        # Ensure boolean series
-        if not isinstance(long_signals, pd.Series): long_signals = pd.Series(False, index=df.index)
-        if not isinstance(short_signals, pd.Series): short_signals = pd.Series(False, index=df.index)
-        if not isinstance(close_signals, pd.Series): close_signals = pd.Series(False, index=df.index)
-
+        # Simulation Loop
+        # We iterate through the dataframe to simulate time
+        print(f"DEBUG: df.index type: {df.index.dtype}")
         for timestamp, row in df.iterrows():
-            current_price = row['close']
+            # Force conversion to be absolutely sure
+            timestamp = pd.to_datetime(timestamp)
             
-            # Record equity (mark to market)
+            current_price = row['close']
+            high_price = row['high']
+            low_price = row['low']
+            
+            # 1. Check TP/SL for existing position
+            if position == 'LONG':
+                # Take Profit: High >= Entry * (1 + TP/100)
+                if take_profit > 0 and high_price >= entry_price * (1 + take_profit/100):
+                    exit_price = entry_price * (1 + take_profit/100)
+                    pnl = (exit_price - entry_price) * entry_size
+                    fee = (exit_price * entry_size) * fee_rate
+                    pnl -= fee
+                    capital += pnl
+                    trades.append({
+                        "type": "LONG",
+                        "entry_price": entry_price,
+                        "exit_price": exit_price,
+                        "entry_time": entry_time,
+                        "exit_time": timestamp,
+                        "pnl": pnl,
+                        "pnl_percent": (pnl / (entry_price * entry_size)) * 100,
+                        "status": "Take Profit"
+                    })
+                    position = None
+                    entry_size = 0
+                
+                # Stop Loss: Low <= Entry * (1 - SL/100)
+                elif stop_loss > 0 and low_price <= entry_price * (1 - stop_loss/100):
+                    exit_price = entry_price * (1 - stop_loss/100)
+                    pnl = (exit_price - entry_price) * entry_size
+                    fee = (exit_price * entry_size) * fee_rate
+                    pnl -= fee
+                    capital += pnl
+                    trades.append({
+                        "type": "LONG",
+                        "entry_price": entry_price,
+                        "exit_price": exit_price,
+                        "entry_time": entry_time,
+                        "exit_time": timestamp,
+                        "pnl": pnl,
+                        "pnl_percent": (pnl / (entry_price * entry_size)) * 100,
+                        "status": "Stop Loss"
+                    })
+                    position = None
+                    entry_size = 0
+
+            elif position == 'SHORT':
+                # Take Profit: Low <= Entry * (1 - TP/100)
+                if take_profit > 0 and low_price <= entry_price * (1 - take_profit/100):
+                    exit_price = entry_price * (1 - take_profit/100)
+                    pnl = (entry_price - exit_price) * entry_size
+                    fee = (exit_price * entry_size) * fee_rate
+                    pnl -= fee
+                    capital += pnl
+                    trades.append({
+                        "type": "SHORT",
+                        "entry_price": entry_price,
+                        "exit_price": exit_price,
+                        "entry_time": entry_time,
+                        "exit_time": timestamp,
+                        "pnl": pnl,
+                        "pnl_percent": (pnl / (entry_price * entry_size)) * 100,
+                        "status": "Take Profit"
+                    })
+                    position = None
+                    entry_size = 0
+
+                # Stop Loss: High >= Entry * (1 + SL/100)
+                elif stop_loss > 0 and high_price >= entry_price * (1 + stop_loss/100):
+                    exit_price = entry_price * (1 + stop_loss/100)
+                    pnl = (entry_price - exit_price) * entry_size
+                    fee = (exit_price * entry_size) * fee_rate
+                    pnl -= fee
+                    capital += pnl
+                    trades.append({
+                        "type": "SHORT",
+                        "entry_price": entry_price,
+                        "exit_price": exit_price,
+                        "entry_time": entry_time,
+                        "exit_time": timestamp,
+                        "pnl": pnl,
+                        "pnl_percent": (pnl / (entry_price * entry_size)) * 100,
+                        "status": "Stop Loss"
+                    })
+                    position = None
+                    entry_size = 0
+
+            # 2. Record equity (mark to market)
             current_equity = capital
             if position == 'LONG':
                 current_equity += (current_price - entry_price) * entry_size
@@ -111,59 +172,126 @@ class BacktestEngine:
                 "value": current_equity
             })
 
-            # Check Signals
-            is_long = long_signals.get(timestamp, False)
-            is_short = short_signals.get(timestamp, False)
-            is_close = close_signals.get(timestamp, False)
-            
-            # Debug logging for first few iterations
-            if len(equity_curve) < 5:
-                print(f"Time: {timestamp}, Price: {current_price}, Long: {is_long}, Short: {is_short}, Close: {is_close}")
+            # 3. Check for Signals at this timestamp (only if no TP/SL was triggered and position is still open or new signal)
+            if timestamp in signal_map:
+                for sig in signal_map[timestamp]:
+                    action = sig["action"]
+                    
+                    if action == "BUY":
+                        if position == 'SHORT':
+                            # Close Short
+                            pnl = (entry_price - current_price) * entry_size
+                            # Deduct Fee
+                            fee = (current_price * entry_size) * fee_rate
+                            pnl -= fee
+                            capital += pnl
+                            
+                            trades.append({
+                                "type": "SHORT",
+                                "entry_price": entry_price,
+                                "exit_price": current_price,
+                                "entry_time": entry_time,
+                                "exit_time": timestamp,
+                                "pnl": pnl,
+                                "pnl_percent": (pnl / (entry_price * entry_size)) * 100 if entry_price > 0 else 0
+                            })
+                            position = None
+                            entry_size = 0
+                        
+                        if position is None:
+                            # Open Long
+                            position = 'LONG'
+                            entry_price = current_price
+                            entry_time = timestamp
+                            # Size: 95% of capital
+                            entry_size = (capital * 0.95) / entry_price
+                            # Deduct Fee
+                            capital -= (entry_price * entry_size) * fee_rate
+                            
+                    elif action == "SELL":
+                        if position == 'LONG':
+                            # Close Long
+                            pnl = (current_price - entry_price) * entry_size
+                            # Deduct Fee
+                            fee = (current_price * entry_size) * fee_rate
+                            pnl -= fee
+                            capital += pnl
+                            
+                            trades.append({
+                                "type": "LONG",
+                                "entry_price": entry_price,
+                                "exit_price": current_price,
+                                "entry_time": entry_time,
+                                "exit_time": timestamp,
+                                "pnl": pnl,
+                                "pnl_percent": (pnl / (entry_price * entry_size)) * 100 if entry_price > 0 else 0
+                            })
+                            position = None
+                            entry_size = 0
+                            
+                        if position is None:
+                            # Open Short
+                            position = 'SHORT'
+                            entry_price = current_price
+                            entry_time = timestamp
+                            # Size: 95% of capital
+                            entry_size = (capital * 0.95) / entry_price
+                            # Deduct Fee
+                            capital -= (entry_price * entry_size) * fee_rate
 
-            # Close Logic
-            if position and (is_close or (position == 'LONG' and is_short) or (position == 'SHORT' and is_long)):
-                # Close Position
-                exit_price = current_price
-                pnl = 0
-                if position == 'LONG':
-                    pnl = (exit_price - entry_price) * entry_size
-                elif position == 'SHORT':
-                    pnl = (entry_price - exit_price) * entry_size
-                
-                # Deduct Fee
-                fee = (exit_price * entry_size) * fee_rate
-                pnl -= fee
-                capital += pnl
-                
-                trades.append({
-                    "entry_time": entry_time,
-                    "exit_time": timestamp,
-                    "type": position,
-                    "entry_price": entry_price,
-                    "exit_price": exit_price,
-                    "pnl": pnl,
-                    "pnl_percent": (pnl / (entry_price * entry_size)) * 100 if entry_price > 0 else 0
-                })
-                
-                position = None
-                entry_size = 0
+                    elif action == "CLOSE":
+                        if position:
+                            exit_price = current_price
+                            pnl = 0
+                            if position == 'LONG':
+                                pnl = (exit_price - entry_price) * entry_size
+                            elif position == 'SHORT':
+                                pnl = (entry_price - exit_price) * entry_size
+                            
+                            # Deduct Fee
+                            fee = (exit_price * entry_size) * fee_rate
+                            pnl -= fee
+                            capital += pnl
+                            
+                            trades.append({
+                                "type": position,
+                                "entry_price": entry_price,
+                                "exit_price": exit_price,
+                                "entry_time": entry_time,
+                                "exit_time": timestamp,
+                                "pnl": pnl,
+                                "pnl_percent": (pnl / (entry_price * entry_size)) * 100 if entry_price > 0 else 0
+                            })
+                            position = None
+                            entry_size = 0
+
+        # End of Simulation Loop - Close any open position
+        if position is not None:
+            # Force close at last price
+            last_price = df.iloc[-1]['close']
+            last_time = df.index[-1]
             
-            # Entry Logic
-            if not position:
-                if is_long:
-                    position = 'LONG'
-                    entry_price = current_price
-                    entry_time = timestamp
-                    # Simple sizing: Use 95% of capital (leave room for fees)
-                    entry_size = (capital * 0.95) / entry_price
-                    # Deduct Entry Fee
-                    capital -= (entry_price * entry_size) * fee_rate
-                elif is_short:
-                    position = 'SHORT'
-                    entry_price = current_price
-                    entry_time = timestamp
-                    entry_size = (capital * 0.95) / entry_price
-                    capital -= (entry_price * entry_size) * fee_rate
+            pnl = 0
+            if position == 'LONG':
+                pnl = (last_price - entry_price) * entry_size
+            elif position == 'SHORT':
+                pnl = (entry_price - last_price) * entry_size
+            
+            # Deduct Fee
+            fee = (last_price * entry_size) * fee_rate
+            pnl -= fee
+            capital += pnl
+            
+            trades.append({
+                "type": position,
+                "entry_price": entry_price,
+                "exit_price": last_price,
+                "entry_time": entry_time,
+                "exit_time": last_time,
+                "pnl": pnl,
+                "pnl_percent": (pnl / (entry_price * entry_size)) * 100 if entry_price > 0 else 0,
+                "status": "Closed (End of Data)"
+            })
 
         # 4. Calculate Metrics
         total_trades = len(trades)
