@@ -6,12 +6,6 @@ export interface Settings {
     binanceApiKey: string;
     aiApiKey: string;
     ollamaUrl: string;
-    investmentPerTrade: number;
-    riskRewardRatio: string;
-    stopLoss: number;
-    takeProfit: number;
-    tradeDirection: 'Long' | 'Short' | 'Both';
-    leverage: number;
 }
 
 export interface Strategy {

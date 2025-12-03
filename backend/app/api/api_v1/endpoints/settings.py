@@ -41,12 +41,6 @@ class ValidationRequest(BaseModel):
 class SettingsSchema(BaseModel):
     # Trading Parameters (kept from old schema)
     ollamaUrl: Optional[str] = "http://localhost:11434"
-    investmentPerTrade: Optional[float] = 100.0
-    riskRewardRatio: Optional[str] = "1:2"
-    stopLoss: Optional[float] = 2.0
-    takeProfit: Optional[float] = 4.0
-    tradeDirection: Optional[str] = "Long"
-    leverage: Optional[float] = 1.0
 
 # --- Helper Functions ---
 
@@ -199,13 +193,7 @@ async def get_settings(
 ):
     prefs = current_user.preferences or {}
     return SettingsSchema(
-        ollamaUrl=prefs.get("ollamaUrl", "http://localhost:11434"),
-        investmentPerTrade=prefs.get("investmentPerTrade", 100.0),
-        riskRewardRatio=prefs.get("riskRewardRatio", "1:2"),
-        stopLoss=prefs.get("stopLoss", 2.0),
-        takeProfit=prefs.get("takeProfit", 4.0),
-        tradeDirection=prefs.get("tradeDirection", "Long"),
-        leverage=prefs.get("leverage", 1.0)
+        ollamaUrl=prefs.get("ollamaUrl", "http://localhost:11434")
     )
 
 @router.post("/", response_model=SettingsSchema)
@@ -216,13 +204,7 @@ async def save_settings(
 ):
     prefs = current_user.preferences or {}
     prefs.update({
-        "ollamaUrl": settings_in.ollamaUrl,
-        "investmentPerTrade": settings_in.investmentPerTrade,
-        "riskRewardRatio": settings_in.riskRewardRatio,
-        "stopLoss": settings_in.stopLoss,
-        "takeProfit": settings_in.takeProfit,
-        "tradeDirection": settings_in.tradeDirection,
-        "leverage": settings_in.leverage
+        "ollamaUrl": settings_in.ollamaUrl
     })
     current_user.preferences = prefs
     db.add(current_user)
