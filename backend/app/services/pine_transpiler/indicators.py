@@ -22,3 +22,56 @@ def macd(data: pd.Series, fast_period: int = 12, slow_period: int = 26, signal_p
     signal_line = macd_line.ewm(span=signal_period, adjust=False).mean()
     histogram = macd_line - signal_line
     return macd_line, signal_line, histogram
+
+def sma(data: pd.Series, length: int) -> pd.Series:
+    """
+    Calculates the Simple Moving Average (SMA).
+    """
+    return data.rolling(window=length).mean()
+
+def ema(data: pd.Series, length: int) -> pd.Series:
+    """
+    Calculates the Exponential Moving Average (EMA).
+    """
+    return data.ewm(span=length, adjust=False).mean()
+
+def bb(data: pd.Series, length: int = 20, mult: float = 2.0):
+    """
+    Calculates Bollinger Bands.
+    Returns: upper, middle, lower
+    """
+    basis = sma(data, length)
+    dev = mult * data.rolling(window=length).std()
+    upper = basis + dev
+    lower = basis - dev
+    return upper, basis, lower
+
+def crossover(series1: pd.Series, series2: pd.Series) -> pd.Series:
+    """
+    Returns True where series1 crosses over series2.
+    Logic: (series1 > series2) AND (prev_series1 <= prev_series2)
+    """
+    # Ensure inputs are Series
+    if not isinstance(series1, pd.Series):
+        series1 = pd.Series(series1, index=series2.index)
+    if not isinstance(series2, pd.Series):
+        series2 = pd.Series(series2, index=series1.index)
+        
+    cond1 = series1 > series2
+    cond2 = series1.shift(1) <= series2.shift(1)
+    return cond1 & cond2
+
+def crossunder(series1: pd.Series, series2: pd.Series) -> pd.Series:
+    """
+    Returns True where series1 crosses under series2.
+    Logic: (series1 < series2) AND (prev_series1 >= prev_series2)
+    """
+    # Ensure inputs are Series
+    if not isinstance(series1, pd.Series):
+        series1 = pd.Series(series1, index=series2.index)
+    if not isinstance(series2, pd.Series):
+        series2 = pd.Series(series2, index=series1.index)
+
+    cond1 = series1 < series2
+    cond2 = series1.shift(1) >= series2.shift(1)
+    return cond1 & cond2

@@ -330,7 +330,17 @@ export const deleteStrategy = async (id: string) => {
     return response.json();
 };
 
-export const activateStrategy = async (data: { strategy_id: string; symbol: string; timeframe: string; amount: number }) => {
+export const activateStrategy = async (data: {
+    strategy_id: string;
+    symbol: string;
+    timeframe: string;
+    amount: number;
+    risk_per_trade?: number;
+    risk_reward_ratio?: number;
+    stop_loss_percent?: number;
+    use_trailing_stop?: boolean;
+    trailing_stop_percent?: number;
+}) => {
     const token = useAuthStore.getState().token;
     const response = await fetch(`${API_BASE}/strategies/activate`, {
         method: 'POST',
@@ -438,4 +448,29 @@ export const api = {
         }
         return response.json();
     }
+};
+
+export const getUserPreferences = async () => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/users/me/preferences`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) throw new Error('Failed to fetch user preferences');
+    return response.json();
+};
+
+export const updateUserPreferences = async (preferences: any) => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/users/me/preferences`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ preferences }),
+    });
+    if (!response.ok) throw new Error('Failed to update user preferences');
+    return response.json();
 };

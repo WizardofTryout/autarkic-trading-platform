@@ -63,6 +63,11 @@ class ActiveStrategyCreate(BaseModel):
     symbol: str
     timeframe: str
     amount: float
+    risk_per_trade: Optional[float] = 0.01
+    risk_reward_ratio: Optional[float] = 2.0
+    stop_loss_percent: Optional[float] = 0.02
+    use_trailing_stop: Optional[bool] = False
+    trailing_stop_percent: Optional[float] = None
 
 class ActiveStrategyResponse(BaseModel):
     id: uuid.UUID
@@ -73,6 +78,11 @@ class ActiveStrategyResponse(BaseModel):
     status: str
     created_at: datetime
     strategy_name: str
+    risk_per_trade: Optional[float]
+    risk_reward_ratio: Optional[float]
+    stop_loss_percent: Optional[float]
+    use_trailing_stop: Optional[bool]
+    trailing_stop_percent: Optional[float]
 
     class Config:
         from_attributes = True
@@ -163,7 +173,12 @@ async def activate_strategy(
         timeframe=activation_in.timeframe,
         amount=activation_in.amount,
         current_capital=activation_in.amount, # Initialize with investment amount
-        status="RUNNING"
+        status="RUNNING",
+        risk_per_trade=activation_in.risk_per_trade,
+        risk_reward_ratio=activation_in.risk_reward_ratio,
+        stop_loss_percent=activation_in.stop_loss_percent,
+        use_trailing_stop=activation_in.use_trailing_stop,
+        trailing_stop_percent=activation_in.trailing_stop_percent
     )
     
     # Deduct from Balance and Add to Locked Balance
@@ -196,7 +211,12 @@ async def activate_strategy(
         amount=active_strategy.amount,
         status=active_strategy.status,
         created_at=active_strategy.created_at,
-        strategy_name=strategy.name
+        strategy_name=strategy.name,
+        risk_per_trade=active_strategy.risk_per_trade,
+        risk_reward_ratio=active_strategy.risk_reward_ratio,
+        stop_loss_percent=active_strategy.stop_loss_percent,
+        use_trailing_stop=active_strategy.use_trailing_stop,
+        trailing_stop_percent=active_strategy.trailing_stop_percent
     )
 
 @router.get("/active", response_model=List[ActiveStrategyResponse])
@@ -222,7 +242,12 @@ async def get_active_strategies(
             amount=active.amount,
             status=active.status,
             created_at=active.created_at,
-            strategy_name=name
+            strategy_name=name,
+            risk_per_trade=active.risk_per_trade,
+            risk_reward_ratio=active.risk_reward_ratio,
+            stop_loss_percent=active.stop_loss_percent,
+            use_trailing_stop=active.use_trailing_stop,
+            trailing_stop_percent=active.trailing_stop_percent
         ))
     return response
 
