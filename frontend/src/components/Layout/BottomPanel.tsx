@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Terminal, Activity, ChevronUp, ChevronDown } from 'lucide-react';
+import { Terminal, Activity, ChevronUp, ChevronDown, PlayCircle } from 'lucide-react';
 import { TradingDashboard } from '../Dashboard/TradingDashboard';
 import PineScriptPanel from '../PineScriptPanel';
+import BacktestPanel from '../Backtest/BacktestPanel';
+import { useTradingStore } from '../../store/tradingStore';
 
 interface BottomPanelProps {
     onScriptChange: (script: string) => void;
@@ -9,8 +11,9 @@ interface BottomPanelProps {
 }
 
 export const BottomPanel: React.FC<BottomPanelProps> = ({ onScriptChange, script }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'editor'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'editor' | 'tester'>('dashboard');
     const [isExpanded, setIsExpanded] = useState(true);
+    const { selectedSymbol } = useTradingStore();
 
     return (
         <div className={`flex flex-col bg-gray-900 border-t border-gray-800 transition-all duration-300 ${isExpanded ? 'h-1/3' : 'h-10'}`}>
@@ -31,6 +34,13 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({ onScriptChange, script
                         <Terminal className="w-4 h-4" />
                         Pine Editor
                     </button>
+                    <button
+                        onClick={() => { setActiveTab('tester'); setIsExpanded(true); }}
+                        className={`flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-t-md transition-colors ${activeTab === 'tester' && isExpanded ? 'bg-gray-900 text-blue-400 border-t border-x border-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+                    >
+                        <PlayCircle className="w-4 h-4" />
+                        Strategy Tester
+                    </button>
                 </div>
 
                 <button
@@ -46,8 +56,10 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({ onScriptChange, script
                 <div className="flex-1 overflow-hidden bg-gray-900 relative">
                     {activeTab === 'dashboard' ? (
                         <TradingDashboard />
-                    ) : (
+                    ) : activeTab === 'editor' ? (
                         <PineScriptPanel onScriptChange={onScriptChange} script={script} />
+                    ) : (
+                        <BacktestPanel script={script || ''} symbol={selectedSymbol} />
                     )}
                 </div>
             )}

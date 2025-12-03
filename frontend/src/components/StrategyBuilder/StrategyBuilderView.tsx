@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Save, Trash2, Play, Code, MessageSquare, Layout } from 'lucide-react';
 import PineScriptPanel from '../PineScriptPanel';
+import BacktestPanel from '../Backtest/BacktestPanel';
 import ChatPanel from '../AIAssistant/ChatPanel';
 import StrategyActivationModal from './StrategyActivationModal';
 import { getStrategies, createStrategy, updateStrategy, deleteStrategy, getActiveStrategies, stopStrategy } from '../../services/api';
@@ -191,13 +192,30 @@ const StrategyBuilderView: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Editor Area */}
-                <div className="flex-1 relative">
-                    <PineScriptPanel
-                        script={currentCode}
-                        onScriptChange={setCurrentCode}
-                        isMaximized={true} // Always maximized in this view
-                    />
+                {/* Editor & Backtest Split Area */}
+                <div className="flex-1 relative flex overflow-hidden">
+                    {/* Left Pane: Code Editor */}
+                    <div className="flex-1 border-r border-gray-800 flex flex-col min-w-0">
+                        <PineScriptPanel
+                            script={currentCode}
+                            onScriptChange={setCurrentCode}
+                            isMaximized={true}
+                        />
+                    </div>
+
+                    {/* Right Pane: Strategy Tester */}
+                    <div className="flex-1 flex flex-col min-w-0 bg-gray-900">
+                        <div className="h-10 bg-gray-800/50 border-b border-gray-800 flex items-center px-4 font-medium text-sm text-gray-300">
+                            <Play className="w-4 h-4 mr-2 text-blue-400" />
+                            Strategy Tester
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <BacktestPanel
+                                script={currentCode}
+                                symbol={selectedStrategy ? 'BTC/USDT' : 'BTC/USDT'} // Default or strategy specific
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
 

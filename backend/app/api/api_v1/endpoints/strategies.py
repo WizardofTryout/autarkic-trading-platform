@@ -87,6 +87,20 @@ class ActiveStrategyResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class BacktestRequest(BaseModel):
+    script: str
+    symbol: str
+    timeframe: str
+    start_date: datetime
+    end_date: datetime
+    initial_capital: Optional[float] = 10000.0
+
+class BacktestResult(BaseModel):
+    metrics: Dict[str, Any]
+    trades: List[Dict[str, Any]]
+    equity_curve: List[Dict[str, Any]]
+    error: Optional[str] = None
+
 # --- Endpoints ---
 
 @router.get("/", response_model=List[StrategyResponse])
@@ -416,3 +430,30 @@ async def execute_strategy(
         import traceback
         traceback.print_exc()
         return ExecutionResult(success=False, error=str(e))
+
+@router.post("/backtest", response_model=BacktestResult)
+async def run_backtest(
+    request: BacktestRequest,
+    current_user: User = Depends(deps.get_current_user),
+):
+    from app.services.backtest_engine import BacktestEngine
+    engine = BacktestEngine()
+    try:
+        result = await engine.run_backtest(
+            script=request.script,
+            symbol=request.symbol,
+            timeframe=request.timeframe,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            initial_capital=request.initial_capital
+        )
+        if "error" in result:
+             return BacktestResult(metrics={}, trades=[], equity_curve=[], error=result["error"])
+             
+        return BacktestResult(**result)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return BacktestResult(metrics={}, trades=[], equity_curve=[], error=str(e))
+    finally:
+        await engine.close()
