@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Play, Loader2 } from 'lucide-react';
-import { activateStrategy } from '../../services/api';
+import { activateStrategy, getUserPreferences, updateUserPreferences } from '../../services/api';
 
 interface StrategyActivationModalProps {
     strategyId: string;
@@ -24,13 +24,48 @@ const StrategyActivationModal: React.FC<StrategyActivationModalProps> = ({ strat
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
 
+    // Risk Management State
+    const [riskPerTrade, setRiskPerTrade] = useState<number>(1.0);
+    const [riskRewardRatio, setRiskRewardRatio] = useState<number>(2.0);
+    const [stopLossPercent, setStopLossPercent] = useState<number>(2.0);
+    const [useTrailingStop, setUseTrailingStop] = useState<boolean>(false);
+    const [trailingStopPercent, setTrailingStopPercent] = useState<number>(1.0);
+
+    const [userPreferences, setUserPreferences] = useState<any>({});
+
+    React.useEffect(() => {
+        const fetchPrefs = async () => {
+            try {
+                const prefs = await getUserPreferences();
+                setUserPreferences(prefs);
+            } catch (err) {
+                console.error("Failed to fetch preferences", err);
+            }
+        };
+        fetchPrefs();
+    }, []);
+
     React.useEffect(() => {
         if (initialData) {
             setSymbol(initialData.symbol);
             setTimeframe(initialData.timeframe);
             setAmount(initialData.amount);
         }
-    }, [strategyId]); // Only update when opening a different strategy, ignore parent re-renders
+    }, [strategyId]);
+
+    // Apply preferences when symbol changes (if no initial data override)
+    React.useEffect(() => {
+        if (userPreferences && userPreferences[symbol]) {
+            const prefs = userPreferences[symbol];
+            if (prefs.timeframe) setTimeframe(prefs.timeframe);
+            if (prefs.amount) setAmount(prefs.amount);
+            if (prefs.riskPerTrade) setRiskPerTrade(prefs.riskPerTrade);
+            if (prefs.riskRewardRatio) setRiskRewardRatio(prefs.riskRewardRatio);
+            if (prefs.stopLossPercent) setStopLossPercent(prefs.stopLossPercent);
+            if (prefs.useTrailingStop !== undefined) setUseTrailingStop(prefs.useTrailingStop);
+            if (prefs.trailingStopPercent) setTrailingStopPercent(prefs.trailingStopPercent);
+        }
+    }, [symbol, userPreferences]);
 
     React.useEffect(() => {
         const fetchSymbols = async () => {
@@ -56,12 +91,34 @@ const StrategyActivationModal: React.FC<StrategyActivationModalProps> = ({ strat
         setLoading(true);
         setError(null);
         try {
+            // 1. Activate Strategy
             await activateStrategy({
                 strategy_id: strategyId,
                 symbol,
                 timeframe,
-                amount
+                amount,
+                risk_per_trade: riskPerTrade / 100, // Convert to decimal
+                risk_reward_ratio: riskRewardRatio,
+                stop_loss_percent: stopLossPercent / 100, // Convert to decimal
+                use_trailing_stop: useTrailingStop,
+                trailing_stop_percent: useTrailingStop ? trailingStopPercent / 100 : undefined
             });
+
+            // 2. Save Preferences
+            const newPrefs = {
+                ...userPreferences,
+                [symbol]: {
+                    timeframe,
+                    amount,
+                    riskPerTrade,
+                    riskRewardRatio,
+                    stopLossPercent,
+                    useTrailingStop,
+                    trailingStopPercent
+                }
+            };
+            await updateUserPreferences(newPrefs);
+
             onSuccess();
             onClose();
         } catch (err: any) {
@@ -168,6 +225,65 @@ const StrategyActivationModal: React.FC<StrategyActivationModalProps> = ({ strat
                                 onChange={(e) => setAmount(parseFloat(e.target.value))}
                             />
                         </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1">Risk per Trade (%)</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                    placeholder="1.0"
+                                    onChange={(e) => setRiskPerTrade(parseFloat(e.target.value))}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1">Risk/Reward Ratio</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                    placeholder="2.0"
+                                    onChange={(e) => setRiskRewardRatio(parseFloat(e.target.value))}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1">Stop Loss (%)</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                    placeholder="2.0"
+                                    onChange={(e) => setStopLossPercent(parseFloat(e.target.value))}
+                                />
+                            </div>
+                            <div className="flex items-center gap-2 pt-6">
+                                <input
+                                    type="checkbox"
+                                    id="trailing"
+                                    className="w-4 h-4 rounded border-gray-700 bg-gray-800 text-blue-600 focus:ring-blue-500"
+                                    checked={useTrailingStop}
+                                    onChange={(e) => setUseTrailingStop(e.target.checked)}
+                                />
+                                <label htmlFor="trailing" className="text-sm text-gray-300">Trailing Stop</label>
+                            </div>
+                        </div>
+
+                        {useTrailingStop && (
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1">Trailing Stop (%)</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                    placeholder="1.0"
+                                    onChange={(e) => setTrailingStopPercent(parseFloat(e.target.value))}
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
 

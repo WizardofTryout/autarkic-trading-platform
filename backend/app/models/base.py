@@ -66,6 +66,14 @@ class ActiveStrategy(Base):
     timeframe = Column(String, nullable=False) # e.g. 15m
     amount = Column(Numeric(precision=20, scale=8), nullable=False) # Initial Investment amount
     current_capital = Column(Numeric(precision=20, scale=8), nullable=True) # Current Capital (Initial + PnL)
+    
+    # Risk Management Parameters
+    risk_per_trade = Column(Numeric(precision=5, scale=4), default=0.01) # 1% default
+    risk_reward_ratio = Column(Numeric(precision=5, scale=2), default=2.0) # 1:2 default
+    stop_loss_percent = Column(Numeric(precision=5, scale=4), default=0.02) # 2% default
+    use_trailing_stop = Column(Boolean, default=False)
+    trailing_stop_percent = Column(Numeric(precision=5, scale=4), nullable=True)
+
     status = Column(String, default="RUNNING") # RUNNING, PAUSED, STOPPED
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

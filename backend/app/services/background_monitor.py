@@ -76,123 +76,171 @@ async def monitor_positions():
                             
                             # Parse & Execute Script
                             parsed = parse_pine_script(strategy.source_code)
-                            condition_results, _ = execute_pine_script(parsed, market_data)
+                            signals, context = execute_pine_script(parsed, market_data)
                             
-                            # Check last candle signals
-                            # We look at the LAST completed candle or current?
-                            # Usually strategies run on 'close', so we look at the last closed candle.
-                            # But get_ohlcv might return the current forming candle as the last one.
-                            # Let's assume the last row is the one to check.
-                            
-                            last_idx = df.index[-1]
-                            
-                            signal_found = None # 'buy' or 'sell' or 'exit'
-                            
-                            # Check for Entry Signals
-                            if "strategy.entry" in condition_results:
-                                # This returns a Series of "Long" or "Short" or None/NaN
-                                entry_series = condition_results["strategy.entry"]
-                                last_val = entry_series.iloc[-1]
-                                if last_val == "Long":
-                                    signal_found = "buy"
-                                elif last_val == "Short":
-                                    signal_found = "sell"
-                                    
-                            # Check for specific condition variables if strategy.entry not used directly
-                            # (Depends on how parse_pine_script maps them. Currently it maps 'buy_condition' etc if named so)
-                            # But let's rely on what execute_pine_script returns.
-                            # It returns a dict of condition names -> Series (bool).
-                            
-                            if not signal_found:
-                                for name, series in condition_results.items():
-                                    if isinstance(series, pd.Series) and series.dtype == bool:
-                                        if series.iloc[-1]: # If true at last index
-                                            if "buy" in name.lower() or "long" in name.lower():
-                                                signal_found = "buy"
-                                            elif "sell" in name.lower() or "short" in name.lower():
-                                                signal_found = "sell"
-                            
-                            if signal_found:
+                            if signals:
                                 # Check existing position
                                 account = await service.get_or_create_account(active.user_id)
                                 
                                 # Check if we already have a position for this symbol
                                 pos_res = await db.execute(select(PaperPosition).where(
                                     PaperPosition.account_id == account.id,
-                                    PaperPosition.symbol == active.symbol
+                                    PaperPosition.symbol == active.symbol,
+                                    PaperPosition.strategy_id == active.id
                                 ))
                                 position = pos_res.scalars().first()
                                 
-                                # Execution Logic
-                                if signal_found == "buy":
-                                    if not position:
-                                        # Open LONG
-                                        print(f"Strategy {active.id} triggering BUY on {active.symbol}")
-                                        await service.place_order(
-                                            user_id=active.user_id,
-                                            symbol=active.symbol,
-                                            side="BUY",
-                                            amount_usdt=float(active.amount),
-                                            leverage=1,
-                                            order_type="MARKET",
-                                            strategy_id=active.id
-                                        )
-                                    elif position.side == "SHORT":
-                                        # Flip: Close Short, Open Long
-                                        print(f"Strategy {active.id} flipping to BUY on {active.symbol}")
-                                        await service.place_order(
-                                            user_id=active.user_id,
-                                            symbol=active.symbol,
-                                            side="BUY",
-                                            amount_usdt=float(position.margin), # Close Short
-                                            order_type="MARKET",
-                                            strategy_id=active.id
-                                        )
-                                        await service.place_order(
-                                            user_id=active.user_id,
-                                            symbol=active.symbol,
-                                            side="BUY",
-                                            amount_usdt=float(active.amount), # Open Long
-                                            order_type="MARKET",
-                                            strategy_id=active.id
-                                        )
-
-                                elif signal_found == "sell":
-                                    if not position:
-                                        # Open SHORT
-                                        print(f"Strategy {active.id} triggering SELL on {active.symbol}")
-                                        await service.place_order(
-                                            user_id=active.user_id,
-                                            symbol=active.symbol,
-                                            side="SELL",
-                                            amount_usdt=float(active.amount),
-                                            leverage=1,
-                                            order_type="MARKET",
-                                            strategy_id=active.id
-                                        )
-                                    elif position.side == "LONG":
-                                        # Flip: Close Long, Open Short
-                                        print(f"Strategy {active.id} flipping to SELL on {active.symbol}")
-                                        await service.place_order(
-                                            user_id=active.user_id,
-                                            symbol=active.symbol,
-                                            side="SELL",
-                                            amount_usdt=float(position.margin), # Close Long
-                                            order_type="MARKET",
-                                            strategy_id=active.id
-                                        )
-                                        await service.place_order(
-                                            user_id=active.user_id,
-                                            symbol=active.symbol,
-                                            side="SELL",
-                                            amount_usdt=float(active.amount), # Open Short
-                                            order_type="MARKET",
-                                            strategy_id=active.id
-                                        )
+                                for signal in signals:
+                                    action = signal["action"] # BUY, SELL, CLOSE
+                                    
+                                    # --- Dynamic Risk Calculation ---
+                                    # Defaults
+                                    amount_usdt = float(active.amount)
+                                    stop_loss_price = None
+                                    take_profit_price = None
+                                    
+                                    # Get current price (approximate from last close for calculation)
+                                    current_price = float(market_data["close"].iloc[-1])
+                                    
+                                    if active.stop_loss_percent and float(active.stop_loss_percent) > 0:
+                                        # 1. Calculate Stop Loss Price
+                                        sl_dist = current_price * float(active.stop_loss_percent)
                                         
+                                        if action == "BUY":
+                                            stop_loss_price = current_price - sl_dist
+                                        elif action == "SELL":
+                                            stop_loss_price = current_price + sl_dist
+                                            
+                                        # 2. Calculate Position Size based on Risk
+                                        # Risk Amount = Capital * Risk Per Trade (e.g. 1000 * 0.01 = 10$)
+                                        # Loss per Unit = Entry - SL = sl_dist
+                                        # Position Size (Units) = Risk Amount / sl_dist
+                                        # Position Size (USDT) = Units * Entry
+                                        
+                                        if active.risk_per_trade and float(active.risk_per_trade) > 0:
+                                            risk_amount = float(active.current_capital or active.amount) * float(active.risk_per_trade)
+                                            position_units = risk_amount / sl_dist
+                                            calculated_amount = position_units * current_price
+                                            
+                                            # Cap at available capital (no leverage for now)
+                                            max_capital = float(active.current_capital or active.amount)
+                                            amount_usdt = min(calculated_amount, max_capital)
+                                            
+                                            print(f"Risk Calc: Risk ${risk_amount:.2f}, SL Dist {sl_dist:.2f}, Calc Size ${calculated_amount:.2f}, Final Size ${amount_usdt:.2f}")
+
+                                    if active.risk_reward_ratio and float(active.risk_reward_ratio) > 0 and stop_loss_price:
+                                        # 3. Calculate Take Profit
+                                        # Reward = Risk * Ratio
+                                        # TP Dist = SL Dist * Ratio
+                                        sl_dist = abs(current_price - stop_loss_price)
+                                        tp_dist = sl_dist * float(active.risk_reward_ratio)
+                                        
+                                        if action == "BUY":
+                                            take_profit_price = current_price + tp_dist
+                                        elif action == "SELL":
+                                            take_profit_price = current_price - tp_dist
+
+                                    # --- Execution ---
+                                    
+                                    if action == "BUY":
+                                        if not position:
+                                            # Open LONG
+                                            print(f"Strategy {active.id} triggering BUY on {active.symbol}")
+                                            await service.place_order(
+                                                user_id=active.user_id,
+                                                symbol=active.symbol,
+                                                side="BUY",
+                                                amount_usdt=amount_usdt,
+                                                leverage=1,
+                                                order_type="MARKET",
+                                                strategy_id=active.id,
+                                                stop_loss=stop_loss_price,
+                                                take_profit=take_profit_price,
+                                                is_trailing_stop=active.use_trailing_stop,
+                                                trailing_percent=float(active.trailing_stop_percent) if active.trailing_stop_percent else None
+                                            )
+                                        elif position.side == "SHORT":
+                                            # Flip: Close Short, Open Long
+                                            print(f"Strategy {active.id} flipping to BUY on {active.symbol}")
+                                            await service.place_order(
+                                                user_id=active.user_id,
+                                                symbol=active.symbol,
+                                                side="BUY",
+                                                amount_usdt=float(position.margin), # Close Short
+                                                order_type="MARKET",
+                                                strategy_id=active.id
+                                            )
+                                            await service.place_order(
+                                                user_id=active.user_id,
+                                                symbol=active.symbol,
+                                                side="BUY",
+                                                amount_usdt=amount_usdt, # Open Long with calculated size
+                                                order_type="MARKET",
+                                                strategy_id=active.id,
+                                                stop_loss=stop_loss_price,
+                                                take_profit=take_profit_price,
+                                                is_trailing_stop=active.use_trailing_stop,
+                                                trailing_percent=float(active.trailing_stop_percent) if active.trailing_stop_percent else None
+                                            )
+                                            
+                                    elif action == "SELL":
+                                        if not position:
+                                            # Open SHORT
+                                            print(f"Strategy {active.id} triggering SELL on {active.symbol}")
+                                            await service.place_order(
+                                                user_id=active.user_id,
+                                                symbol=active.symbol,
+                                                side="SELL",
+                                                amount_usdt=amount_usdt,
+                                                leverage=1,
+                                                order_type="MARKET",
+                                                strategy_id=active.id,
+                                                stop_loss=stop_loss_price,
+                                                take_profit=take_profit_price,
+                                                is_trailing_stop=active.use_trailing_stop,
+                                                trailing_percent=float(active.trailing_stop_percent) if active.trailing_stop_percent else None
+                                            )
+                                        elif position.side == "LONG":
+                                            # Flip: Close Long, Open Short
+                                            print(f"Strategy {active.id} flipping to SELL on {active.symbol}")
+                                            await service.place_order(
+                                                user_id=active.user_id,
+                                                symbol=active.symbol,
+                                                side="SELL",
+                                                amount_usdt=float(position.margin), # Close Long
+                                                order_type="MARKET",
+                                                strategy_id=active.id
+                                            )
+                                            await service.place_order(
+                                                user_id=active.user_id,
+                                                symbol=active.symbol,
+                                                side="SELL",
+                                                amount_usdt=amount_usdt, # Open Short with calculated size
+                                                order_type="MARKET",
+                                                strategy_id=active.id,
+                                                stop_loss=stop_loss_price,
+                                                take_profit=take_profit_price,
+                                                is_trailing_stop=active.use_trailing_stop,
+                                                trailing_percent=float(active.trailing_stop_percent) if active.trailing_stop_percent else None
+                                            )
+                                            
+                                    elif action == "CLOSE":
+                                        if position:
+                                            print(f"Strategy {active.id} triggering CLOSE on {active.symbol}")
+                                            # Close Position
+                                            side_to_close = "SELL" if position.side == "LONG" else "BUY"
+                                            await service.place_order(
+                                                user_id=active.user_id,
+                                                symbol=active.symbol,
+                                                side=side_to_close,
+                                                amount_usdt=float(position.margin),
+                                                order_type="MARKET",
+                                                strategy_id=active.id
+                                            )
+
                         except Exception as e:
                             print(f"Error executing strategy {active.id}: {e}")
-                            # traceback.print_exc()
+                            traceback.print_exc()
                             continue
                             
                 finally:
