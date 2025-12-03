@@ -15,20 +15,126 @@ class PineInterpreter:
     def execute(self, ast):
         # Mock input.* functions in context
         self._mock_inputs()
+        self._mock_strategy()
         self._execute_block(ast)
         return self.signals, self.context
+
+    def _mock_strategy(self):
+        # Mock 'strategy' object properties that are commonly used
+        class StrategyMock:
+            def __init__(self, context):
+                self.context = context
+                
+            @property
+            def opentrades(self):
+                # Return 0 to allow entry logic to proceed (optimistic)
+                return 0
+            
+            @property
+            def position_size(self):
+                # Return 0 by default. 
+                # NOTE: This means 'if strategy.position_size > 0' will be False.
+                # So exit logic inside such blocks will be skipped.
+                # This is a limitation of vectorized backtesting.
+                return 0
+                
+            @property
+            def position_avg_price(self):
+                # Return close price as best guess
+                return self.context.get('close', 0)
+                
+            @property
+            def equity(self):
+                return 10000 # Mock default
+                
+            # Methods
+            def entry(self, id, direction, qty=None, limit=None, stop=None, comment=None):
+                pass # Handled by _handle_strategy_call, but this prevents crash if called directly
+                
+            def close(self, id, comment=None, qty=None, qty_percent=None):
+                pass
+                
+            def exit(self, id, from_entry=None, qty=None, qty_percent=None, profit=None, limit=None, loss=None, stop=None, comment=None):
+                pass
+                
+            def cancel(self, id):
+                pass
+                
+            # Constants
+            long = "long"
+            short = "short"
+            percent_of_equity = "percent_of_equity"
+            cash = "cash"
+            
+            class CommissionMock:
+                percent = "percent"
+                cash_per_contract = "cash_per_contract"
+            commission = CommissionMock()
+            
+        self.context["strategy"] = StrategyMock(self.context)
+        
+        # Mock Visualization & UI
+        self.context["plot"] = lambda *args, **kwargs: None
+        self.context["plotshape"] = lambda *args, **kwargs: None
+        self.context["bgcolor"] = lambda *args, **kwargs: None
+        self.context["fill"] = lambda *args, **kwargs: None
+        self.context["hline"] = lambda *args, **kwargs: None
+        
+        # Mock Constants
+        class ColorMock:
+            def new(self, color, transp): return color
+            blue = "blue"
+            red = "red"
+            green = "green"
+            orange = "orange"
+            black = "black"
+            white = "white"
+            gray = "gray"
+            
+        class ShapeMock:
+            triangleup = "triangleup"
+            triangledown = "triangledown"
+            circle = "circle"
+            cross = "cross"
+            xcross = "xcross"
+            arrowup = "arrowup"
+            arrowdown = "arrowdown"
+            
+        class LocationMock:
+            belowbar = "belowbar"
+            abovebar = "abovebar"
+            top = "top"
+            bottom = "bottom"
+            
+        class SizeMock:
+            auto = "auto"
+            tiny = "tiny"
+            small = "small"
+            normal = "normal"
+            large = "large"
+            huge = "huge"
+            
+        self.context["color"] = ColorMock()
+        self.context["shape"] = ShapeMock()
+        self.context["location"] = LocationMock()
+        self.context["size"] = SizeMock()
+        self.context["true"] = True
+        self.context["false"] = False
+        self.context["na"] = None
+        self.context["display"] = lambda *args, **kwargs: None # Mock display namespace or object
 
     def _mock_inputs(self):
         # Create a mock object for 'input' that returns the default value (2nd arg) or 1st arg if no default
         class InputMock:
-            def int(self, defval, title=None, minval=None, maxval=None): return defval
-            def float(self, defval, title=None, minval=None, maxval=None): return defval
-            def bool(self, defval, title=None): return defval
-            def string(self, defval, title=None): return defval
-            def symbol(self, defval, title=None): return defval
-            def timeframe(self, defval, title=None): return defval
-            def session(self, defval, title=None): return defval
-            def source(self, defval, title=None): return defval
+            def __call__(self, defval, title=None, **kwargs): return defval
+            def int(self, defval, title=None, minval=None, maxval=None, **kwargs): return defval
+            def float(self, defval, title=None, minval=None, maxval=None, **kwargs): return defval
+            def bool(self, defval, title=None, **kwargs): return defval
+            def string(self, defval, title=None, **kwargs): return defval
+            def symbol(self, defval, title=None, **kwargs): return defval
+            def timeframe(self, defval, title=None, **kwargs): return defval
+            def session(self, defval, title=None, **kwargs): return defval
+            def source(self, defval, title=None, **kwargs): return defval
             
         self.context["input"] = InputMock()
 
@@ -48,6 +154,9 @@ class PineInterpreter:
                 self._handle_strategy_call(stmt)
 
     def _preprocess_expression(self, expr_str: str) -> str:
+        # 0. Strip comments (// ...)
+        expr_str = re.sub(r"//.*", "", expr_str)
+        
         # 1. Convert var[n] to var.shift(n)
         expr_str = re.sub(r"(\w+)\[(\d+)\]", r"\1.shift(\2)", expr_str)
         
@@ -104,13 +213,19 @@ class PineInterpreter:
         # Preprocess for lookbacks
         expr_str = self._preprocess_expression(expr_str)
         
-        # Prepare scope
-        scope = self.context.copy()
-        scope.update({k: getattr(indicators, k) for k in dir(indicators) if not k.startswith("_")})
-        scope["ta"] = indicators 
+        # Prepare globals (built-ins and indicators)
+        # We cache this if possible, but for now just create it
+        global_scope = {"__builtins__": {}}
+        global_scope.update({k: getattr(indicators, k) for k in dir(indicators) if not k.startswith("_")})
+        global_scope["ta"] = indicators
+        
+        # Prepare locals (user variables)
+        local_scope = self.context
         
         try:
-            return eval(expr_str, {"__builtins__": {}}, scope)
+            # eval(expression, globals, locals)
+            # locals take precedence over globals
+            return eval(expr_str, global_scope, local_scope)
         except Exception as e:
             print(f"Error evaluating '{expr_str}': {e}")
             return None

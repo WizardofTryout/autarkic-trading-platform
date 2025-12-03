@@ -63,6 +63,12 @@ def bb(data: pd.Series, length: int = 20, mult: float = 2.0):
     lower = basis - dev
     return basis, upper, lower
 
+def stdev(data: pd.Series, length: int) -> pd.Series:
+    """
+    Calculates Standard Deviation.
+    """
+    return data.rolling(window=length).std()
+
 def crossover(series1: pd.Series, series2: pd.Series) -> pd.Series:
     """
     Returns True where series1 crosses over series2.
