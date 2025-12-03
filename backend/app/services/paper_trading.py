@@ -334,16 +334,19 @@ class PaperTradingService:
                 for pos in pos_list:
                     trigger_type = None # "STOP_LOSS" or "TAKE_PROFIT"
                     
+                    # Debug logging
+                    # print(f"Checking {symbol} {pos.side}: Price={current_price}, SL={pos.stop_loss}, TP={pos.take_profit}")
+                    
                     # Check Conditions
-                    if pos.side == "LONG":
-                        if pos.stop_loss and current_price <= pos.stop_loss:
+                    if pos.side in ["LONG", "BUY"]:
+                        if pos.stop_loss and current_price <= Decimal(str(pos.stop_loss)):
                             trigger_type = "STOP_LOSS"
-                        elif pos.take_profit and current_price >= pos.take_profit:
+                        elif pos.take_profit and current_price >= Decimal(str(pos.take_profit)):
                             trigger_type = "TAKE_PROFIT"
-                    elif pos.side == "SHORT":
-                        if pos.stop_loss and current_price >= pos.stop_loss:
+                    elif pos.side in ["SHORT", "SELL"]:
+                        if pos.stop_loss and current_price >= Decimal(str(pos.stop_loss)):
                             trigger_type = "STOP_LOSS"
-                        elif pos.take_profit and current_price <= pos.take_profit:
+                        elif pos.take_profit and current_price <= Decimal(str(pos.take_profit)):
                             trigger_type = "TAKE_PROFIT"
                             
                     if trigger_type:
@@ -374,6 +377,7 @@ class PaperTradingService:
                             take_profit=None
                         )
                         self.db.add(order)
+                        await self.db.flush() # Ensure ID is generated
                         
                         # 3. Create Trade
                         fee_rate = Decimal("0.001")
