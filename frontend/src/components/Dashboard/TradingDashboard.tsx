@@ -5,7 +5,7 @@ import { useBinanceWebSocket } from '../../hooks/useBinanceWebSocket';
 
 export const TradingDashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'positions' | 'orders' | 'history'>('positions');
-    const { portfolio, fetchPortfolio, resetAccount } = useTradingStore();
+    const { portfolio, fetchPortfolio, resetAccount, setSymbol } = useTradingStore();
 
     // Get unique symbols from positions to subscribe to
     const symbols = React.useMemo(() => {
@@ -108,8 +108,12 @@ export const TradingDashboard: React.FC = () => {
                                 return (
                                     <tr key={pos.id} className="hover:bg-gray-800/30 transition-colors">
                                         <td className="p-3">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-bold text-white">{pos.symbol}</span>
+                                            <div
+                                                className="flex items-center gap-2 cursor-pointer hover:opacity-80 group"
+                                                onClick={() => setSymbol(pos.symbol)}
+                                                title="Click to view chart"
+                                            >
+                                                <span className="font-bold text-white group-hover:text-blue-400 transition-colors">{pos.symbol}</span>
                                                 <span className={`text-xs px-1.5 py-0.5 rounded ${pos.side === 'LONG' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                                                     {pos.side} {pos.leverage}x
                                                 </span>
@@ -166,7 +170,52 @@ export const TradingDashboard: React.FC = () => {
                             {portfolio.orders.map((order) => (
                                 <tr key={order.id} className="hover:bg-gray-800/30 transition-colors">
                                     <td className="p-3 text-gray-400">{new Date(order.created_at).toLocaleTimeString()}</td>
-                                    <td className="p-3 font-bold text-white">{order.symbol}</td>
+                                    <td
+                                        className="p-3 font-bold text-white cursor-pointer hover:text-blue-400 transition-colors"
+                                        onClick={() => setSymbol(order.symbol)}
+                                        title="Click to view chart"
+                                    >
+                                        {order.symbol}
+                                    </td>
+                                    <td className="p-3 text-gray-300">{order.type}</td>
+                                    <td className={`p-3 ${order.side === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>{order.side}</td>
+                                    <td className="p-3 text-gray-300">{order.price?.toFixed(2) || 'Market'}</td>
+                                    <td className="p-3 text-gray-300">{order.amount}</td>
+                                    <td className="p-3 text-gray-300">{order.filled_quantity}</td>
+                                    <td className="p-3 text-right">
+                                        <button className="text-gray-400 hover:text-red-400 transition-colors">
+                                            <XCircle className="w-4 h-4" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+
+                {activeTab === 'history' && (
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-gray-800/50 text-gray-400 sticky top-0">
+                            <tr>
+                                <th className="p-3 font-medium">Time</th>
+                                <th className="p-3 font-medium">Symbol</th>
+                                <th className="p-3 font-medium">Side</th>
+                                <th className="p-3 font-medium">Price</th>
+                                <th className="p-3 font-medium">Filled</th>
+                                <th className="p-3 font-medium">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-800">
+                            {portfolio.history.map((order) => (
+                                <tr key={order.id} className="hover:bg-gray-800/30 transition-colors">
+                                    <td className="p-3 text-gray-400">{new Date(order.created_at).toLocaleString()}</td>
+                                    <td
+                                        className="p-3 font-bold text-white cursor-pointer hover:text-blue-400 transition-colors"
+                                        onClick={() => setSymbol(order.symbol)}
+                                        title="Click to view chart"
+                                    >
+                                        {order.symbol}
+                                    </td>
                                     <td className="p-3 text-gray-300">{order.type}</td>
                                     <td className={`p-3 ${order.side === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>{order.side}</td>
                                     <td className="p-3 text-gray-300">{order.price?.toFixed(2) || 'Market'}</td>

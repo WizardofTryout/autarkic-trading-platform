@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as d3 from 'd3';
+import { useTradingStore } from '../../store/tradingStore';
 import {
     addTechnicalIndicators,
     type IndicatorData,
@@ -62,6 +63,8 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
     const [selectedTimeframe, setSelectedTimeframe] = useState('1h');
     const [isMatrixOpen, setIsMatrixOpen] = useState(false);
     const [isOverlayVisible, setIsOverlayVisible] = useState(true);
+
+    const { portfolio } = useTradingStore(); // Subscribe to store updates
 
     console.log('D3Chart Body Executing. Selected Timeframe:', selectedTimeframe);
 
@@ -589,7 +592,65 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                 }
             });
 
-    }, [indicatorData, dimensions, visibleIndicators, executionSignals]);
+        // ... existing code ...
+
+        // --- Position Overlays (Entry, TP, SL) ---
+        // Get current position for this symbol
+        const currentPosition = portfolio?.positions.find(p => p.symbol === symbol);
+
+        if (currentPosition) {
+            const { entry_price, take_profit, stop_loss, side } = currentPosition;
+
+            // Helper to draw horizontal line and label
+            const drawLevel = (price: number, color: string, label: string, dashArray: string = "5,5") => {
+                if (!price) return;
+                const y = yScale(price);
+
+                // Line
+                chartGroup.append('line')
+                    .attr('x1', margin.left)
+                    .attr('x2', dimensions.width - margin.right)
+                    .attr('y1', y)
+                    .attr('y2', y)
+                    .attr('stroke', color)
+                    .attr('stroke-width', 1)
+                    .attr('stroke-dasharray', dashArray)
+                    .attr('opacity', 0.8);
+
+                // Label Background
+                chartGroup.append('rect')
+                    .attr('x', dimensions.width - margin.right)
+                    .attr('y', y - 10)
+                    .attr('width', 40)
+                    .attr('height', 20)
+                    .attr('fill', color)
+                    .attr('rx', 2);
+
+                // Label Text
+                chartGroup.append('text')
+                    .attr('x', dimensions.width - margin.right + 4)
+                    .attr('y', y + 4)
+                    .text(label)
+                    .attr('fill', 'white')
+                    .attr('font-size', '10px')
+                    .attr('font-weight', 'bold');
+            };
+
+            // Draw Entry Price
+            drawLevel(entry_price, '#F59E0B', 'ENTRY', "0"); // Solid line for entry
+
+            // Draw TP
+            if (take_profit) {
+                drawLevel(take_profit, '#10B981', 'TP');
+            }
+
+            // Draw SL
+            if (stop_loss) {
+                drawLevel(stop_loss, '#EF4444', 'SL');
+            }
+        }
+
+    }, [indicatorData, dimensions, visibleIndicators, executionSignals, symbol, portfolio]); // Added portfolio to dependency array
 
 
 
