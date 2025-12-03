@@ -124,18 +124,28 @@ async def execute_strategy(
         # 1. Parse
         parsed = parse_pine_script(script_content)
         
-        # 2. Mock Data (Same as before)
+        # 2. Fetch Real Data
+        from app.services.market_service import MarketService
+        market_service = MarketService()
+        try:
+            ohlcv_data = await market_service.get_ohlcv(request.symbol, request.timeframe, limit=200)
+        finally:
+            await market_service.close()
+
+        if not ohlcv_data:
+             return ExecutionResult(success=False, error=f"No data found for {request.symbol}")
+
         import pandas as pd
-        import numpy as np
-        tf_map = {"1m": "1min", "5m": "5min", "15m": "15min", "30m": "30min", "1h": "1h", "4h": "4h", "1d": "1D"}
-        freq = tf_map.get(request.timeframe, "1h")
-        dates = pd.date_range(end=pd.Timestamp.now(), periods=100, freq=freq)
-        close = np.linspace(40000, 45000, 100) + np.random.normal(0, 500, 100)
+        df = pd.DataFrame(ohlcv_data)
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df.set_index('timestamp', inplace=True)
+        
         market_data = {
-            "close": pd.Series(close, index=dates),
-            "open": pd.Series(close + np.random.normal(0, 100, 100), index=dates),
-            "high": pd.Series(close + np.random.normal(200, 100, 100), index=dates),
-            "low": pd.Series(close - np.random.normal(200, 100, 100), index=dates),
+            "open": df['open'],
+            "high": df['high'],
+            "low": df['low'],
+            "close": df['close'],
+            "volume": df['volume']
         }
         
         # 3. Execute
