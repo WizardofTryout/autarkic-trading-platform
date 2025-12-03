@@ -28,6 +28,7 @@ async def get_ohlcv(
     
     # Map timeframe string to CCXT format
     tf_map = {
+        "1s": "1s",
         "1m": "1m",
         "5m": "5m",
         "15m": "15m",

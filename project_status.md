@@ -136,6 +136,8 @@ Um die fehlenden Funktionen zu ergänzen und das "TradingView"-Logo zu entfernen
 - [x] **Checkpoint 2.1**: `SettingsPage.tsx` kopieren und an Tailwind v4 anpassen.
 - [x] **Checkpoint 2.2**: API-Service (`api.ts`) um Methoden zum Speichern/Laden von Settings erweitern.
 - [x] **Checkpoint 2.3**: Backend-Endpunkt (`/api/v1/settings`) für sichere Speicherung implementieren.
+- [ ] **Tick Charts**: Implement tick-based candles (1 tick, 10 ticks, etc.) with client-side aggregation.
+- [ ] **Advanced Order Types**: Stop Market, Stop Limit, Trailing Stop.
 - [x] **Checkpoint 2.4**: Routing im Frontend anpassen (`App.tsx`), um die Settings-Seite erreichbar zu machen.
 
 ### Phase 3: Pine Script Editor
