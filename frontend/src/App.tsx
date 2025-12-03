@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import AdvancedFinancialChart from './components/Chart/D3Chart';
 import { OrderEntry } from './components/OrderEntry';
-import PineScriptPanel from './components/PineScriptPanel';
+import { BottomPanel } from './components/Layout/BottomPanel';
 import LoginPage from './components/Auth/LoginPage';
 import RegisterPage from './components/Auth/RegisterPage';
 import UserProfile from './components/Auth/UserProfile';
@@ -153,11 +153,9 @@ function App() {
                       )}
                     </div>
 
-                    {/* Pine Script Editor Panel (Only visible in Chart mode) */}
+                    {/* Bottom Panel (Dashboard / Pine Editor) - Only visible in Chart mode */}
                     {activeTab === 'chart' && (
-                      <div className="h-1/3 border-t border-gray-800 bg-gray-900">
-                        <PineScriptPanel onScriptChange={setCurrentScript} />
-                      </div>
+                      <BottomPanel onScriptChange={setCurrentScript} />
                     )}
                   </div>
 

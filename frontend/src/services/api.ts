@@ -263,3 +263,32 @@ export const confirmPasswordReset = async (token: string, newPassword: string) =
     }
     return response.json();
 };
+
+export const api = {
+    get: async (endpoint: string) => {
+        const token = useAuthStore.getState().token;
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        if (!response.ok) throw new Error(`GET ${endpoint} failed`);
+        return response.json();
+    },
+    post: async (endpoint: string, data: any) => {
+        const token = useAuthStore.getState().token;
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data),
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || `POST ${endpoint} failed`);
+        }
+        return response.json();
+    }
+};

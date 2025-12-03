@@ -1,13 +1,11 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import {
     addTechnicalIndicators,
-    getTradingSignals,
     type IndicatorData,
     type TradingSignal
 } from '../../utils/technicalIndicators';
 import IndicatorMatrix from '../IndicatorMatrix';
-import { useBinanceWebSocket } from '../../hooks/useBinanceWebSocket';
 import { getMarketData } from '../../services/api';
 import { LayoutGrid, Info, X } from 'lucide-react';
 
@@ -66,44 +64,18 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
     console.log('D3Chart Body Executing. Selected Timeframe:', selectedTimeframe);
 
-    // Force initial fetch on mount or when symbol/timeframe changes
+    // Sync prop timeframe to local state
     useEffect(() => {
-        console.log('Effect: Fetching data for', symbol, timeframe);
-        const fetchInitialData = async () => {
-            try {
-                const rawData = await getMarketData(symbol, timeframe);
-                console.log('Mount effect rawData:', rawData);
-                if (Array.isArray(rawData)) {
-                    const parseDate = d3.timeParse('%Y-%m-%d %H:%M:%S');
-                    const processedData = rawData.map((item: any) => {
-                        const date = parseDate(item.time) || new Date(item.time);
-                        return {
-                            date,
-                            time: date.getTime() / 1000,
-                            open: item.open,
-                            high: item.high,
-                            low: item.low,
-                            close: item.close,
-                            volume: item.volume
-                        };
-                    }).sort((a, b) => a.date.getTime() - b.date.getTime());
-                    const dataWithIndicators = addTechnicalIndicators(processedData);
-                    console.log('Mount effect setting indicatorData with', dataWithIndicators.length, 'items');
-                    setIndicatorData(dataWithIndicators);
-                }
-            } catch (error) {
-                console.error("Mount effect failed:", error);
-            }
-        };
-        fetchInitialData();
-    }, [symbol, timeframe]); // Re-run when symbol or timeframe changes
+        if (timeframe) {
+            setSelectedTimeframe(timeframe);
+        }
+    }, [timeframe]);
 
-    // Fetch market data when timeframe changes
+    // Fetch market data when symbol or timeframe changes
     useEffect(() => {
         const fetchData = async () => {
-            console.log('fetchData started for timeframe:', selectedTimeframe);
+            console.log('fetchData started for:', symbol, selectedTimeframe);
             try {
-                // const { getMarketData } = await import('../../services/api'); // Removed dynamic import
                 const rawData = await getMarketData(symbol, selectedTimeframe);
                 console.log('fetchData rawData:', rawData);
 
@@ -582,46 +554,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
     }, [indicatorData, dimensions, visibleIndicators, executionSignals]);
 
-    // Fetch market data when timeframe changes
-    useEffect(() => {
-        const fetchData = async () => {
-            console.log('fetchData started for timeframe:', selectedTimeframe);
-            try {
-                // const { getMarketData } = await import('../../services/api'); // Removed dynamic import
-                const rawData = await getMarketData("BTC/USDT", selectedTimeframe);
-                console.log('fetchData rawData:', rawData);
 
-                if (Array.isArray(rawData)) {
-                    console.log('fetchData processing', rawData.length, 'items');
-                    // Process raw data to match IndicatorData format
-                    const parseDate = d3.timeParse('%Y-%m-%d %H:%M:%S');
-                    const processedData = rawData.map((item: any) => {
-                        const date = parseDate(item.time) || new Date(item.time);
-                        return {
-                            date,
-                            time: date.getTime() / 1000, // Unix timestamp for indicators
-                            open: item.open,
-                            high: item.high,
-                            low: item.low,
-                            close: item.close,
-                            volume: item.volume
-                        };
-                    }).sort((a, b) => a.date.getTime() - b.date.getTime());
-
-                    // Calculate indicators
-                    const dataWithIndicators = addTechnicalIndicators(processedData);
-                    console.log('fetchData setting indicatorData with', dataWithIndicators.length, 'items');
-                    setIndicatorData(dataWithIndicators);
-                } else {
-                    console.warn('fetchData: rawData is not an array', rawData);
-                }
-            } catch (error) {
-                console.error("Failed to fetch market data:", error);
-            }
-        };
-
-        fetchData();
-    }, [selectedTimeframe]);
 
     // Real-time updates via Binance WebSocket
     const handleRealTimeUpdate = useCallback((candle: any) => {
