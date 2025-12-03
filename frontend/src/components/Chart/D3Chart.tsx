@@ -7,6 +7,7 @@ import {
 } from '../../utils/technicalIndicators';
 import IndicatorMatrix from '../IndicatorMatrix';
 import { getMarketData } from '../../services/api';
+import { useBinanceWebSocket } from '../../hooks/useBinanceWebSocket';
 import { LayoutGrid, Info, X } from 'lucide-react';
 
 interface CandlestickData {
@@ -64,6 +65,57 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
     console.log('D3Chart Body Executing. Selected Timeframe:', selectedTimeframe);
 
+    // Real-time updates via Binance WebSocket
+    const handleRealTimeUpdate = useCallback((candle: any) => {
+        setIndicatorData(prevData => {
+            if (prevData.length === 0) return prevData;
+
+            const lastCandle = prevData[prevData.length - 1];
+            const newCandleTime = candle.timestamp / 1000; // Use timestamp (ms) converted to seconds
+
+            let newData = [...prevData];
+
+            if (newCandleTime === lastCandle.time) {
+                // Update last candle
+                newData[newData.length - 1] = {
+                    ...lastCandle,
+                    close: parseFloat(candle.close),
+                    high: Math.max(lastCandle.high, parseFloat(candle.high)),
+                    low: Math.min(lastCandle.low, parseFloat(candle.low)),
+                    volume: lastCandle.volume + parseFloat(candle.volume)
+                };
+            } else if (newCandleTime > lastCandle.time) {
+                // Add new candle
+                const newCandle: IndicatorData = {
+                    date: new Date(candle.timestamp),
+                    time: newCandleTime,
+                    open: parseFloat(candle.open),
+                    high: parseFloat(candle.high),
+                    low: parseFloat(candle.low),
+                    close: parseFloat(candle.close),
+                    volume: parseFloat(candle.volume),
+                    sma20: undefined,
+                    ema20: undefined,
+                    rsi: undefined,
+                    macd: undefined,
+                    signal: undefined,
+                    histogram: undefined,
+                    upperBand: undefined,
+                    lowerBand: undefined,
+                    middleBand: undefined
+                };
+                newData.push(newCandle);
+                // Keep only last 500 candles to prevent memory issues
+                if (newData.length > 500) newData = newData.slice(-500);
+            }
+
+            // Recalculate indicators for the last chunk of data
+            return addTechnicalIndicators(newData);
+        });
+    }, []);
+
+    useBinanceWebSocket(symbol, selectedTimeframe, handleRealTimeUpdate);
+
     // Sync prop timeframe to local state
     useEffect(() => {
         if (timeframe) {
@@ -77,36 +129,21 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
             console.log('fetchData started for:', symbol, selectedTimeframe);
             try {
                 const rawData = await getMarketData(symbol, selectedTimeframe);
-                console.log('fetchData rawData:', rawData);
-
                 if (Array.isArray(rawData)) {
-                    console.log('fetchData processing', rawData.length, 'items');
-                    // Process raw data to match IndicatorData format
-                    const parseDate = d3.timeParse('%Y-%m-%d %H:%M:%S');
-                    const processedData = rawData.map((item: any) => {
-                        const date = parseDate(item.time) || new Date(item.time);
-                        return {
-                            date,
-                            time: date.getTime() / 1000, // Unix timestamp for indicators
-                            open: item.open,
-                            high: item.high,
-                            low: item.low,
-                            close: item.close,
-                            volume: item.volume
-                        };
-                    }).sort((a, b) => a.date.getTime() - b.date.getTime());
-
-                    // Calculate indicators
-                    const dataWithIndicators = addTechnicalIndicators(processedData);
-                    console.log('fetchData setting indicatorData with', dataWithIndicators.length, 'items');
-                    setIndicatorData(dataWithIndicators);
-                } else {
-                    console.warn('fetchData: rawData is not an array', rawData);
+                    // Normalize data: convert time string to timestamp (seconds)
+                    const normalizedData = rawData.map((d: any) => ({
+                        ...d,
+                        // Use raw timestamp if available (preferred), otherwise parse string
+                        time: d.timestamp ? d.timestamp / 1000 : new Date(d.time).getTime() / 1000
+                    }));
+                    const indicators = addTechnicalIndicators(normalizedData);
+                    setIndicatorData(indicators);
                 }
             } catch (error) {
                 console.error("Failed to fetch market data:", error);
             }
         };
+
 
         fetchData();
     }, [selectedTimeframe, symbol]);
@@ -556,59 +593,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
 
 
-    // Real-time updates via Binance WebSocket
-    const handleRealTimeUpdate = useCallback((candle: any) => {
-        setIndicatorData(prevData => {
-            if (prevData.length === 0) return prevData;
 
-            const lastCandle = prevData[prevData.length - 1];
-            // We need to be careful about formats.
-            // Let's assume for now we just update the last one if it looks "current" 
-            // or append if it's clearly new.
-
-            // Simplification: If the incoming candle timestamp is > last candle timestamp (parsed), append.
-            // Else update.
-
-            // Actually, if newTime > lastTime, it means the previous candle closed and this is a new one?
-            // Or is lastCandle.time the start time?
-            // Binance k.t is start time.
-
-            // If k.t > lastCandle.time, it's a new candle.
-            // If k.t == lastCandle.time, it's an update.
-
-            // We need to parse lastCandle.time correctly.
-            // Backend sends local time string? Or UTC?
-            // CCXT usually sends UTC.
-
-            // Let's try to match strictly.
-            const lastTime = new Date(lastCandle.time).getTime();
-            const newTime = candle.timestamp;
-
-            // Format time string for the new candle to match backend format
-            const dateObj = new Date(newTime);
-            // Simple YYYY-MM-DD HH:MM:SS format
-            const timeStr = dateObj.toISOString().replace('T', ' ').substring(0, 19);
-
-            const newCandleData = {
-                date: dateObj,
-                time: timeStr,
-                open: candle.open,
-                high: candle.high,
-                low: candle.low,
-                close: candle.close,
-                volume: candle.volume
-            };
-
-            if (newTime > lastTime + 1000) { // Tolerance
-                return [...prevData, newCandleData];
-            } else {
-                // Update last candle
-                const newData = [...prevData];
-                newData[newData.length - 1] = newCandleData;
-                return newData;
-            }
-        });
-    }, []);
 
     const currentData = indicatorData[indicatorData.length - 1];
 

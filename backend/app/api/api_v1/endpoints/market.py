@@ -55,6 +55,7 @@ async def get_ohlcv(
             
             data.append({
                 "time": time_str,
+                "timestamp": candle[0], # Raw timestamp in ms
                 "open": candle[1],
                 "high": candle[2],
                 "low": candle[3],
