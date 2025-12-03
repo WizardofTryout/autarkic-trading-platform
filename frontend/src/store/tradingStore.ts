@@ -42,13 +42,15 @@ interface TradingState {
     currentPrice: number | null; // Added currentPrice
     currentAnalysis: string | null;
     portfolio: Portfolio | null;
+    activeStrategies: any[]; // Using any[] for now to avoid circular dependency with api.ts types
 
     setSymbol: (symbol: string) => void;
     setTimeframe: (timeframe: string) => void;
-    setCurrentPrice: (price: number) => void; // Added setter
+    setCurrentPrice: (price: number) => void;
     setCurrentAnalysis: (analysis: string | null) => void;
 
     fetchPortfolio: () => Promise<void>;
+    fetchActiveStrategies: () => Promise<void>;
     placeOrder: (symbol: string, side: 'buy' | 'sell', amount: number, leverage: number, type?: 'MARKET' | 'LIMIT', price?: number, stopLoss?: number, takeProfit?: number, isTrailingStop?: boolean, trailingPercent?: number) => Promise<void>;
     resetAccount: () => Promise<void>;
 }
@@ -59,6 +61,7 @@ export const useTradingStore = create<TradingState>((set, get) => ({
     currentPrice: null,
     currentAnalysis: null,
     portfolio: null,
+    activeStrategies: [],
 
     setSymbol: (symbol) => set({ symbol }),
     setTimeframe: (timeframe) => set({ timeframe }),
@@ -72,6 +75,16 @@ export const useTradingStore = create<TradingState>((set, get) => ({
         } catch (error) {
             console.error('Failed to fetch portfolio:', error);
             set({ portfolio: null });
+        }
+    },
+
+    fetchActiveStrategies: async () => {
+        try {
+            const data = await api.get('/strategies/active');
+            set({ activeStrategies: data });
+        } catch (error) {
+            console.error('Failed to fetch active strategies:', error);
+            set({ activeStrategies: [] });
         }
     },
 

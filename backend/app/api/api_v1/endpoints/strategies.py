@@ -4,9 +4,10 @@ from typing import List, Optional, Any, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.services.pine_transpiler.parser import parse_pine_script
-from app.models.base import User, Strategy, ActiveStrategy
+from app.models.base import User, Strategy, ActiveStrategy, PaperPosition
 from app.api import deps
 from datetime import datetime
+from decimal import Decimal
 import uuid
 
 router = APIRouter()
@@ -161,9 +162,29 @@ async def activate_strategy(
         symbol=activation_in.symbol,
         timeframe=activation_in.timeframe,
         amount=activation_in.amount,
+        current_capital=activation_in.amount, # Initialize with investment amount
         status="RUNNING"
     )
+    
+    # Deduct from Balance and Add to Locked Balance
+    from app.services.paper_trading import PaperTradingService
+    service = PaperTradingService(db)
+    account = await service.get_or_create_account(current_user.id)
+    
+    # Handle None values for balances
+    if account.balance is None:
+        account.balance = Decimal(0)
+    if account.locked_balance is None:
+        account.locked_balance = Decimal(0)
+    
+    if account.balance < Decimal(str(activation_in.amount)):
+        raise HTTPException(status_code=400, detail="Insufficient balance to activate strategy")
+        
+    account.balance -= Decimal(str(activation_in.amount))
+    account.locked_balance += Decimal(str(activation_in.amount))
+    
     db.add(active_strategy)
+    db.add(account) # Add account to session to persist changes
     await db.commit()
     await db.refresh(active_strategy)
 
@@ -205,6 +226,28 @@ async def get_active_strategies(
         ))
     return response
 
+@router.delete("/active/{active_id}")
+async def delete_active_strategy(
+    active_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    print(f"Deleting active strategy: {active_id}")
+    result = await db.execute(select(ActiveStrategy).where(ActiveStrategy.id == active_id, ActiveStrategy.user_id == current_user.id))
+    active = result.scalars().first()
+    if not active:
+        print("Active strategy not found")
+        raise HTTPException(status_code=404, detail="Active strategy not found")
+    
+    if active.status == "RUNNING":
+        print("Cannot delete running strategy")
+        raise HTTPException(status_code=400, detail="Cannot delete a running strategy. Stop it first.")
+
+    await db.delete(active)
+    await db.commit()
+    print("Active strategy deleted successfully")
+    return {"message": "Active strategy deleted"}
+
 @router.post("/stop/{active_id}")
 async def stop_strategy(
     active_id: str,
@@ -216,10 +259,44 @@ async def stop_strategy(
     if not active:
         raise HTTPException(status_code=404, detail="Active strategy not found")
     
-    active.status = "STOPPED"
-    db.add(active)
-    await db.commit()
-    return {"message": "Strategy stopped"}
+    try:
+        if active.status == "RUNNING":
+            active.status = "STOPPED"
+            
+            # Refund capital to balance
+            from app.services.paper_trading import PaperTradingService
+            service = PaperTradingService(db)
+            account = await service.get_or_create_account(current_user.id)
+            
+            # Refund current_capital (or amount if None)
+            refund_amount = Decimal(str(active.current_capital)) if active.current_capital is not None else Decimal(str(active.amount))
+            
+            # 1. Fetch open positions for this strategy
+            pos_res = await db.execute(select(PaperPosition).where(PaperPosition.strategy_id == active.id))
+            positions = pos_res.scalars().all()
+            
+            for pos in positions:
+                pos.strategy_id = None
+                db.add(pos)
+            
+            # Handle None values for balances
+            if account.locked_balance is None:
+                account.locked_balance = Decimal(0)
+            if account.balance is None:
+                account.balance = Decimal(0)
+                
+            account.locked_balance -= refund_amount
+            account.balance += refund_amount
+            db.add(account) # Add account to session to persist changes
+
+        db.add(active)
+        await db.commit()
+        return {"message": "Strategy stopped"}
+    except Exception as e:
+        print(f"Error stopping strategy: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to stop strategy: {str(e)}")
 
 # --- Legacy/Existing Endpoints (Compile/Execute) ---
 
