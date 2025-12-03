@@ -35,16 +35,33 @@ def ema(data: pd.Series, length: int) -> pd.Series:
     """
     return data.ewm(span=length, adjust=False).mean()
 
+def wma(data: pd.Series, length: int) -> pd.Series:
+    """
+    Calculates the Weighted Moving Average (WMA).
+    """
+    weights = pd.Series(range(1, length + 1))
+    return data.rolling(window=length).apply(lambda x: (x * weights).sum() / weights.sum(), raw=True)
+
+def atr(high: pd.Series, low: pd.Series, close: pd.Series, length: int = 14) -> pd.Series:
+    """
+    Calculates the Average True Range (ATR).
+    """
+    tr1 = high - low
+    tr2 = (high - close.shift()).abs()
+    tr3 = (low - close.shift()).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    return tr.rolling(window=length).mean() # Simple ATR, can be RMA
+
 def bb(data: pd.Series, length: int = 20, mult: float = 2.0):
     """
     Calculates Bollinger Bands.
-    Returns: upper, middle, lower
+    Returns: middle, upper, lower (Matches Pine Script ta.bb)
     """
     basis = sma(data, length)
     dev = mult * data.rolling(window=length).std()
     upper = basis + dev
     lower = basis - dev
-    return upper, basis, lower
+    return basis, upper, lower
 
 def crossover(series1: pd.Series, series2: pd.Series) -> pd.Series:
     """

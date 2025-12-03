@@ -469,13 +469,15 @@ export const updateUserPreferences = async (preferences: any) => {
     return response.json();
 };
 
-export const runBacktest = async (data: {
+export const runBacktest = async (params: {
     script: string;
     symbol: string;
     timeframe: string;
-    start_date: string; // ISO string
-    end_date: string;   // ISO string
+    start_date: string;
+    end_date: string;
     initial_capital: number;
+    take_profit?: number;
+    stop_loss?: number;
 }) => {
     const token = useAuthStore.getState().token;
     const response = await fetch(`${API_BASE}/strategies/backtest`, {
@@ -484,7 +486,7 @@ export const runBacktest = async (data: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(params)
     });
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));

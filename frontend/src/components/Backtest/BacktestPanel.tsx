@@ -23,6 +23,10 @@ const BacktestPanel: React.FC<BacktestPanelProps> = ({ script, symbol }) => {
     const [timeframe, setTimeframe] = useState('1h');
     const [backtestSymbol, setBacktestSymbol] = useState(symbol || 'BTC/USDT');
 
+    // Risk Management
+    const [takeProfit, setTakeProfit] = useState<number>(0); // 0 = disabled
+    const [stopLoss, setStopLoss] = useState<number>(0); // 0 = disabled
+
     // Data for dropdowns
     const [strategies, setStrategies] = useState<Strategy[]>([]);
     const [symbols, setSymbols] = useState<string[]>([]);
@@ -65,7 +69,9 @@ const BacktestPanel: React.FC<BacktestPanelProps> = ({ script, symbol }) => {
                 timeframe,
                 start_date: new Date(startDate).toISOString(),
                 end_date: new Date(endDate).toISOString(),
-                initial_capital: initialCapital
+                initial_capital: initialCapital,
+                take_profit: takeProfit,
+                stop_loss: stopLoss
             });
 
             if (data.error) {
@@ -106,42 +112,41 @@ const BacktestPanel: React.FC<BacktestPanelProps> = ({ script, symbol }) => {
                     </div>
                 </div>
 
-                {/* Parameters Row */}
-                <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex flex-col w-48">
-                        <label className="text-xs text-gray-400 mb-1">Symbol</label>
+                {/* Parameters Row 1 */}
+                <div className="grid grid-cols-4 gap-4">
+                    <div>
+                        <label className="text-xs text-gray-400 mb-1 block">Symbol</label>
                         <SearchableSelect
                             options={symbolOptions}
                             value={backtestSymbol}
                             onChange={setBacktestSymbol}
                             placeholder="Select Symbol..."
-                            searchPlaceholder="Search symbols..."
                         />
                     </div>
-                    <div className="flex flex-col">
-                        <label className="text-xs text-gray-400 mb-1">Start Date</label>
+                    <div>
+                        <label className="text-xs text-gray-400 mb-1 block">Start Date</label>
                         <input
                             type="date"
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
-                            className="bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                            className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
                         />
                     </div>
-                    <div className="flex flex-col">
-                        <label className="text-xs text-gray-400 mb-1">End Date</label>
+                    <div>
+                        <label className="text-xs text-gray-400 mb-1 block">End Date</label>
                         <input
                             type="date"
                             value={endDate}
                             onChange={(e) => setEndDate(e.target.value)}
-                            className="bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                            className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
                         />
                     </div>
-                    <div className="flex flex-col">
-                        <label className="text-xs text-gray-400 mb-1">Timeframe</label>
+                    <div>
+                        <label className="text-xs text-gray-400 mb-1 block">Timeframe</label>
                         <select
                             value={timeframe}
                             onChange={(e) => setTimeframe(e.target.value)}
-                            className="bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                            className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
                         >
                             <option value="1m">1 Minute</option>
                             <option value="5m">5 Minutes</option>
@@ -151,27 +156,49 @@ const BacktestPanel: React.FC<BacktestPanelProps> = ({ script, symbol }) => {
                             <option value="1d">1 Day</option>
                         </select>
                     </div>
-                    <div className="flex flex-col">
-                        <label className="text-xs text-gray-400 mb-1">Initial Capital ($)</label>
+                </div>
+
+                {/* Parameters Row 2: Capital & Risk */}
+                <div className="grid grid-cols-4 gap-4 pt-2 border-t border-gray-700">
+                    <div>
+                        <label className="text-xs text-gray-400 mb-1 block">Initial Capital ($)</label>
                         <input
                             type="number"
                             value={initialCapital}
-                            onChange={(e) => setInitialCapital(parseFloat(e.target.value))}
-                            className="bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm w-32 focus:outline-none focus:border-blue-500"
+                            onChange={(e) => setInitialCapital(Number(e.target.value))}
+                            className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
                         />
                     </div>
-
-                    <button
-                        onClick={handleRunBacktest}
-                        disabled={isLoading}
-                        className={`ml-auto flex items-center gap-2 px-6 py-2 rounded-lg font-bold transition-all ${isLoading
-                            ? 'bg-gray-700 cursor-not-allowed text-gray-400'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-blue-500/20'
-                            }`}
-                    >
-                        {isLoading ? <Loader className="animate-spin" size={18} /> : <Play size={18} />}
-                        {isLoading ? 'Running...' : 'Run Backtest'}
-                    </button>
+                    <div>
+                        <label className="text-xs text-gray-400 mb-1 block">Take Profit (%)</label>
+                        <input
+                            type="number"
+                            value={takeProfit}
+                            onChange={(e) => setTakeProfit(Number(e.target.value))}
+                            placeholder="0 (Disabled)"
+                            className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs text-gray-400 mb-1 block">Stop Loss (%)</label>
+                        <input
+                            type="number"
+                            value={stopLoss}
+                            onChange={(e) => setStopLoss(Number(e.target.value))}
+                            placeholder="0 (Disabled)"
+                            className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                        />
+                    </div>
+                    <div className="flex items-end">
+                        <button
+                            onClick={handleRunBacktest}
+                            disabled={isLoading}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition-colors flex items-center justify-center"
+                        >
+                            {isLoading ? <Loader className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+                            Run Backtest
+                        </button>
+                    </div>
                 </div>
             </div>
 
