@@ -5,16 +5,52 @@ import { activateStrategy } from '../../services/api';
 interface StrategyActivationModalProps {
     strategyId: string;
     strategyName: string;
+    initialData?: {
+        symbol: string;
+        timeframe: string;
+        amount: number;
+    };
     onClose: () => void;
     onSuccess: () => void;
 }
 
-const StrategyActivationModal: React.FC<StrategyActivationModalProps> = ({ strategyId, strategyName, onClose, onSuccess }) => {
-    const [symbol, setSymbol] = useState('BTC/USDT');
-    const [timeframe, setTimeframe] = useState('15m');
-    const [amount, setAmount] = useState(1000);
+const StrategyActivationModal: React.FC<StrategyActivationModalProps> = ({ strategyId, strategyName, initialData, onClose, onSuccess }) => {
+    const [symbol, setSymbol] = useState(initialData?.symbol || 'BTC/USDT');
+    const [availableSymbols, setAvailableSymbols] = useState<string[]>(['BTC/USDT', 'ETH/USDT', 'SOL/USDT']);
+    const [timeframe, setTimeframe] = useState(initialData?.timeframe || '15m');
+    const [amount, setAmount] = useState(initialData?.amount || 1000);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState('');
+
+    React.useEffect(() => {
+        if (initialData) {
+            setSymbol(initialData.symbol);
+            setTimeframe(initialData.timeframe);
+            setAmount(initialData.amount);
+        }
+    }, [strategyId]); // Only update when opening a different strategy, ignore parent re-renders
+
+    React.useEffect(() => {
+        const fetchSymbols = async () => {
+            try {
+                // Dynamically import to avoid circular dependency if any
+                const { getSymbols } = await import('../../services/api');
+                const symbols = await getSymbols();
+                if (symbols && symbols.length > 0) {
+                    setAvailableSymbols(symbols);
+                    // Default to BTC/USDT if available, else first one
+                    if (!symbols.includes(symbol)) {
+                        setSymbol(symbols[0]);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch symbols", err);
+            }
+        };
+        fetchSymbols();
+    }, []);
 
     const handleActivate = async () => {
         setLoading(true);
@@ -29,7 +65,8 @@ const StrategyActivationModal: React.FC<StrategyActivationModalProps> = ({ strat
             onSuccess();
             onClose();
         } catch (err: any) {
-            setError(err.message || 'Failed to activate strategy');
+            console.error("Activation Error:", err);
+            setError(err.message || 'Failed to activate strategy. Check console for details.');
         } finally {
             setLoading(false);
         }
@@ -54,17 +91,56 @@ const StrategyActivationModal: React.FC<StrategyActivationModalProps> = ({ strat
                     </p>
 
                     <div className="space-y-4">
-                        <div>
+                        <div className="relative">
                             <label className="block text-xs text-gray-500 mb-1">Symbol</label>
-                            <select
-                                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                                value={symbol}
-                                onChange={(e) => setSymbol(e.target.value)}
+                            <div
+                                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white cursor-pointer flex items-center justify-between"
+                                onClick={() => setIsOpen(!isOpen)}
                             >
-                                <option value="BTC/USDT">BTC/USDT</option>
-                                <option value="ETH/USDT">ETH/USDT</option>
-                                <option value="SOL/USDT">SOL/USDT</option>
-                            </select>
+                                <span>{symbol}</span>
+                                <span className="text-gray-500 text-xs">▼</span>
+                            </div>
+
+                            {isOpen && (
+                                <div className="absolute top-full left-0 mt-1 w-full bg-gray-800 border border-gray-700 rounded-md shadow-xl z-50 max-h-60 flex flex-col">
+                                    <div className="p-2 border-b border-gray-700">
+                                        <input
+                                            type="text"
+                                            className="w-full bg-gray-900 text-white px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            placeholder="Search..."
+                                            value={search}
+                                            onChange={(e) => setSearch(e.target.value)}
+                                            autoFocus
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                    <div className="overflow-y-auto flex-1">
+                                        {availableSymbols
+                                            .filter(s => s.toLowerCase().includes(search.toLowerCase()))
+                                            .map(s => (
+                                                <div
+                                                    key={s}
+                                                    className={`px-4 py-2 text-sm cursor-pointer hover:bg-gray-700 transition-colors ${s === symbol ? 'bg-blue-900/30 text-blue-400' : 'text-gray-300'}`}
+                                                    onClick={() => {
+                                                        setSymbol(s);
+                                                        setIsOpen(false);
+                                                        setSearch('');
+                                                    }}
+                                                >
+                                                    {s}
+                                                </div>
+                                            ))
+                                        }
+                                    </div>
+                                </div>
+                            )}
+
+                            {isOpen && (
+                                <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={() => setIsOpen(false)}
+                                />
+                            )}
                         </div>
 
                         <div>

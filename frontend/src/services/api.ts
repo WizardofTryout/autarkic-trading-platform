@@ -354,13 +354,18 @@ export const getActiveStrategies = async (): Promise<ActiveStrategy[]> => {
 };
 
 export const stopStrategy = async (activeId: string) => {
-    const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/strategies/stop/${activeId}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (!response.ok) throw new Error('Failed to stop strategy');
-    return response.json();
+    const response = await api.post(`/strategies/stop/${activeId}`);
+    return response;
+};
+
+export const deleteActiveStrategy = async (activeId: string) => {
+    const response = await api.delete(`/strategies/active/${activeId}`);
+    return response;
+};
+
+export const compileStrategy = async (script: string) => {
+    const response = await api.post('/strategies/compile', { script });
+    return response;
 };
 
 export const requestPasswordReset = async (email: string) => {
@@ -403,7 +408,7 @@ export const api = {
         if (!response.ok) throw new Error(`GET ${endpoint} failed`);
         return response.json();
     },
-    post: async (endpoint: string, data: any) => {
+    post: async (endpoint: string, data?: any) => {
         const token = useAuthStore.getState().token;
         const response = await fetch(`${API_BASE}${endpoint}`, {
             method: 'POST',
@@ -411,11 +416,25 @@ export const api = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify(data),
+            body: data ? JSON.stringify(data) : undefined,
         });
         if (!response.ok) {
-            const error = await response.json();
+            const error = await response.json().catch(() => ({}));
             throw new Error(error.detail || `POST ${endpoint} failed`);
+        }
+        return response.json();
+    },
+    delete: async (endpoint: string) => {
+        const token = useAuthStore.getState().token;
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.detail || `DELETE ${endpoint} failed`);
         }
         return response.json();
     }

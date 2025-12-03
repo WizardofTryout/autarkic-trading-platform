@@ -3,9 +3,15 @@ import { ArrowUpRight, ArrowDownRight, XCircle, RefreshCw } from 'lucide-react';
 import { useTradingStore } from '../../store/tradingStore';
 import { useBinanceWebSocket } from '../../hooks/useBinanceWebSocket';
 
+// Lazy load the modal to avoid circular dependencies if any
+const StrategyActivationModal = React.lazy(() => import('../StrategyBuilder/StrategyActivationModal'));
+const ConfirmationModal = React.lazy(() => import('../Common/ConfirmationModal'));
+
 export const TradingDashboard: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'positions' | 'orders' | 'history'>('positions');
-    const { portfolio, fetchPortfolio, resetAccount, setSymbol } = useTradingStore();
+    const [activeTab, setActiveTab] = useState<'positions' | 'orders' | 'history' | 'strategies'>('positions');
+    const [editingStrategy, setEditingStrategy] = useState<any | null>(null);
+    const [deletingStrategyId, setDeletingStrategyId] = useState<string | null>(null);
+    const { portfolio, fetchPortfolio, resetAccount, setSymbol, activeStrategies, fetchActiveStrategies } = useTradingStore();
 
     // Get unique symbols from positions to subscribe to
     const symbols = React.useMemo(() => {
@@ -17,9 +23,13 @@ export const TradingDashboard: React.FC = () => {
 
     useEffect(() => {
         fetchPortfolio();
-        const interval = setInterval(fetchPortfolio, 5000); // Poll every 5s
+        fetchActiveStrategies();
+        const interval = setInterval(() => {
+            fetchPortfolio();
+            fetchActiveStrategies();
+        }, 5000); // Poll every 5s
         return () => clearInterval(interval);
-    }, [fetchPortfolio]);
+    }, [fetchPortfolio, fetchActiveStrategies]);
 
     if (!portfolio) {
         return (
@@ -66,6 +76,12 @@ export const TradingDashboard: React.FC = () => {
                         className={`px-4 py-2 font-medium transition-colors ${activeTab === 'history' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}
                     >
                         Order History
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('strategies')}
+                        className={`px-4 py-2 font-medium transition-colors ${activeTab === 'strategies' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        Active Strategies ({activeStrategies?.length || 0})
                     </button>
                 </div>
                 <div className="flex items-center gap-4">
@@ -258,7 +274,123 @@ export const TradingDashboard: React.FC = () => {
                         </tbody>
                     </table>
                 )}
+
+                {activeTab === 'strategies' && (
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-gray-800/50 text-gray-400 sticky top-0">
+                            <tr>
+                                <th className="p-3 font-medium">Started</th>
+                                <th className="p-3 font-medium">Strategy</th>
+                                <th className="p-3 font-medium">Symbol</th>
+                                <th className="p-3 font-medium">Timeframe</th>
+                                <th className="p-3 font-medium">Amount</th>
+                                <th className="p-3 font-medium">Status</th>
+                                <th className="p-3 font-medium text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-800">
+                            {activeStrategies.map((strat: any) => (
+                                <tr key={strat.id} className="hover:bg-gray-800/30 transition-colors">
+                                    <td className="p-3 text-gray-400">{new Date(strat.created_at).toLocaleString()}</td>
+                                    <td className="p-3 font-bold text-white">{strat.strategy_name}</td>
+                                    <td className="p-3 text-blue-400">{strat.symbol}</td>
+                                    <td className="p-3 text-gray-300">{strat.timeframe}</td>
+                                    <td className="p-3 text-gray-300">{strat.amount} USDT</td>
+                                    <td className="p-3">
+                                        <span className={`px-2 py-0.5 rounded text-xs ${strat.status === 'RUNNING' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                            {strat.status}
+                                        </span>
+                                    </td>
+                                    <td className="p-3 text-right">
+                                        {strat.status === 'RUNNING' ? (
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        const { stopStrategy } = await import('../../services/api');
+                                                        await stopStrategy(strat.id);
+                                                        fetchActiveStrategies();
+                                                    } catch (e) {
+                                                        console.error(e);
+                                                    }
+                                                }}
+                                                className="px-3 py-1 bg-red-900/20 hover:bg-red-900/40 text-red-400 rounded text-xs transition-colors"
+                                            >
+                                                Stop
+                                            </button>
+                                        ) : (
+                                            <div className="flex gap-2 justify-end">
+                                                <button
+                                                    onClick={() => setEditingStrategy(strat)}
+                                                    className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-blue-400 rounded text-xs transition-colors"
+                                                >
+                                                    Edit / Restart
+                                                </button>
+                                                <button
+                                                    onClick={() => setDeletingStrategyId(strat.id)}
+                                                    className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-red-400 rounded text-xs transition-colors"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                            {activeStrategies.length === 0 && (
+                                <tr>
+                                    <td colSpan={7} className="p-8 text-center text-gray-500">
+                                        No active strategies running.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                )}
             </div>
+
+            {editingStrategy && (
+                <React.Suspense fallback={null}>
+                    <StrategyActivationModal
+                        strategyId={editingStrategy.strategy_id}
+                        strategyName={editingStrategy.strategy_name}
+                        initialData={{
+                            symbol: editingStrategy.symbol,
+                            timeframe: editingStrategy.timeframe,
+                            amount: editingStrategy.amount
+                        }}
+                        onClose={() => setEditingStrategy(null)}
+                        onSuccess={() => {
+                            setEditingStrategy(null);
+                            fetchActiveStrategies();
+                            fetchPortfolio();
+                        }}
+                    />
+                </React.Suspense>
+            )}
+
+            <React.Suspense fallback={null}>
+                <ConfirmationModal
+                    isOpen={!!deletingStrategyId}
+                    title="Delete Strategy"
+                    message="Are you sure you want to delete this strategy run? This action cannot be undone."
+                    confirmText="Delete"
+                    isDangerous={true}
+                    onConfirm={async () => {
+                        if (deletingStrategyId) {
+                            try {
+                                const { deleteActiveStrategy } = await import('../../services/api');
+                                await deleteActiveStrategy(deletingStrategyId);
+                                fetchActiveStrategies();
+                            } catch (e) {
+                                console.error(e);
+                            } finally {
+                                setDeletingStrategyId(null);
+                            }
+                        }
+                    }}
+                    onCancel={() => setDeletingStrategyId(null)}
+                />
+            </React.Suspense>
         </div>
     );
 };

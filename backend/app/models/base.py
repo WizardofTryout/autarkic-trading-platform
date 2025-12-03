@@ -64,7 +64,8 @@ class ActiveStrategy(Base):
     strategy_id = Column(UUID(as_uuid=True), ForeignKey("strategies.id"), nullable=False)
     symbol = Column(String, nullable=False) # e.g. BTC/USDT
     timeframe = Column(String, nullable=False) # e.g. 15m
-    amount = Column(Numeric(precision=20, scale=8), nullable=False) # Investment amount
+    amount = Column(Numeric(precision=20, scale=8), nullable=False) # Initial Investment amount
+    current_capital = Column(Numeric(precision=20, scale=8), nullable=True) # Current Capital (Initial + PnL)
     status = Column(String, default="RUNNING") # RUNNING, PAUSED, STOPPED
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -121,6 +122,7 @@ class PaperAccount(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), unique=True, nullable=False)
     balance = Column(Numeric(precision=20, scale=8), default=0)
+    locked_balance = Column(Numeric(precision=20, scale=8), default=0) # Capital reserved for active strategies
     currency = Column(String, default="USDT")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -136,6 +138,7 @@ class PaperPosition(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     account_id = Column(UUID(as_uuid=True), ForeignKey("paper_accounts.id"), nullable=False)
+    strategy_id = Column(UUID(as_uuid=True), nullable=True) # Link to ActiveStrategy if applicable
     symbol = Column(String, nullable=False)
     side = Column(String, nullable=False) # LONG or SHORT
     size = Column(Numeric(precision=20, scale=8), default=0)
@@ -158,6 +161,7 @@ class PaperOrder(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     account_id = Column(UUID(as_uuid=True), ForeignKey("paper_accounts.id"), nullable=False)
+    strategy_id = Column(UUID(as_uuid=True), nullable=True) # Link to ActiveStrategy if applicable
     symbol = Column(String, nullable=False)
     side = Column(String, nullable=False) # BUY or SELL
     type = Column(String, nullable=False) # MARKET or LIMIT

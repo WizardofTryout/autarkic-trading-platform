@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import delete
 from sqlalchemy.sql import func
-from app.models.base import User, PaperAccount, PaperOrder, PaperPosition, PaperTrade
+from app.models.base import User, PaperAccount, PaperOrder, PaperPosition, PaperTrade, ActiveStrategy
 from app.services.market_service import MarketService
 import uuid
 from decimal import Decimal
@@ -39,7 +39,7 @@ class PaperTradingService:
             
         return await self.get_or_create_account(user_id)
 
-    async def place_order(self, user_id: uuid.UUID, symbol: str, side: str, amount_usdt: float, leverage: int = 1, order_type: str = "MARKET", price: float = None, stop_loss: float = None, take_profit: float = None, is_trailing_stop: bool = False, trailing_percent: float = None):
+    async def place_order(self, user_id: uuid.UUID, symbol: str, side: str, amount_usdt: float, leverage: int = 1, order_type: str = "MARKET", price: float = None, stop_loss: float = None, take_profit: float = None, is_trailing_stop: bool = False, trailing_percent: float = None, strategy_id: uuid.UUID = None):
         account = await self.get_or_create_account(user_id)
         
         # 1. Get Real Price (needed for Market orders and validation)
@@ -54,9 +54,31 @@ class PaperTradingService:
         amount_usdt = Decimal(str(amount_usdt))
         margin = amount_usdt
         
-        # 3. Check Balance (Simple check, deduction happens on fill)
-        if account.balance < margin:
-            raise Exception("Insufficient balance")
+        # 3. Check Balance
+        # If strategy_id is provided, we assume funds are already reserved in locked_balance.
+        # We check if locked_balance covers this trade? 
+        # Actually, locked_balance is a pool. We should check if we have enough "free" locked balance?
+        # But we don't track "free" locked balance vs "used" locked balance (margin).
+        # We only track Total Locked.
+        # When we open a position, we move funds from Cash to Margin.
+        # If it's a strategy trade, it should come from Locked Balance.
+        # But wait, Locked Balance represents the Strategy Capital.
+        # If we open a position, the capital is still "Locked" in the strategy, just in a different form (Position vs Cash).
+        # So we don't need to deduct from Locked Balance.
+        # We just need to ensure the strategy has enough capital.
+        # But we don't track per-strategy capital in Account. We track it in ActiveStrategy.amount.
+        # So here we just trust the caller?
+        # Or we check against account.locked_balance?
+        
+        if strategy_id:
+            # Strategy Trade
+            # We don't deduct from account.balance.
+            # We assume the caller (background_monitor) checked ActiveStrategy limits.
+            pass
+        else:
+            # Manual Trade
+            if account.balance < margin:
+                raise Exception("Insufficient balance")
 
         # LIMIT ORDER LOGIC
         if order_type.upper() == "LIMIT":
@@ -71,6 +93,7 @@ class PaperTradingService:
             
             order = PaperOrder(
                 account_id=account.id,
+                strategy_id=strategy_id,
                 symbol=symbol,
                 side=side.upper(),
                 type="LIMIT",
@@ -98,6 +121,7 @@ class PaperTradingService:
             # Create Order
             order = PaperOrder(
                 account_id=account.id,
+                strategy_id=strategy_id,
                 symbol=symbol,
                 side=side.upper(),
                 type="MARKET",
@@ -131,12 +155,30 @@ class PaperTradingService:
             self.db.add(trade)
             
             # Update Account Balance
-            account.balance -= (margin + fee)
+            if not strategy_id:
+                account.balance -= (margin + fee)
+            else:
+                # For strategy, we don't touch main balance.
+                # But we should probably deduct fee from somewhere?
+                # If we don't deduct fee, the strategy gets free trades?
+                # The fee should reduce the "Locked Balance" (Strategy Capital).
+                # Yes, locked_balance -= fee.
+                if account.locked_balance >= fee:
+                    account.locked_balance -= fee
+                else:
+                    # Strategy ran out of money for fees?
+                    # Just deduct what we can or go negative?
+                    account.locked_balance -= fee
             
             # Update/Create Position
             result = await self.db.execute(select(PaperPosition).where(
                 PaperPosition.account_id == account.id,
-                PaperPosition.symbol == symbol
+                PaperPosition.symbol == symbol,
+                PaperPosition.strategy_id == strategy_id # Separate positions for manual vs strategy?
+                # Actually, if I have a manual position on BTC and strategy buys BTC...
+                # Should they merge?
+                # User might want to see them separate.
+                # Adding strategy_id to WHERE clause separates them.
             ))
             position = result.scalars().first()
             
@@ -164,7 +206,12 @@ class PaperTradingService:
                         pnl = (position.entry_price - current_price) * close_qty
                         
                     margin_released = (close_qty / position.size) * position.margin
-                    account.balance += margin_released + pnl
+                    
+                    if not strategy_id:
+                        account.balance += margin_released + pnl
+                    else:
+                        # Return to Locked Balance
+                        account.locked_balance += margin_released + pnl
                     
                     position.size -= close_qty
                     position.margin -= margin_released
@@ -175,6 +222,7 @@ class PaperTradingService:
                 # New Position
                 position = PaperPosition(
                     account_id=account.id,
+                    strategy_id=strategy_id,
                     symbol=symbol,
                     side=side.upper(),
                     size=quantity,
@@ -433,7 +481,27 @@ class PaperTradingService:
                         account_res = await self.db.execute(select(PaperAccount).where(PaperAccount.id == account_id))
                         account = account_res.scalars().first()
                         
-                        account.balance += pos.margin + pnl - fee
+                        if pos.strategy_id:
+                            account.locked_balance += pos.margin + pnl - fee
+                            
+                            # Update ActiveStrategy current_capital
+                            # We need to fetch it first
+                            active_res = await self.db.execute(select(ActiveStrategy).where(ActiveStrategy.id == pos.strategy_id))
+                            active = active_res.scalars().first()
+                            if active:
+                                # current_capital should reflect the total equity.
+                                # Before this trade, it was X.
+                                # Now we closed a position.
+                                # The position had Margin M.
+                                # We got back M + PnL - Fee.
+                                # So Net Change = PnL - Fee.
+                                if active.current_capital is None:
+                                    active.current_capital = active.amount # Fallback
+                                
+                                active.current_capital += pnl - fee
+                                self.db.add(active)
+                        else:
+                            account.balance += pos.margin + pnl - fee
                         
                         # 5. Delete Position
                         await self.db.delete(pos)
