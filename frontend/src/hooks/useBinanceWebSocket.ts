@@ -79,9 +79,7 @@ export const useBinanceWebSocket = (symbol: string, timeframe: string, onUpdate:
         };
 
         return () => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.close();
-            }
+            ws.close();
         };
     }, [symbol, timeframe, onUpdate]);
 

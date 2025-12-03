@@ -2,13 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { getSymbols } from '../services/api';
 import { useTradingStore } from '../store/tradingStore';
 import { Search } from 'lucide-react';
+import { useBinanceWebSocket } from '../hooks/useBinanceWebSocket';
 
+// Component for searching symbols
 const SymbolSearch: React.FC = () => {
     const { symbol, setSymbol } = useTradingStore();
     const [symbols, setSymbols] = useState<string[]>([]);
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(false);
+    const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+
+    // Subscribe to real-time price updates
+    const handlePriceUpdate = React.useCallback((data: any) => {
+        if (data && data.close) {
+            setCurrentPrice(parseFloat(data.close));
+        }
+    }, []);
+
+    useBinanceWebSocket(symbol, '1m', handlePriceUpdate);
 
     useEffect(() => {
         const fetchSymbols = async () => {
@@ -32,11 +44,18 @@ const SymbolSearch: React.FC = () => {
     return (
         <div className="relative w-64">
             <div
-                className="flex items-center bg-gray-800 border border-gray-700 rounded-md px-3 py-2 cursor-pointer hover:bg-gray-750 transition-colors"
+                className="flex items-center justify-between bg-gray-800 border border-gray-700 rounded-md px-3 py-2 cursor-pointer hover:bg-gray-750 transition-colors"
                 onClick={() => setIsOpen(!isOpen)}
             >
-                <Search className="w-4 h-4 text-gray-400 mr-2" />
-                <span className="text-white font-medium">{symbol}</span>
+                <div className="flex items-center">
+                    <Search className="w-4 h-4 text-gray-400 mr-2" />
+                    <span className="text-white font-medium">{symbol}</span>
+                </div>
+                {currentPrice && (
+                    <span className={`text-sm font-mono ${currentPrice > 0 ? 'text-green-400' : 'text-white'}`}>
+                        {currentPrice.toFixed(2)}
+                    </span>
+                )}
             </div>
 
             {isOpen && (
