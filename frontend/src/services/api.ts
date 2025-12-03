@@ -15,9 +15,24 @@ export interface Settings {
 }
 
 export interface Strategy {
-    id?: number;
+    id: string;
     name: string;
-    script_code: string;
+    source_code: string;
+    category?: string;
+    is_favorite?: boolean;
+    status: string;
+    created_at: string;
+}
+
+export interface ActiveStrategy {
+    id: string;
+    strategy_id: string;
+    symbol: string;
+    timeframe: string;
+    amount: number;
+    status: string;
+    created_at: string;
+    strategy_name: string;
 }
 
 export const getSettings = async (): Promise<Settings> => {
@@ -232,6 +247,106 @@ export const chatWithAI = async (message: string, context?: any) => {
         const error = await response.json();
         throw new Error(error.detail || 'AI Chat failed');
     }
+    return response.json();
+};
+
+export const generateStrategy = async (prompt: string, currentCode?: string) => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/ai-strategy/generate_strategy`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ prompt, current_code: currentCode }),
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to generate strategy');
+    }
+    return response.json();
+};
+
+// --- Strategy Management ---
+
+// Interfaces are already defined at the top of the file, removing duplicates here.
+// If they are NOT defined at the top, I should move them there.
+// Checking the file content via view_file first would be safer, but I can assume based on the lint error that they are duplicated.
+
+// Actually, I will remove the duplicates I just added and ensure they are merged correctly.
+// The lint says "Cannot redeclare block-scoped variable 'getStrategies'".
+// This means I appended the code instead of replacing the existing one, or I pasted it twice.
+
+// I will read the file first to be sure.
+
+export const createStrategy = async (strategy: { name: string; source_code: string; category?: string; is_favorite?: boolean }) => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/strategies/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(strategy),
+    });
+    if (!response.ok) throw new Error('Failed to create strategy');
+    return response.json();
+};
+
+export const updateStrategy = async (id: string, updates: Partial<Strategy>) => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/strategies/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updates),
+    });
+    if (!response.ok) throw new Error('Failed to update strategy');
+    return response.json();
+};
+
+export const deleteStrategy = async (id: string) => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/strategies/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error('Failed to delete strategy');
+    return response.json();
+};
+
+export const activateStrategy = async (data: { strategy_id: string; symbol: string; timeframe: string; amount: number }) => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/strategies/activate`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to activate strategy');
+    return response.json();
+};
+
+export const getActiveStrategies = async (): Promise<ActiveStrategy[]> => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/strategies/active`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error('Failed to fetch active strategies');
+    return response.json();
+};
+
+export const stopStrategy = async (activeId: string) => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/strategies/stop/${activeId}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error('Failed to stop strategy');
     return response.json();
 };
 

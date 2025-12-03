@@ -106,8 +106,14 @@ async def get_api_keys(
     current_user: User = Depends(deps.get_current_user),
     db: AsyncSession = Depends(deps.get_db)
 ):
-    result = await db.execute(select(UserSecret).where(UserSecret.user_id == current_user.id))
-    secrets = result.scalars().all()
+    print(f"DEBUG: Fetching keys for user {current_user.id}")
+    try:
+        result = await db.execute(select(UserSecret).where(UserSecret.user_id == current_user.id))
+        secrets = result.scalars().all()
+        print(f"DEBUG: Found {len(secrets)} secrets")
+    except Exception as e:
+        print(f"DEBUG: Error fetching keys: {e}")
+        raise e
     
     response = []
     for s in secrets:

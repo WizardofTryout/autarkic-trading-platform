@@ -1,161 +1,173 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Activity, Settings, LogOut } from 'lucide-react';
 import AdvancedFinancialChart from './components/Chart/D3Chart';
 import { OrderEntry } from './components/OrderEntry';
+import { AnalysisDashboard } from './components/Analysis/AnalysisDashboard';
+import { DocumentViewer } from './components/Analysis/DocumentViewer';
 import { BottomPanel } from './components/Layout/BottomPanel';
+import ChatPanel from './components/AIAssistant/ChatPanel';
 import LoginPage from './components/Auth/LoginPage';
 import RegisterPage from './components/Auth/RegisterPage';
-import UserProfile from './components/Auth/UserProfile';
-import ForgotPassword from './components/Auth/ForgotPassword';
-import ResetPassword from './components/Auth/ResetPassword';
 import SettingsPage from './components/SettingsPage';
-import SymbolSearch from './components/SymbolSearch';
-import ChatPanel from './components/AIAssistant/ChatPanel';
-import ResearchPanel from './components/Research/ResearchPanel';
+import ProtectedRoute from './components/Auth/ProtectedRoute';
 import { useAuthStore } from './store/authStore';
 import { useTradingStore } from './store/tradingStore';
-import { Bot, LogOut, User, Settings } from 'lucide-react';
-
-// Protected Route Component
-const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  return children;
-};
+import SymbolSearch from './components/SymbolSearch';
+import StrategyBuilderView from './components/StrategyBuilder/StrategyBuilderView';
 
 function App() {
-  const { isAuthenticated, logout } = useAuthStore();
-  const { symbol, timeframe } = useTradingStore();
+  const { isAuthenticated, user, logout } = useAuthStore();
+  const { symbol, timeframe, setSymbol, setTimeframe } = useTradingStore();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [currentScript, setCurrentScript] = useState('');
-  const [activeTab, setActiveTab] = useState<'chart' | 'analysis'>('chart');
+  const [activeTab, setActiveTab] = useState<'chart' | 'analysis' | 'strategy'>('chart');
   const [chatInitialMessage, setChatInitialMessage] = useState('');
   const [currentAnalysis, setCurrentAnalysis] = useState<string | undefined>(undefined);
 
-  const handleDiscussAnalysis = (analysis: string) => {
-    setCurrentAnalysis(analysis);
-    setChatInitialMessage(`I have a question about the current analysis for ${symbol}.`);
-    setIsChatOpen(true);
+  const handleLogout = () => {
+    logout();
+  };
+
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleTabChange = (tab: 'chart' | 'analysis' | 'strategy') => {
+    setActiveTab(tab);
+    if (location.pathname !== '/') {
+      navigate('/');
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 font-sans flex flex-col">
+    <div className="h-screen flex flex-col bg-gray-950 text-gray-100 overflow-hidden font-sans">
       {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center sticky top-0 z-20 h-16">
-        <div className="flex items-center gap-6">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-            Autarkic Trader
-          </h1>
-          {isAuthenticated && <SymbolSearch />}
-        </div>
+      <header className="bg-gray-900 border-b border-gray-800 h-14 flex items-center justify-between px-4 flex-none z-10">
+        <div className="flex items-center gap-8">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-900/20">
+              <Activity className="text-white w-5 h-5" />
+            </div>
+            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+              Autarkic Trader
+            </span>
+          </div>
 
-        {/* Center Navigation Toggle */}
-        {isAuthenticated && (
-          <div className="bg-gray-900/50 border border-gray-700 rounded-full p-1 flex gap-1">
+          {/* Navigation Tabs */}
+          <nav className="flex items-center gap-1 bg-gray-800/50 p-1 rounded-lg border border-gray-700/50">
             <button
-              onClick={() => setActiveTab('chart')}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'chart' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+              onClick={() => handleTabChange('chart')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${activeTab === 'chart' && location.pathname === '/'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
+                : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                }`}
             >
               Chart
             </button>
             <button
-              onClick={() => setActiveTab('analysis')}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'analysis' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+              onClick={() => handleTabChange('analysis')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${activeTab === 'analysis' && location.pathname === '/'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
+                : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                }`}
             >
               Analysis
             </button>
-          </div>
-        )}
+            <button
+              onClick={() => handleTabChange('strategy')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${activeTab === 'strategy' && location.pathname === '/'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
+                : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                }`}
+            >
+              Strategy Builder
+            </button>
+          </nav>
+        </div>
 
         <div className="flex items-center gap-4">
           {isAuthenticated ? (
             <>
+              <SymbolSearch />
+              <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-800/50 rounded-full border border-gray-700/50">
+                <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
+                  {user?.username?.charAt(0).toUpperCase()}
+                </div>
+                <span className="text-sm font-medium text-gray-300">{user?.username}</span>
+              </div>
+
               <button
                 onClick={() => setIsChatOpen(!isChatOpen)}
-                className={`p-2 rounded-full transition-colors ${isChatOpen ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                className={`p-2 rounded-lg transition-all duration-200 ${isChatOpen
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
                 title="AI Assistant"
               >
-                <Bot className="w-5 h-5" />
+                <div className="w-5 h-5">🤖</div>
               </button>
-              <Link to="/" onClick={() => setActiveTab('chart')} className="text-gray-300 hover:text-white transition-colors">Dashboard</Link>
-              <div className="relative group">
-                <button className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors focus:outline-none">
-                  <User className="w-5 h-5" />
-                </button>
-                <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                  <Link to="/profile" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white flex items-center gap-2">
-                    <User className="w-4 h-4" /> Profile
-                  </Link>
-                  <Link to="/settings" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white flex items-center gap-2">
-                    <Settings className="w-4 h-4" /> Settings
-                  </Link>
-                  <button
-                    onClick={logout}
-                    className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 flex items-center gap-2"
-                  >
-                    <LogOut className="w-4 h-4" /> Logout
-                  </button>
-                </div>
-              </div>
+
+              <a href="/settings" className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors">
+                <Settings className="w-5 h-5" />
+              </a>
+
+              <button
+                onClick={handleLogout}
+                className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-800 rounded-lg transition-colors"
+                title="Logout"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
             </>
           ) : (
-            <div className="flex gap-4">
-              <Link to="/login" className="text-gray-300 hover:text-white">Login</Link>
-              <Link to="/register" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors">Register</Link>
-            </div>
+            <a href="/login" className="text-sm font-medium text-blue-400 hover:text-blue-300">
+              Login
+            </a>
           )}
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 relative overflow-hidden">
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-
-          <Route path="/profile" element={
-            <ProtectedRoute>
-              <UserProfile />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/settings" element={
-            <ProtectedRoute>
-              <SettingsPage />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/" element={
-            <ProtectedRoute>
-              <div className="flex flex-col h-[calc(100vh-64px)]">
+      {/* Main Layout */}
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/settings" element={
+          <ProtectedRoute>
+            <SettingsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/" element={
+          <ProtectedRoute>
+            <div className="flex flex-col h-full">
+              {activeTab === 'strategy' ? (
+                <StrategyBuilderView />
+              ) : (
                 <div className="flex-1 flex overflow-hidden">
-                  {/* Main Viewer Area (Chart or Analysis) */}
-                  <div className="flex-1 flex flex-col min-w-0 border-r border-gray-800 relative">
+                  {/* Left Sidebar (Analysis) */}
+                  {activeTab === 'analysis' && (
+                    <div className="w-80 bg-gray-900 border-r border-gray-800 flex flex-col">
+                      <AnalysisDashboard />
+                    </div>
+                  )}
 
+                  {/* Main Content Area */}
+                  <div className="flex-1 flex flex-col min-w-0 bg-gray-950 relative">
+                    {/* Chart Area */}
                     <div className="flex-1 relative">
                       {activeTab === 'chart' ? (
-                        <AdvancedFinancialChart
-                          data={[]}
-                          symbol={symbol}
-                          timeframe={timeframe}
-                          height={500}
-                        />
+                        <AdvancedFinancialChart data={[]} symbol={symbol} timeframe={timeframe} />
                       ) : (
-                        <ResearchPanel
-                          symbol={symbol}
-                          onDiscuss={handleDiscussAnalysis}
-                          onBack={() => setActiveTab('chart')}
-                        />
+                        <DocumentViewer />
                       )}
                     </div>
 
                     {/* Bottom Panel (Dashboard / Pine Editor) - Only visible in Chart mode */}
                     {activeTab === 'chart' && (
-                      <BottomPanel onScriptChange={setCurrentScript} />
+                      <BottomPanel
+                        onScriptChange={setCurrentScript}
+                        script={currentScript}
+                      />
                     )}
                   </div>
 
@@ -164,22 +176,25 @@ function App() {
                     <OrderEntry />
                   </div>
                 </div>
-              </div>
-            </ProtectedRoute>
-          } />
-        </Routes>
+              )}
+            </div>
+          </ProtectedRoute>
+        } />
+      </Routes>
 
-        {/* AI Chat Panel Overlay */}
-        {isAuthenticated && (
-          <ChatPanel
-            isOpen={isChatOpen}
-            onClose={() => setIsChatOpen(false)}
-            currentScript={currentScript}
-            initialMessage={chatInitialMessage}
-            analysisContext={currentAnalysis}
-          />
-        )}
-      </main>
+      {/* AI Chat Panel Overlay */}
+      {isAuthenticated && (
+        <ChatPanel
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          currentScript={currentScript}
+          initialMessage={chatInitialMessage}
+          analysisContext={currentAnalysis}
+          onLoadCode={(code) => {
+            setCurrentScript(code);
+          }}
+        />
+      )}
     </div>
   );
 }
