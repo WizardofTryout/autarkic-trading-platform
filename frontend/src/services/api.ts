@@ -468,3 +468,27 @@ export const updateUserPreferences = async (preferences: any) => {
     if (!response.ok) throw new Error('Failed to update user preferences');
     return response.json();
 };
+
+export const runBacktest = async (data: {
+    script: string;
+    symbol: string;
+    timeframe: string;
+    start_date: string; // ISO string
+    end_date: string;   // ISO string
+    initial_capital: number;
+}) => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/strategies/backtest`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'Backtest failed');
+    }
+    return response.json();
+};
