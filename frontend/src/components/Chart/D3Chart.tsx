@@ -606,7 +606,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
                     {/* Timeframe Selector */}
                     <div className="flex bg-gray-800 rounded-lg p-1 space-x-1">
-                        {['1m', '5m', '15m', '30m', '1h', '4h', '1d'].map((tf) => (
+                        {['1s', '1m', '5m', '15m', '30m', '1h', '4h', '1d'].map((tf) => (
                             <button
                                 key={tf}
                                 onClick={() => setSelectedTimeframe(tf)}
