@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ApprovalModal } from './ApprovalModal';
 import { useTradingStore } from '../store/tradingStore';
-import { Wallet } from 'lucide-react';
+import { Wallet, AlertTriangle } from 'lucide-react';
+import { useBinanceWebSocket } from '../hooks/useBinanceWebSocket';
 
 export const OrderEntry: React.FC = () => {
     const [orderType, setOrderType] = useState<'MARKET' | 'LIMIT'>('MARKET');
@@ -15,10 +16,20 @@ export const OrderEntry: React.FC = () => {
     const [takeProfit, setTakeProfit] = useState('');
     const [stopLoss, setStopLoss] = useState('');
 
+    // Trailing Stop State
+    const [trailingEnabled, setTrailingEnabled] = useState(false);
+    const [trailingPercent, setTrailingPercent] = useState('1.0');
+
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [pendingSide, setPendingSide] = useState<'buy' | 'sell' | null>(null);
 
     const { placeOrder, symbol, portfolio, fetchPortfolio } = useTradingStore();
+
+    // Real-time price for validation
+    const symbols = useMemo(() => [symbol], [symbol]);
+    const { currentData } = useBinanceWebSocket(symbols, '1m');
+    const currentPrice = currentData[symbol]?.close || 0;
 
     useEffect(() => {
         fetchPortfolio();
@@ -32,6 +43,8 @@ export const OrderEntry: React.FC = () => {
         setSlEnabled(false);
         setTakeProfit('');
         setStopLoss('');
+        setTrailingEnabled(false);
+        setTrailingPercent('1.0');
         setOrderType('MARKET');
     }, [symbol]);
 
@@ -43,8 +56,9 @@ export const OrderEntry: React.FC = () => {
     };
 
     const handleConfirm = async () => {
-        if (!pendingSide) return;
+        if (!pendingSide || isSubmitting) return;
 
+        setIsSubmitting(true);
         try {
             await placeOrder(
                 symbol,
@@ -54,7 +68,9 @@ export const OrderEntry: React.FC = () => {
                 orderType,
                 orderType === 'LIMIT' ? parseFloat(price) : undefined,
                 slEnabled && stopLoss ? parseFloat(stopLoss) : undefined,
-                tpEnabled && takeProfit ? parseFloat(takeProfit) : undefined
+                tpEnabled && takeProfit ? parseFloat(takeProfit) : undefined,
+                slEnabled && trailingEnabled,
+                slEnabled && trailingEnabled ? parseFloat(trailingPercent) : undefined
             );
             console.log(`Order Confirmed: ${pendingSide.toUpperCase()} ${margin} USDT x${leverage}`);
             setIsModalOpen(false);
@@ -64,11 +80,26 @@ export const OrderEntry: React.FC = () => {
         } catch (error) {
             console.error("Order failed", error);
             alert("Order failed! Check console.");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const availableBalance = portfolio?.balance || 0;
     const positionSize = margin ? (parseFloat(margin) * parseInt(leverage)).toFixed(2) : '0.00';
+
+    // Validation Logic
+    const entryPrice = orderType === 'LIMIT' && price ? parseFloat(price) : currentPrice;
+    const trailingDistVal = entryPrice * (parseFloat(trailingPercent) / 100);
+    const tpPriceVal = parseFloat(takeProfit);
+
+    let warningMsg = null;
+    if (tpEnabled && takeProfit && trailingEnabled && entryPrice > 0) {
+        const tpDist = Math.abs(tpPriceVal - entryPrice);
+        if (trailingDistVal >= tpDist) {
+            warningMsg = `Trailing distance ($${trailingDistVal.toFixed(2)}) is larger than TP distance ($${tpDist.toFixed(2)}). Position might close at TP before trailing activates.`;
+        }
+    }
 
     return (
         <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 h-full flex flex-col overflow-y-auto">
@@ -178,22 +209,77 @@ export const OrderEntry: React.FC = () => {
                         />
                     )}
                 </div>
-                <div className="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        checked={slEnabled}
-                        onChange={(e) => setSlEnabled(e.target.checked)}
-                        className="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0"
-                    />
-                    <label className="text-xs text-gray-300">Stop Loss</label>
-                    {slEnabled && (
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
                         <input
-                            type="number"
-                            value={stopLoss}
-                            onChange={(e) => setStopLoss(e.target.value)}
-                            className="flex-1 bg-gray-900 border border-gray-700 rounded p-1 text-xs text-white focus:border-blue-500 focus:outline-none ml-4"
-                            placeholder="Price"
+                            type="checkbox"
+                            checked={slEnabled}
+                            onChange={(e) => setSlEnabled(e.target.checked)}
+                            className="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0"
                         />
+                        <label className="text-xs text-gray-300">Stop Loss</label>
+                        {slEnabled && (
+                            <input
+                                type="number"
+                                value={stopLoss}
+                                onChange={(e) => setStopLoss(e.target.value)}
+                                className="flex-1 bg-gray-900 border border-gray-700 rounded p-1 text-xs text-white focus:border-blue-500 focus:outline-none ml-4"
+                                placeholder="Price"
+                            />
+                        )}
+                    </div>
+                    {slEnabled && (
+                        <div className="ml-6 p-2 bg-gray-900/50 rounded border border-gray-800">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={trailingEnabled}
+                                        onChange={(e) => setTrailingEnabled(e.target.checked)}
+                                        className="rounded bg-gray-700 border-gray-600 text-purple-500 focus:ring-0"
+                                    />
+                                    <label className="text-xs text-purple-300 font-medium">Trailing Stop</label>
+                                </div>
+                                {trailingEnabled && (
+                                    <span className="text-[10px] text-gray-400">
+                                        Dist: <span className="text-white">${trailingDistVal.toFixed(2)}</span>
+                                    </span>
+                                )}
+                            </div>
+
+                            {trailingEnabled && (
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="range"
+                                            min="0.1"
+                                            max="10"
+                                            step="0.1"
+                                            value={trailingPercent}
+                                            onChange={(e) => setTrailingPercent(e.target.value)}
+                                            className="flex-1 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                                        />
+                                        <div className="flex items-center bg-gray-800 rounded px-2 py-1 border border-gray-700 w-16">
+                                            <input
+                                                type="number"
+                                                value={trailingPercent}
+                                                onChange={(e) => setTrailingPercent(e.target.value)}
+                                                className="w-full bg-transparent text-xs text-white focus:outline-none text-right"
+                                                step="0.1"
+                                            />
+                                            <span className="text-[10px] text-gray-500 ml-1">%</span>
+                                        </div>
+                                    </div>
+
+                                    {warningMsg && (
+                                        <div className="flex items-start gap-1.5 text-orange-400 bg-orange-900/20 p-1.5 rounded text-[10px]">
+                                            <AlertTriangle className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                                            <span>{warningMsg}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
@@ -232,6 +318,7 @@ export const OrderEntry: React.FC = () => {
                 onCancel={() => { setIsModalOpen(false); setPendingSide(null); }}
                 action={pendingSide === 'buy' ? 'OPEN LONG' : 'OPEN SHORT'}
                 amount={margin} // Display Margin in modal
+                isLoading={isSubmitting}
             />
         </div>
     );

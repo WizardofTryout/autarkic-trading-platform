@@ -211,11 +211,17 @@ Ein intelligenter Assistent, der den User direkt in der Plattform unterstützt (
 *   **Research Agent**: Kann auf Knopfdruck aktuelle News und Sentiment-Analysen zum angezeigten Handelspaar durchführen.
 *   **Kontext-Aware**: Der Assistent "kennt" den aktuellen Chart und das offene Skript.
 
+### 8.3 "Autarkic" Strategy Automation (New Vision)
+Das Ziel ist ein vollautomatisches System, das über natürliche Sprache gesteuert wird:
+*   **Verbal Strategy Definition**: Der User beschreibt Regeln ("Wenn RSI < 30 und MACD Cross, dann Long").
+*   **AI Logic Generation**: Das System übersetzt dies in ausführbaren Code.
+*   **Automated Execution**: Ein Bot überwacht die Indikatoren 24/7 und führt Trades aus.
+*   **Smart Risk Management**: Automatische Berechnung von TP/SL und Position Size basierend auf Risk/Reward-Vorgaben.
+*   **Trailing Stop Loss**: Dynamische Anpassung des Stop Loss zur Gewinnsicherung.
+
 ---
 
 ## 9. Technische Spezifikation: Pine Script Transpiler & Management
-(Bisheriger Inhalt von Punkt 7...)
-
 Die Integration von Pine Script erfolgt nicht direkt, sondern über eine Transpiler-Pipeline, um digitale Souveränität zu gewährleisten und Abhängigkeiten von TradingView-Servern zu vermeiden.
 
 ### 7.1 Script Management System
