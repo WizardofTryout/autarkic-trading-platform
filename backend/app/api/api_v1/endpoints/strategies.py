@@ -4,8 +4,9 @@ from typing import List, Optional, Any, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.services.pine_transpiler.parser import parse_pine_script
-from app.models.base import User, Strategy
+from app.models.base import User, Strategy, ActiveStrategy
 from app.api import deps
+from datetime import datetime
 import uuid
 
 router = APIRouter()
@@ -17,63 +18,6 @@ class CompilationResult(BaseModel):
     success: bool
     parsed_script: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
-
-class StrategyResponse(BaseModel):
-    id: str
-    name: str
-    category: str
-    is_favorite: bool
-    script: str
-
-    class Config:
-        from_attributes = True
-
-@router.post("/compile", response_model=CompilationResult)
-async def compile_strategy(request: PineScriptRequest):
-    try:
-        parsed = parse_pine_script(request.script)
-        return CompilationResult(success=True, parsed_script=parsed)
-    except Exception as e:
-        return CompilationResult(success=False, error=str(e))
-
-@router.post("/save")
-async def save_strategy(
-    request: PineScriptRequest,
-    current_user: User = Depends(deps.get_current_user),
-    db: AsyncSession = Depends(deps.get_db)
-):
-    # Extract name
-    name = "Custom Strategy"
-    for line in request.script.split('\n'):
-        if line.startswith('//'): continue
-        if 'strategy(' in line or 'indicator(' in line:
-            if 'title="' in line:
-                try: name = line.split('title="')[1].split('"')[0]
-                except: pass
-            elif "title='" in line:
-                try: name = line.split("title='")[1].split("'")[0]
-                except: pass
-            break
-
-    new_strategy = Strategy(
-        user_id=current_user.id,
-        name=name,
-        source_code=request.script,
-        category="Personal",
-        is_favorite=False,
-        status="active"
-    )
-    db.add(new_strategy)
-    await db.commit()
-    await db.refresh(new_strategy)
-    
-    return {"status": "success", "message": "Strategy saved", "strategy": {
-        "id": str(new_strategy.id),
-        "name": new_strategy.name,
-        "category": new_strategy.category,
-        "is_favorite": new_strategy.is_favorite,
-        "script": new_strategy.source_code
-    }}
 
 class ExecutionRequest(BaseModel):
     script: Optional[str] = None
@@ -87,6 +31,206 @@ class ExecutionResult(BaseModel):
     indicators: Optional[Dict[str, List[Optional[float]]]] = None
     error: Optional[str] = None
 
+# --- Schemas ---
+
+class StrategyBase(BaseModel):
+    name: str
+    source_code: str
+    category: Optional[str] = "Personal"
+    is_favorite: bool = False
+
+class StrategyCreate(StrategyBase):
+    pass
+
+class StrategyUpdate(BaseModel):
+    name: Optional[str] = None
+    source_code: Optional[str] = None
+    category: Optional[str] = None
+    is_favorite: Optional[bool] = None
+
+class StrategyResponse(StrategyBase):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    created_at: datetime
+    status: str
+
+    class Config:
+        from_attributes = True
+
+class ActiveStrategyCreate(BaseModel):
+    strategy_id: str
+    symbol: str
+    timeframe: str
+    amount: float
+
+class ActiveStrategyResponse(BaseModel):
+    id: uuid.UUID
+    strategy_id: uuid.UUID
+    symbol: str
+    timeframe: str
+    amount: float
+    status: str
+    created_at: datetime
+    strategy_name: str
+
+    class Config:
+        from_attributes = True
+
+# --- Endpoints ---
+
+@router.get("/", response_model=List[StrategyResponse])
+async def get_strategies(
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    result = await db.execute(select(Strategy).where(Strategy.user_id == current_user.id).order_by(Strategy.created_at.desc()))
+    return result.scalars().all()
+
+@router.post("/", response_model=StrategyResponse)
+async def create_strategy(
+    strategy_in: StrategyCreate,
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    strategy = Strategy(
+        user_id=current_user.id,
+        name=strategy_in.name,
+        source_code=strategy_in.source_code,
+        category=strategy_in.category,
+        is_favorite=strategy_in.is_favorite,
+        status="draft"
+    )
+    db.add(strategy)
+    await db.commit()
+    await db.refresh(strategy)
+    return strategy
+
+@router.put("/{strategy_id}", response_model=StrategyResponse)
+async def update_strategy(
+    strategy_id: str,
+    strategy_in: StrategyUpdate,
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    result = await db.execute(select(Strategy).where(Strategy.id == strategy_id, Strategy.user_id == current_user.id))
+    strategy = result.scalars().first()
+    if not strategy:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    
+    update_data = strategy_in.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(strategy, field, value)
+    
+    db.add(strategy)
+    await db.commit()
+    await db.refresh(strategy)
+    return strategy
+
+@router.delete("/{strategy_id}")
+async def delete_strategy(
+    strategy_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    result = await db.execute(select(Strategy).where(Strategy.id == strategy_id, Strategy.user_id == current_user.id))
+    strategy = result.scalars().first()
+    if not strategy:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    
+    await db.delete(strategy)
+    await db.commit()
+    return {"message": "Strategy deleted"}
+
+# --- Activation Endpoints ---
+
+@router.post("/activate", response_model=ActiveStrategyResponse)
+async def activate_strategy(
+    activation_in: ActiveStrategyCreate,
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    # Verify strategy ownership
+    result = await db.execute(select(Strategy).where(Strategy.id == activation_in.strategy_id, Strategy.user_id == current_user.id))
+    strategy = result.scalars().first()
+    if not strategy:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+
+    active_strategy = ActiveStrategy(
+        user_id=current_user.id,
+        strategy_id=activation_in.strategy_id,
+        symbol=activation_in.symbol,
+        timeframe=activation_in.timeframe,
+        amount=activation_in.amount,
+        status="RUNNING"
+    )
+    db.add(active_strategy)
+    await db.commit()
+    await db.refresh(active_strategy)
+
+    return ActiveStrategyResponse(
+        id=active_strategy.id,
+        strategy_id=active_strategy.strategy_id,
+        symbol=active_strategy.symbol,
+        timeframe=active_strategy.timeframe,
+        amount=active_strategy.amount,
+        status=active_strategy.status,
+        created_at=active_strategy.created_at,
+        strategy_name=strategy.name
+    )
+
+@router.get("/active", response_model=List[ActiveStrategyResponse])
+async def get_active_strategies(
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    # Join with Strategy to get the name
+    result = await db.execute(
+        select(ActiveStrategy, Strategy.name)
+        .join(Strategy, ActiveStrategy.strategy_id == Strategy.id)
+        .where(ActiveStrategy.user_id == current_user.id)
+        .order_by(ActiveStrategy.created_at.desc())
+    )
+    
+    response = []
+    for active, name in result:
+        response.append(ActiveStrategyResponse(
+            id=active.id,
+            strategy_id=active.strategy_id,
+            symbol=active.symbol,
+            timeframe=active.timeframe,
+            amount=active.amount,
+            status=active.status,
+            created_at=active.created_at,
+            strategy_name=name
+        ))
+    return response
+
+@router.post("/stop/{active_id}")
+async def stop_strategy(
+    active_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    result = await db.execute(select(ActiveStrategy).where(ActiveStrategy.id == active_id, ActiveStrategy.user_id == current_user.id))
+    active = result.scalars().first()
+    if not active:
+        raise HTTPException(status_code=404, detail="Active strategy not found")
+    
+    active.status = "STOPPED"
+    db.add(active)
+    await db.commit()
+    return {"message": "Strategy stopped"}
+
+# --- Legacy/Existing Endpoints (Compile/Execute) ---
+
+@router.post("/compile", response_model=CompilationResult)
+async def compile_strategy(request: PineScriptRequest):
+    try:
+        parsed = parse_pine_script(request.script)
+        return CompilationResult(success=True, parsed_script=parsed)
+    except Exception as e:
+        return CompilationResult(success=False, error=str(e))
+
 @router.post("/execute", response_model=ExecutionResult)
 async def execute_strategy(
     request: ExecutionRequest,
@@ -98,25 +242,17 @@ async def execute_strategy(
         
         # If strategy_id provided, fetch from DB
         if request.strategy_id:
-            # Check built-ins first (mock for now)
-            built_ins = {
-                "rsi": "study('RSI')...", # Placeholder
-                "macd": "study('MACD')..."
-            }
-            if request.strategy_id in built_ins:
-                script_content = built_ins[request.strategy_id]
-            else:
-                try:
-                    # Check DB
-                    result = await db.execute(select(Strategy).where(
-                        Strategy.id == uuid.UUID(request.strategy_id),
-                        Strategy.user_id == current_user.id
-                    ))
-                    strategy = result.scalars().first()
-                    if strategy:
-                        script_content = strategy.source_code
-                except ValueError:
-                    pass # Invalid UUID
+            try:
+                # Check DB
+                result = await db.execute(select(Strategy).where(
+                    Strategy.id == uuid.UUID(request.strategy_id),
+                    Strategy.user_id == current_user.id
+                ))
+                strategy = result.scalars().first()
+                if strategy:
+                    script_content = strategy.source_code
+            except ValueError:
+                pass # Invalid UUID
 
         if not script_content:
              return ExecutionResult(success=False, error="No script provided or strategy not found")
@@ -136,6 +272,7 @@ async def execute_strategy(
              return ExecutionResult(success=False, error=f"No data found for {request.symbol}")
 
         import pandas as pd
+        import numpy as np
         df = pd.DataFrame(ohlcv_data)
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df.set_index('timestamp', inplace=True)
@@ -177,37 +314,3 @@ async def execute_strategy(
         import traceback
         traceback.print_exc()
         return ExecutionResult(success=False, error=str(e))
-
-@router.get("/", response_model=List[StrategyResponse])
-async def get_strategies(
-    current_user: User = Depends(deps.get_current_user),
-    db: AsyncSession = Depends(deps.get_db)
-):
-    # Fetch user strategies
-    result = await db.execute(select(Strategy).where(Strategy.user_id == current_user.id))
-    user_strategies = result.scalars().all()
-    
-    response = []
-    
-    # Add built-ins (Mock for now)
-    built_ins = [
-        {"id": "rsi", "name": "Relative Strength Index (RSI)", "category": "Built-in", "is_favorite": True, "script": "// RSI"},
-        {"id": "macd", "name": "MACD", "category": "Built-in", "is_favorite": True, "script": "// MACD"},
-        {"id": "sma", "name": "Simple Moving Average (SMA)", "category": "Built-in", "is_favorite": False, "script": "// SMA"},
-        {"id": "ema", "name": "Exponential Moving Average (EMA)", "category": "Built-in", "is_favorite": False, "script": "// EMA"},
-        {"id": "bollinger", "name": "Bollinger Bands", "category": "Built-in", "is_favorite": True, "script": "// BB"},
-    ]
-    
-    for s in built_ins:
-        response.append(StrategyResponse(**s))
-        
-    for s in user_strategies:
-        response.append(StrategyResponse(
-            id=str(s.id),
-            name=s.name,
-            category=s.category,
-            is_favorite=s.is_favorite,
-            script=s.source_code
-        ))
-        
-    return response

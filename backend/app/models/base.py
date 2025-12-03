@@ -20,6 +20,7 @@ class User(Base):
 
     vault_keys = relationship("VaultKey", back_populates="user")
     strategies = relationship("Strategy", back_populates="user")
+    active_strategies = relationship("ActiveStrategy", back_populates="user")
 
 
 class VaultKey(Base):
@@ -52,6 +53,24 @@ class Strategy(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     user = relationship("User", back_populates="strategies")
+    active_instances = relationship("ActiveStrategy", back_populates="strategy", cascade="all, delete-orphan")
+
+
+class ActiveStrategy(Base):
+    __tablename__ = "active_strategies"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    strategy_id = Column(UUID(as_uuid=True), ForeignKey("strategies.id"), nullable=False)
+    symbol = Column(String, nullable=False) # e.g. BTC/USDT
+    timeframe = Column(String, nullable=False) # e.g. 15m
+    amount = Column(Numeric(precision=20, scale=8), nullable=False) # Investment amount
+    status = Column(String, default="RUNNING") # RUNNING, PAUSED, STOPPED
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    user = relationship("User", back_populates="active_strategies")
+    strategy = relationship("Strategy", back_populates="active_instances")
 
 
 class LedgerEntry(Base):

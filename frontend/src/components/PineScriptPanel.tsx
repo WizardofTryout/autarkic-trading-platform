@@ -9,9 +9,10 @@ interface PineScriptPanelProps {
   isMaximized?: boolean;
   onToggleMaximize?: () => void;
   onScriptChange?: (script: string) => void;
+  script?: string; // External script control
 }
 
-const PineScriptPanel: React.FC<PineScriptPanelProps> = ({ isMaximized, onToggleMaximize, onScriptChange }) => {
+const PineScriptPanel: React.FC<PineScriptPanelProps> = ({ isMaximized, onToggleMaximize, onScriptChange, script }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [strategyName, setStrategyName] = useState('My Strategy');
   const [pineScriptCode, setPineScriptCode] = useState(`//@version=5
@@ -31,6 +32,13 @@ if rsi > 70
 `);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Sync external script prop with local state
+  React.useEffect(() => {
+    if (script !== undefined) {
+      setPineScriptCode(script);
+    }
+  }, [script]);
+
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
@@ -40,6 +48,7 @@ if rsi > 70
     if (file) {
       const text = await file.text();
       setPineScriptCode(text);
+      onScriptChange?.(text); // Notify parent
       // Extract strategy name from script content if possible
       const match = text.match(/strategy\("([^"]+)"/);
       if (match && match[1]) {

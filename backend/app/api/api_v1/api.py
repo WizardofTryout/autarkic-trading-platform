@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.api_v1.endpoints import auth, market, trade, settings, strategies, ai, research, paper_trading
+from app.api.api_v1.endpoints import auth, market, trade, settings, strategies, ai, research, paper_trading, ai_strategy
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -8,5 +8,6 @@ api_router.include_router(trade.router, prefix="/trade", tags=["trade"])
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
 api_router.include_router(strategies.router, prefix="/strategies", tags=["strategies"])
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
+api_router.include_router(ai_strategy.router, prefix="/ai-strategy", tags=["ai-strategy"])
 api_router.include_router(research.router, prefix="/research", tags=["research"])
 api_router.include_router(paper_trading.router, prefix="/paper", tags=["paper-trading"])

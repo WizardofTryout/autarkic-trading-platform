@@ -5,9 +5,10 @@ import PineScriptPanel from '../PineScriptPanel';
 
 interface BottomPanelProps {
     onScriptChange: (script: string) => void;
+    script?: string;
 }
 
-export const BottomPanel: React.FC<BottomPanelProps> = ({ onScriptChange }) => {
+export const BottomPanel: React.FC<BottomPanelProps> = ({ onScriptChange, script }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'editor'>('dashboard');
     const [isExpanded, setIsExpanded] = useState(true);
 
@@ -46,7 +47,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({ onScriptChange }) => {
                     {activeTab === 'dashboard' ? (
                         <TradingDashboard />
                     ) : (
-                        <PineScriptPanel onScriptChange={onScriptChange} />
+                        <PineScriptPanel onScriptChange={onScriptChange} script={script} />
                     )}
                 </div>
             )}
