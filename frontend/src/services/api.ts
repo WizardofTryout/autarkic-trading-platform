@@ -92,11 +92,22 @@ export const executeStrategy = async (script: string, symbol: string = "BTC/USDT
     return response.json();
 };
 
-export const getMarketData = async (symbol: string = "BTC/USDT", timeframe: string = "1h") => {
-    const response = await fetch(`${API_BASE}/market/ohlcv?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`);
-    return response.json();
+export const getMarketData = async (symbol: string, timeframe: string, limit?: number) => {
+    try {
+        let url = `${API_BASE}/market/ohlcv?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`;
+        if (limit !== undefined) {
+            url += `&limit=${limit}`;
+        }
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch market data: ${response.status} ${response.statusText}`);
+        }
+        return response.json();
+    } catch (error) {
+        console.error('Error fetching market data:', error);
+        throw error;
+    }
 };
-
 export const getStrategies = async () => {
     const token = useAuthStore.getState().token;
     const response = await fetch(`${API_BASE}/strategies/`, {
@@ -233,7 +244,7 @@ export const getSymbols = async (): Promise<string[]> => {
     return response.json();
 };
 
-export const chatWithAI = async (message: string, context?: any) => {
+export const chatWithAI = async (message: string, context?: any, signal?: AbortSignal) => {
     const token = useAuthStore.getState().token;
     const response = await fetch(`${API_BASE}/ai/chat`, {
         method: 'POST',
@@ -242,6 +253,7 @@ export const chatWithAI = async (message: string, context?: any) => {
             'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ message, context }),
+        signal
     });
     if (!response.ok) {
         const error = await response.json();
@@ -250,7 +262,7 @@ export const chatWithAI = async (message: string, context?: any) => {
     return response.json();
 };
 
-export const generateStrategy = async (prompt: string, currentCode?: string) => {
+export const generateStrategy = async (prompt: string, currentCode?: string, signal?: AbortSignal) => {
     const token = useAuthStore.getState().token;
     const response = await fetch(`${API_BASE}/ai-strategy/generate_strategy`, {
         method: 'POST',
@@ -259,6 +271,7 @@ export const generateStrategy = async (prompt: string, currentCode?: string) => 
             'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ prompt, current_code: currentCode }),
+        signal
     });
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));

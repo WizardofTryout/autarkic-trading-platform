@@ -72,6 +72,45 @@ async def chat_with_ai(
                 user_context += f"\nTimeframe: {request.context['timeframe']}"
             if "analysis_content" in request.context:
                 user_context += f"\n\nCurrent Analysis Context:\n{request.context['analysis_content']}"
+            
+            # New Context Fields
+            if "technical_analysis" in request.context and request.context["technical_analysis"]:
+                ta = request.context["technical_analysis"]
+                user_context += "\n\nTechnical Analysis (Latest Candle):\n"
+                user_context += f"Close: {ta.get('close')}\n"
+                user_context += f"RSI (14): {ta.get('rsi')}\n"
+                user_context += f"MACD: {ta.get('macd', {}).get('macd')} (Signal: {ta.get('macd', {}).get('signal')}, Hist: {ta.get('macd', {}).get('histogram')})\n"
+                if ta.get('bollinger_bands'):
+                    bb = ta['bollinger_bands']
+                    user_context += f"Bollinger Bands: Upper={bb.get('upper')}, Middle={bb.get('middle')}, Lower={bb.get('lower')}\n"
+                user_context += f"SMA (20): {ta.get('sma20')}\n"
+
+            if "portfolio" in request.context and request.context["portfolio"]:
+                p = request.context["portfolio"]
+                user_context += f"\n\nPortfolio Context:\nBalance: {p.get('balance', 'N/A')}\n"
+                if p.get('positions'):
+                    user_context += "Open Positions:\n"
+                    for pos in p['positions']:
+                        # Ensure side is explicit
+                        side = pos.get('side', 'UNKNOWN').upper()
+                        pnl = pos.get('unrealized_pnl', 'N/A')
+                        pnl_percent = pos.get('unrealized_pnl_percent', 'N/A')
+                        user_context += f"- {pos.get('symbol')} {side} Size: {pos.get('size')} Entry: {pos.get('entry_price')} Current Price: {pos.get('current_price', 'N/A')} PnL: {pnl} USDT ({pnl_percent}%)\n"
+                if p.get('open_orders'):
+                    user_context += "Open Orders:\n"
+                    for order in p['open_orders']:
+                        user_context += f"- {order.get('symbol')} {order.get('side')} Type: {order.get('type')} Price: {order.get('price')}\n"
+
+            if "recent_candles" in request.context and request.context["recent_candles"]:
+                user_context += "\n\nRecent Market Data (Last 100 Candles):\n"
+                # Format as a simple table or list
+                user_context += "Time | Open | High | Low | Close | Volume | RSI | SMA20\n"
+                for c in request.context["recent_candles"]:
+                    # Simple formatting
+                    time_str = c.get('time', '').split('T')[-1].split('.')[0] # Extract HH:MM:SS
+                    rsi_val = f"{c.get('rsi', 'N/A'):.2f}" if isinstance(c.get('rsi'), (int, float)) else "N/A"
+                    sma_val = f"{c.get('sma20', 'N/A'):.2f}" if isinstance(c.get('sma20'), (int, float)) else "N/A"
+                    user_context += f"{time_str} | {c.get('open')} | {c.get('high')} | {c.get('low')} | {c.get('close')} | {c.get('volume')} | {rsi_val} | {sma_val}\n"
 
         full_prompt = f"{system_context}\n{user_context}\n\nUser: {request.message}"
         
