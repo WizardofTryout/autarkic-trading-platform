@@ -1,10 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowUpRight, ArrowDownRight, XCircle, RefreshCw } from 'lucide-react';
 import { useTradingStore } from '../../store/tradingStore';
+import { useBinanceWebSocket } from '../../hooks/useBinanceWebSocket';
 
 export const TradingDashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'positions' | 'orders' | 'history'>('positions');
     const { portfolio, fetchPortfolio, resetAccount } = useTradingStore();
+
+    // Get unique symbols from positions to subscribe to
+    const symbols = React.useMemo(() => {
+        if (!portfolio?.positions) return [];
+        return Array.from(new Set(portfolio.positions.map(p => p.symbol)));
+    }, [portfolio?.positions]);
+
+    const { currentData } = useBinanceWebSocket(symbols, '1m'); // Timeframe doesn't matter much for price, 1m is fine
 
     useEffect(() => {
         fetchPortfolio();
@@ -86,12 +95,15 @@ export const TradingDashboard: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-800">
                             {portfolio.positions.map((pos) => {
-                                // Calculate PnL locally for now (ideally backend streams this)
-                                // We need current price. For now assume Mark Price = Entry Price (or fetch from store if available)
-                                // Since we don't have real-time mark price in this component yet, we'll just show 0 or static.
-                                // TODO: Pass current price map to calculate PnL dynamically.
-                                const pnl = 0;
-                                const pnlPercent = 0;
+                                // Calculate PnL locally using WebSocket data
+                                const currentPrice = currentData[pos.symbol]?.close || pos.entry_price;
+                                let pnl = 0;
+                                if (pos.side === 'LONG') {
+                                    pnl = (currentPrice - pos.entry_price) * pos.size;
+                                } else {
+                                    pnl = (pos.entry_price - currentPrice) * pos.size;
+                                }
+                                const pnlPercent = (pnl / pos.margin) * 100;
 
                                 return (
                                     <tr key={pos.id} className="hover:bg-gray-800/30 transition-colors">
@@ -105,7 +117,7 @@ export const TradingDashboard: React.FC = () => {
                                         </td>
                                         <td className="p-3 text-gray-300">{pos.size.toFixed(4)}</td>
                                         <td className="p-3 text-gray-300">{pos.entry_price.toFixed(2)}</td>
-                                        <td className="p-3 text-gray-300">{pos.mark_price?.toFixed(2) || '-'}</td>
+                                        <td className="p-3 text-gray-300">{currentPrice.toFixed(2)}</td>
                                         <td className="p-3 text-orange-400">{pos.liquidation_price?.toFixed(2) || '-'}</td>
                                         <td className="p-3 text-gray-300">
                                             <div className="flex flex-col text-xs">

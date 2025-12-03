@@ -14,6 +14,12 @@ app = FastAPI(
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+from app.services.background_monitor import monitor_positions
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(monitor_positions())
+
 from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(

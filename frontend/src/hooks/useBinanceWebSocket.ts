@@ -20,19 +20,33 @@ export interface BinanceKline {
     B: string; // Ignore
 }
 
-export const useBinanceWebSocket = (symbol: string, timeframe: string, onUpdate: (candle: any) => void) => {
+export interface CandleData {
+    time: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+    timestamp: number;
+    isClosed: boolean;
+}
+
+export const useBinanceWebSocket = (symbols: string | string[], timeframe: string, onUpdate?: (candle: any) => void) => {
     const wsRef = useRef<WebSocket | null>(null);
     const [status, setStatus] = useState<'CONNECTING' | 'OPEN' | 'CLOSED'>('CLOSED');
+    const [currentData, setCurrentData] = useState<Record<string, CandleData>>({});
 
     useEffect(() => {
-        // Format symbol for Binance stream (lowercase, no slash)
+        const symbolList = Array.isArray(symbols) ? symbols : [symbols];
+        if (symbolList.length === 0) return;
+
+        // Format symbols for Binance stream (lowercase, no slash)
         // e.g., BTC/USDT -> btcusdt
-        const formattedSymbol = symbol.replace('/', '').toLowerCase();
+        const streams = symbolList.map(s => `${s.replace('/', '').toLowerCase()}@kline_${timeframe}`).join('/');
 
         // Binance stream URL
-        // Stream name: <symbol>@kline_<interval>
-        const streamName = `${formattedSymbol}@kline_${timeframe}`;
-        const url = `wss://stream.binance.com:9443/ws/${streamName}`;
+        // Combined streams: wss://stream.binance.com:9443/stream?streams=<stream1>/<stream2>
+        const url = `wss://stream.binance.com:9443/stream?streams=${streams}`;
 
         console.log(`Connecting to Binance WS: ${url}`);
         const ws = new WebSocket(url);
@@ -46,26 +60,40 @@ export const useBinanceWebSocket = (symbol: string, timeframe: string, onUpdate:
 
         ws.onmessage = (event) => {
             const message = JSON.parse(event.data);
-            if (message.e === 'kline') {
-                const k = message.k;
-                const candle = {
-                    time: new Date(k.t).toISOString().replace('T', ' ').substring(0, 19), // Match backend format YYYY-MM-DD HH:MM:SS roughly, or use Date object
-                    // Actually D3Chart expects specific format. Let's return a unified object.
-                    // Ideally D3Chart should handle Date objects.
-                    // For now let's match the backend format: YYYY-MM-DD HH:MM:SS
-                    // But wait, D3Chart parses dates.
+            // Combined stream format: { stream: "...", data: { ... } }
+            const data = message.data || message; // Handle both combined and single stream if logic changes
 
-                    // Let's pass the raw values and let the component handle it, 
-                    // or format it to match the IndicatorData interface.
+            if (data.e === 'kline') {
+                const k = data.k;
+                const symbol = k.s; // Symbol from kline data (e.g. BTCUSDT)
+
+                // Map back to our format if needed, or just use as key.
+                // Our symbols are like BTC/USDT. Binance sends BTCUSDT.
+                // We might need a map if we want exact matches, but for now let's try to match loosely or just use the binance symbol.
+                // Ideally we map BTCUSDT -> BTC/USDT.
+                // Let's iterate our input symbols to find the match.
+                const originalSymbol = symbolList.find(s => s.replace('/', '').toUpperCase() === symbol);
+                const key = originalSymbol || symbol;
+
+                const candle: CandleData = {
+                    time: new Date(k.t).toISOString().replace('T', ' ').substring(0, 19),
                     open: parseFloat(k.o),
                     high: parseFloat(k.h),
                     low: parseFloat(k.l),
                     close: parseFloat(k.c),
                     volume: parseFloat(k.v),
-                    timestamp: k.t, // Useful for sorting/merging
+                    timestamp: k.t,
                     isClosed: k.x
                 };
-                onUpdate(candle);
+
+                setCurrentData(prev => ({
+                    ...prev,
+                    [key]: candle
+                }));
+
+                if (onUpdate) {
+                    onUpdate(candle);
+                }
             }
         };
 
@@ -81,7 +109,7 @@ export const useBinanceWebSocket = (symbol: string, timeframe: string, onUpdate:
         return () => {
             ws.close();
         };
-    }, [symbol, timeframe, onUpdate]);
+    }, [JSON.stringify(symbols), timeframe, onUpdate]); // Use stringified symbols to avoid deep dependency issues
 
-    return { status };
+    return { status, currentData };
 };
