@@ -18,6 +18,8 @@ Nach Analyse des Quellcodes (`/Volumes/Spacestation/ai-trading-app-August2025/AI
 ### B. Pine Script Editor (`PineScriptPanel.tsx` & `pine-script-engine/`)
 -   **UI**: Editor mit Syntax-Highlighting Ansätzen.
 -   **Logik**: Eigener `interpreter.ts` und `parser.ts` im Frontend.
+- [x] **Tick Charts**: Implement tick-based candles (1 tick, 10 ticks, etc.) with client-side aggregation.
+- [x] **Advanced Order Types**: Stop Market, Stop Limit, Trailing Stop.
 -   **Integration**: Speichert Strategien via API.
 
 ### C. Settings & API Keys (`SettingsPage.tsx`)

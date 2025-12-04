@@ -80,7 +80,7 @@ This project enforces a strict **Docker First** development policy to ensure con
 
 ## 🔮 Roadmap
 
--   [ ] **Timeframe Selection**: Support for 1m, 15m, 1h, 4h candles.
--   [ ] **User Management**: Registration, Login, and Identity Service integration.
--   [ ] **Real Market Data**: Connection to CCXT for live exchange data.
--   [ ] **Backtesting Engine**: Detailed performance statistics (Win Rate, PnL).
+- [x] **Timeframe Selection**: Support for 1m, 15m, 1h, 4h candles.
+- [x] **User Management**: Registration, Login, and Identity Service integration.
+- [x] **Real Market Data**: Connection to CCXT for live exchange data.
+- [x] **Backtesting Engine**: Detailed performance statistics (Win Rate, PnL).

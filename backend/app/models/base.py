@@ -118,6 +118,7 @@ class UserDocument(Base):
     content = Column(String, nullable=False) # Markdown content
     doc_type = Column(String, default="research_report") # research_report, strategy_note, etc.
     tags = Column(JSONB, default=[]) # e.g. ["BTC/USDT", "Bullish"]
+    folder = Column(String, default="General")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
