@@ -49,11 +49,14 @@ class StrategyUpdate(BaseModel):
     category: Optional[str] = None
     is_favorite: Optional[bool] = None
 
+import re
+
 class StrategyResponse(StrategyBase):
     id: uuid.UUID
     user_id: uuid.UUID
     created_at: datetime
     status: str
+    type: str
 
     class Config:
         from_attributes = True
@@ -94,6 +97,8 @@ class BacktestRequest(BaseModel):
     start_date: datetime
     end_date: datetime
     initial_capital: Optional[float] = 10000.0
+    take_profit: Optional[float] = 0.0
+    stop_loss: Optional[float] = 0.0
 
 class BacktestResult(BaseModel):
     metrics: Dict[str, Any]
@@ -117,13 +122,18 @@ async def create_strategy(
     current_user: User = Depends(deps.get_current_user),
     db: AsyncSession = Depends(deps.get_db)
 ):
+    # Auto-detect type
+    is_indicator = re.search(r"^\s*indicator\(", strategy_in.source_code, re.MULTILINE)
+    strategy_type = "indicator" if is_indicator else "strategy"
+
     strategy = Strategy(
         user_id=current_user.id,
         name=strategy_in.name,
         source_code=strategy_in.source_code,
         category=strategy_in.category,
         is_favorite=strategy_in.is_favorite,
-        status="draft"
+        status="draft",
+        type=strategy_type
     )
     db.add(strategy)
     await db.commit()
@@ -143,6 +153,12 @@ async def update_strategy(
         raise HTTPException(status_code=404, detail="Strategy not found")
     
     update_data = strategy_in.dict(exclude_unset=True)
+    
+    # Re-detect type if source code changes
+    if "source_code" in update_data:
+        is_indicator = re.search(r"^\s*indicator\(", update_data["source_code"], re.MULTILINE)
+        update_data["type"] = "indicator" if is_indicator else "strategy"
+
     for field, value in update_data.items():
         setattr(strategy, field, value)
     

@@ -119,8 +119,16 @@ const StrategyBuilderView: React.FC = () => {
                             onClick={() => handleSelectStrategy(s)}
                             className={`p-3 rounded cursor-pointer group flex items-center justify-between ${selectedStrategy?.id === s.id ? 'bg-blue-900/30 border border-blue-800' : 'hover:bg-gray-800 border border-transparent'}`}
                         >
-                            <div className="truncate">
-                                <div className="font-medium text-sm text-gray-200 truncate">{s.name}</div>
+                            <div className="truncate flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                    <div className="font-medium text-sm text-gray-200 truncate">{s.name}</div>
+                                    <span className={`text-[9px] px-1 py-0.5 rounded uppercase font-bold flex-shrink-0 ${s.type === 'strategy'
+                                            ? 'bg-green-500/20 text-green-400'
+                                            : 'bg-blue-500/20 text-blue-400'
+                                        }`}>
+                                        {s.type === 'strategy' ? 'STRAT' : 'IND'}
+                                    </span>
+                                </div>
                                 <div className="text-xs text-gray-500">{new Date(s.created_at).toLocaleDateString()}</div>
                             </div>
                             <button

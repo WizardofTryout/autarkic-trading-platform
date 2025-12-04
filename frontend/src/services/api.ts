@@ -16,6 +16,7 @@ export interface Strategy {
     is_favorite?: boolean;
     status: string;
     created_at: string;
+    type: 'strategy' | 'indicator';
 }
 
 export interface ActiveStrategy {
