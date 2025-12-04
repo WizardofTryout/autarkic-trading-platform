@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Save, Trash2, Play, Code, MessageSquare, Layout } from 'lucide-react';
+import { Plus, Save, Trash2, Play, Code, MessageSquare, Layout, Star } from 'lucide-react';
 import PineScriptPanel from '../PineScriptPanel';
 import BacktestPanel from '../Backtest/BacktestPanel';
 import ChatPanel from '../AIAssistant/ChatPanel';
@@ -98,6 +98,24 @@ const StrategyBuilderView: React.FC = () => {
         }
     };
 
+    const toggleFavorite = async (e: React.MouseEvent, strategyId: string, currentStatus: boolean) => {
+        e.stopPropagation();
+        try {
+            // Optimistic update
+            setStrategies(prev => prev.map(s =>
+                s.id === strategyId ? { ...s, is_favorite: !currentStatus } : s
+            ));
+
+            await updateStrategy(strategyId, { is_favorite: !currentStatus });
+        } catch (error) {
+            console.error('Failed to update favorite status:', error);
+            // Revert on failure
+            setStrategies(prev => prev.map(s =>
+                s.id === strategyId ? { ...s, is_favorite: currentStatus } : s
+            ));
+        }
+    };
+
     return (
         <div className="flex h-screen bg-gray-950 text-gray-100 overflow-hidden">
             {/* Sidebar: Strategy List */}
@@ -121,15 +139,21 @@ const StrategyBuilderView: React.FC = () => {
                         >
                             <div className="truncate flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-0.5">
+                                    <button
+                                        onClick={(e) => toggleFavorite(e, s.id, s.is_favorite || false)}
+                                        className={`text-gray-500 hover:text-yellow-500 transition-colors ${s.is_favorite ? 'text-yellow-500' : ''}`}
+                                    >
+                                        <Star size={14} fill={s.is_favorite ? "currentColor" : "none"} />
+                                    </button>
                                     <div className="font-medium text-sm text-gray-200 truncate">{s.name}</div>
                                     <span className={`text-[9px] px-1 py-0.5 rounded uppercase font-bold flex-shrink-0 ${s.type === 'strategy'
-                                            ? 'bg-green-500/20 text-green-400'
-                                            : 'bg-blue-500/20 text-blue-400'
+                                        ? 'bg-green-500/20 text-green-400'
+                                        : 'bg-blue-500/20 text-blue-400'
                                         }`}>
                                         {s.type === 'strategy' ? 'STRAT' : 'IND'}
                                     </span>
                                 </div>
-                                <div className="text-xs text-gray-500">{new Date(s.created_at).toLocaleDateString()}</div>
+                                <div className="text-xs text-gray-500 pl-6">{new Date(s.created_at).toLocaleDateString()}</div>
                             </div>
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
@@ -228,30 +252,34 @@ const StrategyBuilderView: React.FC = () => {
             </div>
 
             {/* Right Sidebar: Chat */}
-            {isChatOpen && (
-                <div className="w-96 border-l border-gray-800 bg-gray-900 flex flex-col">
-                    <ChatPanel
-                        isOpen={true}
-                        onClose={() => setIsChatOpen(false)}
-                        currentScript={currentCode}
-                        onLoadCode={setCurrentCode}
-                        defaultMode="strategy"
-                    />
-                </div>
-            )}
+            {
+                isChatOpen && (
+                    <div className="w-96 border-l border-gray-800 bg-gray-900 flex flex-col">
+                        <ChatPanel
+                            isOpen={true}
+                            onClose={() => setIsChatOpen(false)}
+                            currentScript={currentCode}
+                            onLoadCode={setCurrentCode}
+                            defaultMode="strategy"
+                        />
+                    </div>
+                )
+            }
 
-            {showActivationModal && selectedStrategy && (
-                <StrategyActivationModal
-                    strategyId={selectedStrategy.id}
-                    strategyName={selectedStrategy.name}
-                    onClose={() => setShowActivationModal(false)}
-                    onSuccess={() => {
-                        loadActiveStrategies();
-                        alert('Strategy Activated!');
-                    }}
-                />
-            )}
-        </div>
+            {
+                showActivationModal && selectedStrategy && (
+                    <StrategyActivationModal
+                        strategyId={selectedStrategy.id}
+                        strategyName={selectedStrategy.name}
+                        onClose={() => setShowActivationModal(false)}
+                        onSuccess={() => {
+                            loadActiveStrategies();
+                            alert('Strategy Activated!');
+                        }}
+                    />
+                )
+            }
+        </div >
     );
 };
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search, Star, Code, Play } from 'lucide-react';
-import { getStrategies } from '../services/api';
+import { getStrategies, updateStrategy } from '../services/api';
 
 interface Strategy {
     id: string;
@@ -34,6 +34,24 @@ const IndicatorMatrix: React.FC<IndicatorMatrixProps> = ({ isOpen, onClose, onSe
             setStrategies(data);
         } catch (error) {
             console.error('Failed to load strategies:', error);
+        }
+    };
+
+    const toggleFavorite = async (e: React.MouseEvent, strategyId: string, currentStatus: boolean) => {
+        e.stopPropagation();
+        try {
+            // Optimistic update
+            setStrategies(prev => prev.map(s =>
+                s.id === strategyId ? { ...s, is_favorite: !currentStatus } : s
+            ));
+
+            await updateStrategy(strategyId, { is_favorite: !currentStatus });
+        } catch (error) {
+            console.error('Failed to update favorite status:', error);
+            // Revert on failure
+            setStrategies(prev => prev.map(s =>
+                s.id === strategyId ? { ...s, is_favorite: currentStatus } : s
+            ));
         }
     };
 
@@ -94,15 +112,18 @@ const IndicatorMatrix: React.FC<IndicatorMatrixProps> = ({ isOpen, onClose, onSe
                     {filteredStrategies.map((strategy) => (
                         <div key={strategy.id} className="flex items-center justify-between p-3 hover:bg-gray-800 rounded-lg group transition-colors">
                             <div className="flex items-center gap-3">
-                                <button className={`text-gray-500 hover:text-yellow-500 transition-colors ${strategy.is_favorite ? 'text-yellow-500' : ''}`}>
-                                    <Star size={18} />
+                                <button
+                                    onClick={(e) => toggleFavorite(e, strategy.id, strategy.is_favorite)}
+                                    className={`text-gray-500 hover:text-yellow-500 transition-colors ${strategy.is_favorite ? 'text-yellow-500' : ''}`}
+                                >
+                                    <Star size={18} fill={strategy.is_favorite ? "currentColor" : "none"} />
                                 </button>
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <h3 className="text-white font-medium">{strategy.name}</h3>
                                         <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-bold ${strategy.type === 'strategy'
-                                                ? 'bg-green-500/20 text-green-400'
-                                                : 'bg-blue-500/20 text-blue-400'
+                                            ? 'bg-green-500/20 text-green-400'
+                                            : 'bg-blue-500/20 text-blue-400'
                                             }`}>
                                             {strategy.type || 'Strategy'}
                                         </span>
