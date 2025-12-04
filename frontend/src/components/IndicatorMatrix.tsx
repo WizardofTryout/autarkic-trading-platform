@@ -7,6 +7,7 @@ interface Strategy {
     name: string;
     category: string;
     is_favorite: boolean;
+    type: 'strategy' | 'indicator';
 }
 
 interface IndicatorMatrixProps {
@@ -18,7 +19,7 @@ interface IndicatorMatrixProps {
 const IndicatorMatrix: React.FC<IndicatorMatrixProps> = ({ isOpen, onClose, onSelect }) => {
     const [strategies, setStrategies] = useState<Strategy[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeTab, setActiveTab] = useState<'all' | 'favorites' | 'built-in'>('all');
+    const [activeTab, setActiveTab] = useState<'all' | 'strategies' | 'indicators' | 'favorites' | 'built-in'>('all');
 
     useEffect(() => {
         if (isOpen) {
@@ -40,8 +41,10 @@ const IndicatorMatrix: React.FC<IndicatorMatrixProps> = ({ isOpen, onClose, onSe
         const matchesSearch = strategy.name.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesTab =
             activeTab === 'all' ? true :
-                activeTab === 'favorites' ? strategy.is_favorite :
-                    activeTab === 'built-in' ? strategy.category === 'Built-in' : true;
+                activeTab === 'strategies' ? strategy.type === 'strategy' :
+                    activeTab === 'indicators' ? strategy.type === 'indicator' :
+                        activeTab === 'favorites' ? strategy.is_favorite :
+                            activeTab === 'built-in' ? strategy.category === 'Built-in' : true;
         return matchesSearch && matchesTab;
     });
 
@@ -70,12 +73,12 @@ const IndicatorMatrix: React.FC<IndicatorMatrixProps> = ({ isOpen, onClose, onSe
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <div className="flex gap-2">
-                        {['all', 'favorites', 'built-in'].map((tab) => (
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                        {['all', 'strategies', 'indicators', 'favorites', 'built-in'].map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab as any)}
-                                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeTab === tab
+                                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${activeTab === tab
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-gray-800 text-gray-400 hover:text-white'
                                     }`}
@@ -95,7 +98,15 @@ const IndicatorMatrix: React.FC<IndicatorMatrixProps> = ({ isOpen, onClose, onSe
                                     <Star size={18} />
                                 </button>
                                 <div>
-                                    <h3 className="text-white font-medium">{strategy.name}</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-white font-medium">{strategy.name}</h3>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-bold ${strategy.type === 'strategy'
+                                                ? 'bg-green-500/20 text-green-400'
+                                                : 'bg-blue-500/20 text-blue-400'
+                                            }`}>
+                                            {strategy.type || 'Strategy'}
+                                        </span>
+                                    </div>
                                     <span className="text-xs text-gray-500">{strategy.category}</span>
                                 </div>
                             </div>

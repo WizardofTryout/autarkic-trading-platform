@@ -48,6 +48,7 @@ class Strategy(Base):
     compiled_artifact = Column(LargeBinary) # Executable
     parameters = Column(JSONB, default={})
     status = Column(String, default="draft") # draft, testing, active, disabled
+    type = Column(String, default="strategy") # strategy, indicator
     is_favorite = Column(Boolean, default=False)
     category = Column(String, default="Personal")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
