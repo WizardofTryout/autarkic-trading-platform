@@ -37,3 +37,12 @@ This document serves as the single source of truth for general development workf
     3.  **Commit**: `git commit -m "Type: Description of changes"` (e.g., "Feat: Implemented User Login").
     4.  **Push**: `git push` to the current branch.
 - **Note**: Always ensure the branch is up-to-date before pushing.
+
+## 5. Code Modification Rules
+### 🔍 Check Before You Act
+- **Rule**: Before implementing any new feature or fixing a bug, you **MUST** read and analyze the existing code in the relevant files.
+- **Reasoning**: To avoid duplicating functionality that already exists (e.g., in `market_service.py` or `ai_strategy.py`) and to ensure consistency with the current implementation.
+- **Workflow**:
+    1.  Identify the target files.
+    2.  Use `view_file` to inspect the current state.
+    3.  Only proceed with changes if the functionality is missing or needs modification.

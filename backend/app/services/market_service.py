@@ -13,12 +13,13 @@ class MarketService:
         try:
             # Map common timeframe strings if necessary
             # ccxt uses '1m', '5m', '1h', '1d' etc.
-            
+            # Ensure timeframe is valid for Binance
+            valid_timeframes = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1M']
+            if timeframe not in valid_timeframes:
+                print(f"Warning: Invalid timeframe {timeframe}, defaulting to 1d")
+                timeframe = '1d'
+
             ohlcv = await self.exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-            
-            # Convert to DataFrame for easier handling if needed, or just return list
-            # For analysis, a structured string or list is often enough.
-            # Let's return a list of dicts for clarity
             
             data = []
             for candle in ohlcv:
@@ -36,11 +37,6 @@ class MarketService:
         except Exception as e:
             print(f"Error fetching OHLCV for {symbol}: {e}")
             return []
-            return data
-        except Exception as e:
-            print(f"Error fetching OHLCV for {symbol}: {e}")
-            return []
-        # Do not close here, let the caller manage lifecycle or use context manager
 
     async def fetch_historical_data_range(self, symbol: str, timeframe: str, start_date: datetime, end_date: datetime):
         """

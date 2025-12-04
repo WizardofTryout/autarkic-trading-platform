@@ -18,6 +18,8 @@ router = APIRouter()
 class AnalysisRequest(BaseModel):
     symbol: str
     timeframe: str = "1d"
+    prompt_type: str = "trend" # trend, news, custom
+    custom_prompt: Optional[str] = None
 
 class AnalysisResponse(BaseModel):
     symbol: str
@@ -29,6 +31,7 @@ class DocumentCreate(BaseModel):
     content: str
     doc_type: str = "research_report"
     tags: List[str] = []
+    folder: str = "General"
 
 class DocumentResponse(BaseModel):
     id: str
@@ -36,6 +39,7 @@ class DocumentResponse(BaseModel):
     content: str
     doc_type: str
     tags: List[str]
+    folder: str
     created_at: datetime
 
 # --- Endpoints ---
@@ -76,37 +80,110 @@ async def generate_analysis(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to configure AI: {str(e)}")
 
-    # 2. Fetch Market Data (Mock for now, or use MarketService if available)
-    # In a real scenario, we would fetch OHLCV here.
-    # For MVP, we'll ask the AI to analyze based on its knowledge + provided context if any.
-    # TODO: Integrate real OHLCV fetching here.
-    
-    market_context = f"Symbol: {request.symbol}, Timeframe: {request.timeframe}, Date: {datetime.now().strftime('%Y-%m-%d')}"
+    # 2. Fetch Market Data
+    market_service = MarketService()
+    try:
+        # Default limit to 100 candles for analysis
+        limit = 100
+        ohlcv_data = await market_service.get_ohlcv(request.symbol, request.timeframe, limit=limit)
+        
+        if not ohlcv_data:
+            raise HTTPException(status_code=404, detail=f"No market data found for {request.symbol}")
+
+        # Convert to DataFrame for analysis
+        import pandas as pd
+        
+        df = pd.DataFrame(ohlcv_data)
+        df.set_index('timestamp', inplace=True)
+        
+        # Calculate Indicators (Manual Implementation to avoid pandas_ta dependency issues)
+        if len(df) > 20:
+            # SMA 20
+            df['sma_20'] = df['close'].rolling(window=20).mean()
+            
+            # EMA 50
+            df['ema_50'] = df['close'].ewm(span=50, adjust=False).mean()
+            
+            # RSI 14
+            delta = df['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rs = gain / loss
+            df['rsi'] = 100 - (100 / (1 + rs))
+            
+            # MACD (12, 26, 9)
+            exp1 = df['close'].ewm(span=12, adjust=False).mean()
+            exp2 = df['close'].ewm(span=26, adjust=False).mean()
+            macd = exp1 - exp2
+            signal = macd.ewm(span=9, adjust=False).mean()
+            
+            df['MACD_12_26_9'] = macd
+            df['MACDs_12_26_9'] = signal
+            df['MACDh_12_26_9'] = macd - signal
+
+        # Prepare Data Summary for LLM
+        # We send the last 20 candles as detailed context, and the last candle as "Current State"
+        last_candle = df.iloc[-1]
+        recent_history = df.tail(20).to_markdown()
+        
+        current_price = last_candle['close']
+        rsi_val = last_candle.get('rsi', 'N/A')
+        
+        market_context = f"""
+        Symbol: {request.symbol}
+        Timeframe: {request.timeframe}
+        Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        
+        Current Price: {current_price}
+        RSI (14): {rsi_val}
+        
+        Recent Market Data (Last 20 Candles):
+        {recent_history}
+        """
+
+    except Exception as e:
+        print(f"Error preparing market data: {e}")
+        # Fallback if data fetching fails, but we should probably error out or warn
+        market_context = f"Symbol: {request.symbol}, Timeframe: {request.timeframe}. Error fetching detailed data: {str(e)}"
+    finally:
+        await market_service.close()
+
+    # Construct Prompt based on Type
+    base_prompt = ""
+    if request.prompt_type == "news":
+        base_prompt = f"""
+        You are a Crypto News Analyst.
+        Please summarize the recent market sentiment and any major news for **{request.symbol}**.
+        Focus on:
+        1. Recent headlines (if known).
+        2. Impact of macro events.
+        3. Sentiment derived from the price action (Volume, Volatility).
+        """
+    elif request.prompt_type == "custom" and request.custom_prompt:
+        base_prompt = f"""
+        You are a Crypto Market Expert.
+        User Question: "{request.custom_prompt}"
+        
+        Please answer the user's question specifically for **{request.symbol}** ({request.timeframe}).
+        Use the provided technical data to support your answer.
+        """
+    else: # Default to "trend"
+        base_prompt = f"""
+        You are a professional Crypto Market Analyst.
+        Please provide a comprehensive analysis for **{request.symbol}** ({request.timeframe}).
+        
+        Structure:
+        1. Market Sentiment (Bullish/Bearish)
+        2. Key Levels (Support/Resistance)
+        3. Technical Outlook (Indicators)
+        4. Trading Idea (Entry/Stop/Target)
+        """
 
     prompt = f"""
-    You are a professional Crypto Market Analyst.
-    Please provide a comprehensive daily analysis for **{request.symbol}**.
+    {base_prompt}
     
-    Structure your report in Markdown:
-    # {request.symbol} Analysis ({datetime.now().strftime('%Y-%m-%d')})
-    
-    ## 1. Market Sentiment
-    (Bullish/Bearish/Neutral) - Explain why.
-    
-    ## 2. Key Levels
-    - Support: ...
-    - Resistance: ...
-    
-    ## 3. Technical Outlook
-    Analyze the trend, potential patterns, and indicators (RSI, MACD) based on general market knowledge.
-    
-    ## 4. News & Catalysts
-    Mention any recent major news or upcoming events relevant to this asset.
-    
-    ## 5. Trading Idea
-    Suggest a potential setup (Long/Short) with entry, stop-loss, and take-profit targets.
-    
-    Context: {market_context}
+    Context Data:
+    {market_context}
     """
 
     try:
@@ -131,7 +208,8 @@ async def save_document(
         title=doc.title,
         content=doc.content,
         doc_type=doc.doc_type,
-        tags=doc.tags
+        tags=doc.tags,
+        folder=doc.folder
     )
     db.add(new_doc)
     await db.commit()
@@ -143,6 +221,7 @@ async def save_document(
         content=new_doc.content,
         doc_type=new_doc.doc_type,
         tags=new_doc.tags,
+        folder=new_doc.folder,
         created_at=new_doc.created_at
     )
 
@@ -164,6 +243,7 @@ async def list_documents(
             content=d.content,
             doc_type=d.doc_type,
             tags=d.tags,
+            folder=d.folder,
             created_at=d.created_at
         ) for d in docs
     ]

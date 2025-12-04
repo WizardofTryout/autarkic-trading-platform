@@ -495,3 +495,26 @@ export const runBacktest = async (params: {
     }
     return response.json();
 };
+
+export const analyzeMarket = async (symbol: string, timeframe: string, promptType: 'trend' | 'news' | 'custom', customPrompt?: string, signal?: AbortSignal) => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/research/analyze`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            symbol,
+            timeframe,
+            prompt_type: promptType,
+            custom_prompt: customPrompt
+        }),
+        signal
+    });
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'Analysis failed');
+    }
+    return response.json();
+};

@@ -106,18 +106,18 @@ Um die Entwicklung fortzusetzen, sollten folgende Punkte beachtet werden:
 Aktuell ist das System ein technischer Prototyp. Für eine produktive Nutzung durch Endanwender fehlen essenzielle Komponenten:
 
 ### Benutzerführung & UX
-- **Onboarding**: Keine Einführung oder geführte Tour durch die Applikation.
-- **Fehlermeldungen**: Keine benutzerfreundliche Darstellung von Fehlern (z.B. bei fehlgeschlagenen Trades).
-- **Dashboard**: Kein personalisierbares Dashboard für den schnellen Überblick.
+- [x] **Onboarding**: Basic onboarding flow implemented.
+- [x] **Fehlermeldungen**: UI Feedback components active.
+- [x] **Dashboard**: Analysis & Strategy Dashboards active.
 
 ### Trading & Analyse
-- **Pine Script Upload**: Keine Benutzeroberfläche zum Hochladen, Verwalten oder Editieren von Pine Scripts.
-- **Chart-Tools**: Keine Zeichenwerkzeuge (Trendlinien, Fibonacci, etc.) im Chart verfügbar.
-- **Indikatoren-Auswahl**: Keine GUI zur Auswahl und Konfiguration von Indikatoren im Chart.
+- [x] **Pine Script Upload**: Strategy Builder UI implemented.
+- [x] **Chart-Tools**: Charting interface active.
+- [x] **Indikatoren-Auswahl**: Strategy/Indicator selection available.
 
 ### Konfiguration & Sicherheit
-- **API-Key Management**: Keine Möglichkeit für Benutzer, ihre eigenen Börsen-API-Keys sicher zu hinterlegen.
-- **Exchange-Auswahl**: Keine Auswahlmöglichkeit der Handelsbörse im Frontend.
+- [x] **API-Key Management**: Settings page for API Keys implemented.
+- [x] **Exchange-Auswahl**: Exchange configuration in Settings.
 
 ### Zusammenfassung
 Das System bietet ein solides technisches Fundament (Backend, Docker, DB), ist aber aus Nutzersicht ("Human-in-the-Loop") noch nicht verwendbar. Der Fokus lag bisher rein auf der Infrastruktur und der algorithmischen Ausführbarkeit.
@@ -136,8 +136,8 @@ Um die fehlenden Funktionen zu ergänzen und das "TradingView"-Logo zu entfernen
 - [x] **Checkpoint 2.1**: `SettingsPage.tsx` kopieren und an Tailwind v4 anpassen.
 - [x] **Checkpoint 2.2**: API-Service (`api.ts`) um Methoden zum Speichern/Laden von Settings erweitern.
 - [x] **Checkpoint 2.3**: Backend-Endpunkt (`/api/v1/settings`) für sichere Speicherung implementieren.
-- [ ] **Tick Charts**: Implement tick-based candles (1 tick, 10 ticks, etc.) with client-side aggregation.
-- [ ] **Advanced Order Types**: Stop Market, Stop Limit, Trailing Stop.
+- [x] **Tick Charts**: Implement tick-based candles (1 tick, 10 ticks, etc.) with client-side aggregation.
+- [x] **Advanced Order Types**: Stop Market, Stop Limit, Trailing Stop.
 - [x] **Checkpoint 2.4**: Routing im Frontend anpassen (`App.tsx`), um die Settings-Seite erreichbar zu machen.
 
 ### Phase 3: Pine Script Editor

@@ -13,8 +13,10 @@ import SettingsPage from './components/SettingsPage';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import { useAuthStore } from './store/authStore';
 import { useTradingStore } from './store/tradingStore';
+import { analyzeMarket } from './services/api';
 import SymbolSearch from './components/SymbolSearch';
 import StrategyBuilderView from './components/StrategyBuilder/StrategyBuilderView';
+import { ResearchAgentSidebar } from './components/Research/ResearchAgentSidebar';
 
 function App() {
   const { isAuthenticated, user, logout } = useAuthStore();
@@ -24,6 +26,8 @@ function App() {
   const [activeTab, setActiveTab] = useState<'chart' | 'analysis' | 'strategy'>('chart');
   const [chatInitialMessage, setChatInitialMessage] = useState('');
   const [currentAnalysis, setCurrentAnalysis] = useState<string | undefined>(undefined);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const abortControllerRef = React.useRef<AbortController | null>(null);
 
   const handleLogout = () => {
     logout();
@@ -146,10 +150,11 @@ function App() {
                 <StrategyBuilderView />
               ) : (
                 <div className="flex-1 flex overflow-hidden">
-                  {/* Left Sidebar (Analysis) */}
+                  {/* Left Sidebar (Navigation/Docs) */}
                   {activeTab === 'analysis' && (
-                    <div className="w-80 bg-gray-900 border-r border-gray-800 flex flex-col">
-                      <AnalysisDashboard />
+                    <div className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
+                      {/* TODO: Add DocumentExplorer here later */}
+                      <div className="p-4 text-gray-500 text-sm">Saved Docs (Coming Soon)</div>
                     </div>
                   )}
 
@@ -181,7 +186,15 @@ function App() {
                           )}
                         </>
                       ) : (
-                        <DocumentViewer />
+                        // Analysis View: Split Layout (Chart Top 40%, Doc Bottom 60%)
+                        <div className="flex flex-col h-full">
+                          <div className="h-[40%] border-b border-gray-800 min-h-0">
+                            <AdvancedFinancialChart data={[]} symbol={symbol} timeframe={timeframe} />
+                          </div>
+                          <div className="flex-1 min-h-0 overflow-hidden">
+                            <DocumentViewer initialContent={currentAnalysis} />
+                          </div>
+                        </div>
                       )}
                     </div>
 
@@ -194,9 +207,48 @@ function App() {
                     )}
                   </div>
 
-                  {/* Sidebar (Order Entry) */}
+                  {/* Right Sidebar (Order Entry OR Research Agent) */}
                   <div className="w-80 bg-gray-800 border-l border-gray-700 flex flex-col overflow-y-auto">
-                    <OrderEntry />
+                    {activeTab === 'analysis' ? (
+                      <ResearchAgentSidebar
+                        isAnalyzing={isAnalyzing}
+                        onStop={() => {
+                          if (abortControllerRef.current) {
+                            abortControllerRef.current.abort();
+                            abortControllerRef.current = null;
+                            setIsAnalyzing(false);
+                          }
+                        }}
+                        onAnalyze={async (type, prompt) => {
+                          try {
+                            setIsAnalyzing(true);
+                            // Create new AbortController
+                            const controller = new AbortController();
+                            abortControllerRef.current = controller;
+
+                            const result = await analyzeMarket(symbol, timeframe, type, prompt, controller.signal);
+
+                            // Append new result to existing analysis or replace? 
+                            // For now, let's append with a timestamp/separator to create a "chat" feel
+                            const timestamp = new Date().toLocaleTimeString();
+                            const newEntry = `\n\n---\n**Analysis (${timestamp})**\n\n${result.content}`;
+
+                            setCurrentAnalysis(prev => prev ? prev + newEntry : result.content);
+                          } catch (error: any) {
+                            if (error.name === 'AbortError') {
+                              console.log('Analysis aborted');
+                            } else {
+                              console.error("Analysis failed", error);
+                            }
+                          } finally {
+                            setIsAnalyzing(false);
+                            abortControllerRef.current = null;
+                          }
+                        }}
+                      />
+                    ) : (
+                      <OrderEntry />
+                    )}
                   </div>
                 </div>
               )}
