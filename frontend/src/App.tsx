@@ -43,6 +43,11 @@ function App() {
     setRefreshTrigger(prev => prev + 1);
   };
 
+  const handleClearDocument = () => {
+    setCurrentAnalysis('');
+    setCurrentDocument('');
+  };
+
   const handleLogout = () => {
     logout();
   };
@@ -200,7 +205,7 @@ function App() {
                         </>
                       ) : (
                         // Analysis View: Split Layout (Chart Top 40%, Doc Bottom 60%)
-                        <div className="flex flex-col h-full">
+                        <div className="flex-col h-full flex">
                           <div className="h-[40%] border-b border-gray-800 min-h-0">
                             <AdvancedFinancialChart data={[]} symbol={symbol} timeframe={timeframe} />
                           </div>
@@ -208,6 +213,7 @@ function App() {
                             <DocumentViewer
                               initialContent={currentDocument || currentAnalysis}
                               onSaveSuccess={handleSaveSuccess}
+                              onClear={handleClearDocument}
                             />
                           </div>
                         </div>
@@ -247,7 +253,7 @@ function App() {
                             // Append new result to existing analysis or replace? 
                             // For now, let's append with a timestamp/separator to create a "chat" feel
                             const timestamp = new Date().toLocaleTimeString();
-                            const newEntry = `\n\n---\n**Request:** ${prompt}\n\n**Analysis (${timestamp})**\n\n${result.content}`;
+                            const newEntry = `\n\n\n\n> **Request:** ${prompt}\n\n**Analysis (${timestamp})**\n\n${result.content}`;
 
                             const newContent = currentAnalysis ? currentAnalysis + newEntry : result.content;
                             setCurrentAnalysis(newContent);

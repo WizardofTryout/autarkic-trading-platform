@@ -1,17 +1,19 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Save, X } from 'lucide-react';
+import { Save, Trash2, X } from 'lucide-react';
 import { saveDocument } from '../../services/api';
 import { NotificationModal } from '../Common/NotificationModal';
 
 interface DocumentViewerProps {
     initialContent?: string;
     onSaveSuccess?: () => void;
+    onClear?: () => void;
 }
 
-const DocumentViewer: React.FC<DocumentViewerProps> = ({ initialContent = "", onSaveSuccess }) => {
-    const bottomRef = useRef<HTMLDivElement>(null);
+const DocumentViewer: React.FC<DocumentViewerProps> = ({ initialContent = "", onSaveSuccess, onClear }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [showScrollTop, setShowScrollTop] = useState(false);
     const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
     const [title, setTitle] = useState('');
     const [folder, setFolder] = useState('General');
@@ -32,10 +34,22 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ initialContent = "", on
 
     // Auto-scroll to bottom when content changes
     useEffect(() => {
-        if (bottomRef.current) {
-            bottomRef.current.scrollIntoView({ behavior: "smooth" });
+        if (containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
         }
     }, [initialContent]);
+
+    const handleScroll = () => {
+        if (containerRef.current) {
+            setShowScrollTop(containerRef.current.scrollTop > 300);
+        }
+    };
+
+    const scrollToTop = () => {
+        if (containerRef.current) {
+            containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    };
 
     const handleSave = async () => {
         if (!title.trim()) {
@@ -86,9 +100,18 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ initialContent = "", on
     return (
         <div className="h-full flex flex-col bg-gray-900 text-white relative">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900">
+            <div className="flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900 z-10">
                 <h2 className="text-lg font-semibold">Document Viewer</h2>
                 <div className="flex space-x-2">
+                    <button
+                        onClick={onClear}
+                        disabled={!initialContent}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-sm font-medium transition-colors text-gray-200"
+                        title="Clear Content"
+                    >
+                        <Trash2 size={16} />
+                        Clear
+                    </button>
                     <button
                         onClick={() => setIsSaveModalOpen(true)}
                         disabled={!initialContent}
@@ -101,9 +124,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ initialContent = "", on
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 font-mono text-sm leading-relaxed">
+            <div
+                ref={containerRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto p-6 font-mono text-sm leading-relaxed relative scroll-smooth"
+            >
                 {initialContent ? (
-                    <div className="prose prose-invert max-w-none">
+                    <div className="prose prose-invert max-w-none pb-10">
                         <ReactMarkdown>{initialContent}</ReactMarkdown>
                     </div>
                 ) : (
@@ -112,8 +139,20 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ initialContent = "", on
                         <p className="text-sm">Use the Research Agent to generate a report.</p>
                     </div>
                 )}
-                <div ref={bottomRef} />
             </div>
+
+            {/* Scroll to Top Button */}
+            {showScrollTop && (
+                <button
+                    onClick={scrollToTop}
+                    className="absolute bottom-6 right-6 p-3 bg-gray-700 hover:bg-gray-600 text-white rounded-full shadow-lg transition-all animate-in fade-in zoom-in duration-200 z-20 border border-gray-600"
+                    title="Scroll to Top"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="m18 15-6-6-6 6" />
+                    </svg>
+                </button>
+            )}
 
             {/* Save Modal */}
             {isSaveModalOpen && (
