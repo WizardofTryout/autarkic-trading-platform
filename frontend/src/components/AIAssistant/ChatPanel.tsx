@@ -1,27 +1,43 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { chatWithAI, generateStrategy } from '../../services/api';
 import { useTradingStore } from '../../store/tradingStore';
-import { Send, Bot, User, Code, Loader2, X, Sparkles, Copy, ArrowDownToLine, Square } from 'lucide-react';
+import { Send, Bot, User, Code, Loader2, X, Sparkles, Copy, ArrowDownToLine, Square, FileCode2 } from 'lucide-react';
 
 interface Message {
     role: 'user' | 'ai';
     content: string;
     timestamp: Date;
     code?: string; // Optional code block for strategy generation
+    codeLanguage?: 'pinescript' | 'python'; // Language of the code block
 }
 
 interface ChatPanelProps {
     isOpen: boolean;
     onClose: () => void;
     currentScript?: string;
+    currentPythonCode?: string;  // New: Python code from editor
     initialMessage?: string;
     analysisContext?: string;
-    onLoadCode?: (code: string) => void; // Callback to load code into editor
+    onLoadCode?: (code: string) => void; // Callback to load Pine Script code into editor
+    onLoadPythonCode?: (code: string) => void; // New: Callback to load Python code
     defaultMode?: 'chat' | 'strategy';
+    defaultLanguage?: 'pinescript' | 'python'; // New: Default language mode
     layoutMode?: 'overlay' | 'embedded';
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, initialMessage, analysisContext, onLoadCode, defaultMode = 'chat', layoutMode = 'overlay' }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({ 
+    isOpen, 
+    onClose, 
+    currentScript, 
+    currentPythonCode,
+    initialMessage, 
+    analysisContext, 
+    onLoadCode, 
+    onLoadPythonCode,
+    defaultMode = 'chat', 
+    defaultLanguage = 'pinescript',
+    layoutMode = 'overlay' 
+}) => {
     const { symbol, timeframe, portfolio, currentPrice } = useTradingStore();
     const [messages, setMessages] = useState<Message[]>([
         { role: 'ai', content: 'Hello! I am your Trading Assistant. How can I help you today?', timestamp: new Date() }
@@ -30,8 +46,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, i
     const [isLoading, setIsLoading] = useState(false);
     const [includeContext, setIncludeContext] = useState(true);
     const [isStrategyMode, setIsStrategyMode] = useState(defaultMode === 'strategy'); // Toggle for Strategy Builder
+    const [codeLanguage, setCodeLanguage] = useState<'pinescript' | 'python'>(defaultLanguage); // New: Language toggle
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
+
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -70,14 +88,21 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, i
 
         try {
             if (isStrategyMode) {
-                // Strategy Generation Mode
-                const response = await generateStrategy(userMsg.content, includeContext ? currentScript : undefined, controller.signal);
+                // Strategy Generation Mode - use selected language
+                const currentCode = codeLanguage === 'python' ? currentPythonCode : currentScript;
+                const response = await generateStrategy(
+                    userMsg.content, 
+                    includeContext ? currentCode : undefined, 
+                    controller.signal,
+                    codeLanguage
+                );
 
                 const aiMsg: Message = {
                     role: 'ai',
-                    content: response.explanation || "Here is your generated strategy:",
+                    content: response.explanation || `Here is your generated ${codeLanguage === 'python' ? 'Python' : 'Pine Script'} strategy:`,
                     timestamp: new Date(),
-                    code: response.code
+                    code: response.code,
+                    codeLanguage: codeLanguage
                 };
                 setMessages(prev => [...prev, aiMsg]);
 
@@ -224,6 +249,33 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, i
                     >
                         <Sparkles className="w-4 h-4" />
                     </button>
+                    {/* Language Toggle - only show in Strategy Mode */}
+                    {isStrategyMode && (
+                        <div className="flex rounded-md overflow-hidden border border-gray-600">
+                            <button
+                                onClick={() => setCodeLanguage('pinescript')}
+                                className={`px-2 py-1 text-xs font-medium transition-colors ${
+                                    codeLanguage === 'pinescript' 
+                                        ? 'bg-green-600 text-white' 
+                                        : 'bg-gray-800 text-gray-400 hover:text-white'
+                                }`}
+                                title="Pine Script Mode"
+                            >
+                                Pine
+                            </button>
+                            <button
+                                onClick={() => setCodeLanguage('python')}
+                                className={`px-2 py-1 text-xs font-medium transition-colors ${
+                                    codeLanguage === 'python' 
+                                        ? 'bg-yellow-600 text-white' 
+                                        : 'bg-gray-800 text-gray-400 hover:text-white'
+                                }`}
+                                title="Python Mode"
+                            >
+                                🐍 Py
+                            </button>
+                        </div>
+                    )}
                     <button onClick={onClose} className="text-gray-400 hover:text-white">
                         <X className="w-5 h-5" />
                     </button>
@@ -248,9 +300,20 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, i
                             {msg.code && (
                                 <div className="mt-3 bg-gray-950 rounded border border-gray-700 overflow-hidden">
                                     <div className="flex justify-between items-center px-2 py-1 bg-gray-900 border-b border-gray-700">
-                                        <span className="text-xs text-gray-400">Pine Script</span>
+                                        <span className={`text-xs ${msg.codeLanguage === 'python' ? 'text-yellow-400' : 'text-gray-400'}`}>
+                                            {msg.codeLanguage === 'python' ? '🐍 Python' : 'Pine Script'}
+                                        </span>
                                         <div className="flex gap-1">
-                                            {onLoadCode && (
+                                            {/* Load to appropriate editor based on code language */}
+                                            {msg.codeLanguage === 'python' && onLoadPythonCode && (
+                                                <button
+                                                    onClick={() => onLoadPythonCode(msg.code!)}
+                                                    className="flex items-center gap-1 px-2 py-0.5 text-xs bg-yellow-600 hover:bg-yellow-500 text-white rounded transition-colors"
+                                                >
+                                                    <ArrowDownToLine size={12} /> Load
+                                                </button>
+                                            )}
+                                            {msg.codeLanguage !== 'python' && onLoadCode && (
                                                 <button
                                                     onClick={() => onLoadCode(msg.code!)}
                                                     className="flex items-center gap-1 px-2 py-0.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
@@ -260,7 +323,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, i
                                             )}
                                         </div>
                                     </div>
-                                    <pre className="p-2 text-xs text-green-400 overflow-x-auto">
+                                    <pre className={`p-2 text-xs overflow-x-auto ${msg.codeLanguage === 'python' ? 'text-yellow-400' : 'text-green-400'}`}>
                                         <code>{msg.code.substring(0, 150)}...</code>
                                     </pre>
                                 </div>
@@ -272,7 +335,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, currentScript, i
                     <div className="flex justify-start">
                         <div className="bg-gray-800 rounded-lg p-3 border border-gray-700 flex items-center gap-2">
                             <Loader2 className={`w-4 h-4 animate-spin ${isStrategyMode ? 'text-purple-400' : 'text-blue-400'}`} />
-                            <span className="text-sm text-gray-400">{isStrategyMode ? 'Generating Strategy...' : 'Thinking...'}</span>
+                            <span className="text-sm text-gray-400">
+                                {isStrategyMode 
+                                    ? `Generating ${codeLanguage === 'python' ? 'Python' : 'Pine Script'} Strategy...` 
+                                    : 'Thinking...'}
+                            </span>
                         </div>
                     </div>
                 )}

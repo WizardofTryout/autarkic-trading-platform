@@ -263,7 +263,12 @@ export const chatWithAI = async (message: string, context?: any, signal?: AbortS
     return response.json();
 };
 
-export const generateStrategy = async (prompt: string, currentCode?: string, signal?: AbortSignal) => {
+export const generateStrategy = async (
+    prompt: string, 
+    currentCode?: string, 
+    signal?: AbortSignal,
+    mode: 'pinescript' | 'python' = 'pinescript'
+) => {
     const token = useAuthStore.getState().token;
     const response = await fetch(`${API_BASE}/ai-strategy/generate_strategy`, {
         method: 'POST',
@@ -271,7 +276,7 @@ export const generateStrategy = async (prompt: string, currentCode?: string, sig
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ prompt, current_code: currentCode }),
+        body: JSON.stringify({ prompt, current_code: currentCode, mode }),
         signal
     });
     if (!response.ok) {

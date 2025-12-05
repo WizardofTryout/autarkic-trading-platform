@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -14,10 +14,74 @@ router = APIRouter()
 class StrategyGenRequest(BaseModel):
     prompt: str
     current_code: Optional[str] = None
+    mode: Literal["pinescript", "python"] = "pinescript"  # New: Language mode
 
 class StrategyGenResponse(BaseModel):
     code: str
     explanation: str
+
+
+# ============= PINE SCRIPT SYSTEM PROMPT =============
+PINESCRIPT_SYSTEM_PROMPT = """You are an expert Pine Script v5 Developer.
+Your task is to generate valid, compilable Pine Script code based on the user's description.
+
+Rules:
+1. Output ONLY the code inside a ```pinescript block.
+2. Followed by a brief explanation.
+3. Use `strategy()` for strategies, `indicator()` for indicators.
+4. Include `overlay=true` if it should be on the main chart.
+5. Use strict v5 syntax.
+"""
+
+# ============= PYTHON STRATEGY SYSTEM PROMPT =============
+PYTHON_SYSTEM_PROMPT = """You are an expert Python Trading Strategy Developer.
+Your task is to generate valid, executable Python code for algorithmic trading strategies.
+
+The code will run in a sandboxed environment with pandas and numpy available.
+The code receives a pandas DataFrame `df` with columns: timestamp, open, high, low, close, volume
+
+REQUIRED STRUCTURE:
+```python
+import pandas as pd
+import numpy as np
+
+def calculate(df: pd.DataFrame) -> pd.DataFrame:
+    '''
+    Calculate trading signals based on the strategy logic.
+    
+    Args:
+        df: DataFrame with columns [timestamp, open, high, low, close, volume]
+    
+    Returns:
+        DataFrame with an additional 'signal' column:
+        - signal = 1 for BUY/LONG entry
+        - signal = -1 for SELL/EXIT
+        - signal = 0 for no action (hold)
+    '''
+    # Initialize signal column
+    df['signal'] = 0
+    
+    # YOUR STRATEGY LOGIC HERE
+    # Example: Simple Moving Average Crossover
+    # df['sma_fast'] = df['close'].rolling(window=10).mean()
+    # df['sma_slow'] = df['close'].rolling(window=30).mean()
+    # df.loc[(df['sma_fast'] > df['sma_slow']) & (df['sma_fast'].shift(1) <= df['sma_slow'].shift(1)), 'signal'] = 1
+    # df.loc[(df['sma_fast'] < df['sma_slow']) & (df['sma_fast'].shift(1) >= df['sma_slow'].shift(1)), 'signal'] = -1
+    
+    return df
+```
+
+Rules:
+1. Output the code inside a ```python block.
+2. Followed by a brief explanation.
+3. ALWAYS include the `calculate(df)` function that returns a DataFrame with a 'signal' column.
+4. Use only pandas and numpy operations (no external APIs, no file I/O).
+5. Handle NaN values properly (use fillna or dropna where appropriate).
+6. Ensure the strategy is vectorized for performance.
+7. Add helpful comments explaining the logic.
+8. Signal values: 1 = BUY, -1 = SELL, 0 = HOLD
+"""
+
 
 @router.post("/generate_strategy", response_model=StrategyGenResponse)
 async def generate_strategy(
@@ -55,21 +119,17 @@ async def generate_strategy(
         model_name = secret.model or 'gemini-2.5-flash'
         model = genai.GenerativeModel(model_name)
         
-        # 3. Construct Prompt
-        system_prompt = """You are an expert Pine Script v5 Developer.
-        Your task is to generate valid, compilable Pine Script code based on the user's description.
-        
-        Rules:
-        1. Output ONLY the code inside a ```pinescript block.
-        2. Followed by a brief explanation.
-        3. Use `strategy()` for strategies, `indicator()` for indicators.
-        4. Include `overlay=true` if it should be on the main chart.
-        5. Use strict v5 syntax.
-        """
+        # 3. Select System Prompt based on mode
+        if request.mode == "python":
+            system_prompt = PYTHON_SYSTEM_PROMPT
+            code_block_marker = "```python"
+        else:
+            system_prompt = PINESCRIPT_SYSTEM_PROMPT
+            code_block_marker = "```pinescript"
         
         user_prompt = f"User Request: {request.prompt}"
         if request.current_code:
-            user_prompt += f"\n\nExisting Code:\n{request.current_code}\n\n(Modify or replace this code based on the request)"
+            user_prompt += f"\n\nExisting Code:\n{request.current_code}\n\n(Modify or improve this code based on the request)"
 
         full_prompt = f"{system_prompt}\n\n{user_prompt}"
         
@@ -81,27 +141,40 @@ async def generate_strategy(
         code = ""
         explanation = text
         
-        if "```pinescript" in text:
-            parts = text.split("```pinescript")
+        # Try the specific code block marker first
+        if code_block_marker in text:
+            parts = text.split(code_block_marker)
             if len(parts) > 1:
                 code_part = parts[1].split("```")[0]
                 code = code_part.strip()
                 explanation = parts[1].split("```")[1].strip() if len(parts[1].split("```")) > 1 else ""
-        elif "```" in text: # Fallback if language tag is missing
+        elif "```" in text:  # Fallback if language tag is missing
             parts = text.split("```")
             if len(parts) > 1:
                 code = parts[1].strip()
+                # Remove language identifier if present
+                if code.startswith("python\n"):
+                    code = code[7:]
+                elif code.startswith("pinescript\n"):
+                    code = code[11:]
                 explanation = parts[2].strip() if len(parts) > 2 else ""
                 
         if not code:
-            # If no code block found, assume the whole text is explanation or failed
-            # But try to see if the model just outputted code
-            if "//" in text or "strategy(" in text or "indicator(" in text:
-                code = text
-                explanation = "Generated based on your request."
+            # If no code block found, check if model outputted raw code
+            if request.mode == "python":
+                if "def calculate" in text or "import pandas" in text:
+                    code = text
+                    explanation = "Generated Python strategy based on your request."
+                else:
+                    code = "# Could not generate valid code block."
+                    explanation = text
             else:
-                code = "// Could not generate valid code block."
-                explanation = text
+                if "//" in text or "strategy(" in text or "indicator(" in text:
+                    code = text
+                    explanation = "Generated based on your request."
+                else:
+                    code = "// Could not generate valid code block."
+                    explanation = text
 
         return StrategyGenResponse(code=code, explanation=explanation)
         
