@@ -38,8 +38,8 @@ class DocumentResponse(BaseModel):
     title: str
     content: str
     doc_type: str
-    tags: List[str]
-    folder: str
+    tags: Optional[List[str]] = []
+    folder: Optional[str] = "General"
     created_at: datetime
 
 # --- Endpoints ---
@@ -242,8 +242,35 @@ async def list_documents(
             title=d.title,
             content=d.content,
             doc_type=d.doc_type,
-            tags=d.tags,
-            folder=d.folder,
+            tags=d.tags if d.tags else [],
+            folder=d.folder if d.folder else "General",
             created_at=d.created_at
         ) for d in docs
     ]
+
+@router.delete("/documents/{doc_id}")
+async def delete_document(
+    doc_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    """Delete a saved document."""
+    # Check if valid UUID
+    try:
+        import uuid
+        uuid_id = uuid.UUID(doc_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document ID format")
+
+    result = await db.execute(select(UserDocument).where(
+        UserDocument.id == uuid_id,
+        UserDocument.user_id == current_user.id
+    ))
+    doc = result.scalars().first()
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+        
+    await db.delete(doc)
+    await db.commit()
+    return {"status": "success"}

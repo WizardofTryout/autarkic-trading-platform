@@ -3,8 +3,7 @@ import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Activity, Settings, LogOut } from 'lucide-react';
 import AdvancedFinancialChart from './components/Chart/D3Chart';
 import { OrderEntry } from './components/OrderEntry';
-import { AnalysisDashboard } from './components/Analysis/AnalysisDashboard';
-import { DocumentViewer } from './components/Analysis/DocumentViewer';
+import DocumentViewer from './components/Analysis/DocumentViewer';
 import { BottomPanel } from './components/Layout/BottomPanel';
 import ChatPanel from './components/AIAssistant/ChatPanel';
 import LoginPage from './components/Auth/LoginPage';
@@ -17,6 +16,8 @@ import { analyzeMarket } from './services/api';
 import SymbolSearch from './components/SymbolSearch';
 import StrategyBuilderView from './components/StrategyBuilder/StrategyBuilderView';
 import { ResearchAgentSidebar } from './components/Research/ResearchAgentSidebar';
+import DocumentExplorer from './components/Research/DocumentExplorer';
+import type { DocumentResponse } from './services/api';
 
 function App() {
   const { isAuthenticated, user, logout } = useAuthStore();
@@ -28,6 +29,19 @@ function App() {
   const [currentAnalysis, setCurrentAnalysis] = useState<string | undefined>(undefined);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const abortControllerRef = React.useRef<AbortController | null>(null);
+  const [currentDocument, setCurrentDocument] = useState<string>("");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const handleLoadDocument = (doc: DocumentResponse) => {
+    setCurrentDocument(doc.content);
+    // Also set currentAnalysis so the ChatPanel context is updated
+    setCurrentAnalysis(doc.content);
+    setActiveTab('analysis');
+  };
+
+  const handleSaveSuccess = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
 
   const handleLogout = () => {
     logout();
@@ -153,8 +167,7 @@ function App() {
                   {/* Left Sidebar (Navigation/Docs) */}
                   {activeTab === 'analysis' && (
                     <div className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
-                      {/* TODO: Add DocumentExplorer here later */}
-                      <div className="p-4 text-gray-500 text-sm">Saved Docs (Coming Soon)</div>
+                      <DocumentExplorer onLoadDocument={handleLoadDocument} refreshTrigger={refreshTrigger} />
                     </div>
                   )}
 
@@ -192,7 +205,10 @@ function App() {
                             <AdvancedFinancialChart data={[]} symbol={symbol} timeframe={timeframe} />
                           </div>
                           <div className="flex-1 min-h-0 overflow-hidden">
-                            <DocumentViewer initialContent={currentAnalysis} />
+                            <DocumentViewer
+                              initialContent={currentDocument || currentAnalysis}
+                              onSaveSuccess={handleSaveSuccess}
+                            />
                           </div>
                         </div>
                       )}
@@ -231,9 +247,11 @@ function App() {
                             // Append new result to existing analysis or replace? 
                             // For now, let's append with a timestamp/separator to create a "chat" feel
                             const timestamp = new Date().toLocaleTimeString();
-                            const newEntry = `\n\n---\n**Analysis (${timestamp})**\n\n${result.content}`;
+                            const newEntry = `\n\n---\n**Request:** ${prompt}\n\n**Analysis (${timestamp})**\n\n${result.content}`;
 
-                            setCurrentAnalysis(prev => prev ? prev + newEntry : result.content);
+                            const newContent = currentAnalysis ? currentAnalysis + newEntry : result.content;
+                            setCurrentAnalysis(newContent);
+                            setCurrentDocument(newContent); // Keep them in sync for saving
                           } catch (error: any) {
                             if (error.name === 'AbortError') {
                               console.log('Analysis aborted');

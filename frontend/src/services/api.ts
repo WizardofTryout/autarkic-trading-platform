@@ -518,3 +518,66 @@ export const analyzeMarket = async (symbol: string, timeframe: string, promptTyp
     }
     return response.json();
 };
+
+// --- Document Management ---
+
+export interface DocumentCreate {
+    title: string;
+    content: string;
+    folder?: string;
+    tags?: string[];
+}
+
+export interface DocumentResponse {
+    id: string;
+    title: string;
+    content: string;
+    folder?: string;
+    tags: string[];
+    created_at: string;
+    updated_at: string;
+    user_id: string;
+}
+
+export const saveDocument = async (doc: DocumentCreate): Promise<DocumentResponse> => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/research/documents`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(doc),
+    });
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'Failed to save document');
+    }
+    return response.json();
+};
+
+export const getDocuments = async (): Promise<DocumentResponse[]> => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/research/documents`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) {
+        throw new Error('Failed to fetch documents');
+    }
+    return response.json();
+};
+
+export const deleteDocument = async (id: string): Promise<void> => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/research/documents/${id}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) {
+        throw new Error('Failed to delete document');
+    }
+};
