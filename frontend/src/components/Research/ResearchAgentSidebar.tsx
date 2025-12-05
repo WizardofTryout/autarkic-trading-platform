@@ -53,7 +53,7 @@ export const ResearchAgentSidebar: React.FC<ResearchAgentSidebarProps> = ({ onAn
                 <label className="text-xs font-medium text-gray-500 uppercase">Quick Analysis</label>
 
                 <button
-                    onClick={() => onAnalyze('trend')}
+                    onClick={() => onAnalyze('trend', 'Trend Analysis')}
                     disabled={isAnalyzing}
                     className="flex items-center gap-3 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
                 >
@@ -67,7 +67,7 @@ export const ResearchAgentSidebar: React.FC<ResearchAgentSidebarProps> = ({ onAn
                 </button>
 
                 <button
-                    onClick={() => onAnalyze('news')}
+                    onClick={() => onAnalyze('news', 'News Summary')}
                     disabled={isAnalyzing}
                     className="flex items-center gap-3 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
                 >
@@ -82,16 +82,20 @@ export const ResearchAgentSidebar: React.FC<ResearchAgentSidebarProps> = ({ onAn
             </div>
 
             {/* Custom Prompt */}
-            <div className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="flex flex-col gap-2">
                 <label className="text-xs font-medium text-gray-500 uppercase">Custom Inquiry</label>
-                <form onSubmit={handleCustomSubmit} className="flex-1 flex flex-col gap-2">
+                <form onSubmit={handleCustomSubmit} className="flex flex-col gap-2">
                     <textarea
                         value={customPrompt}
                         onChange={(e) => setCustomPrompt(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleCustomSubmit(e);
+                            }
+                        }}
                         placeholder="Ask anything about this asset..."
-                        className="flex-1 bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm resize-none focus:outline-none focus:border-blue-500 transition-colors"
-                        // Keep enabled to allow typing next query while thinking, or disable if strict sequential
-                        // User requested it NOT to disappear. Disabling is fine, hiding is not.
+                        className="h-32 bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm resize-none focus:outline-none focus:border-blue-500 transition-colors"
                         disabled={isAnalyzing}
                     />
 
