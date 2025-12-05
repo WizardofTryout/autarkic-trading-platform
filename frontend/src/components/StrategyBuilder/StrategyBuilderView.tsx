@@ -128,7 +128,7 @@ const StrategyBuilderView: React.FC = () => {
     };
 
     return (
-        <div className="flex h-screen bg-gray-950 text-gray-100 overflow-hidden">
+        <div className="flex h-full bg-gray-950 text-gray-100 overflow-hidden">
             {/* Sidebar: Strategy List */}
             <div className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
                 <div className="p-4 border-b border-gray-800 flex items-center justify-between">
@@ -238,7 +238,7 @@ const StrategyBuilderView: React.FC = () => {
                 {/* Editor & Backtest Split Area */}
                 <div className="flex-1 relative flex overflow-hidden">
                     {/* Left Pane: Code Editor */}
-                    <div className="flex-1 border-r border-gray-800 flex flex-col min-w-0">
+                    <div className="flex-1 border-r border-gray-800 flex flex-col min-w-0 overflow-hidden">
                         <PineScriptPanel
                             script={currentCode}
                             onScriptChange={setCurrentCode}
