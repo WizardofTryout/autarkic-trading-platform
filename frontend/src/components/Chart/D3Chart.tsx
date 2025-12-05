@@ -3,6 +3,7 @@ import * as d3 from 'd3';
 import { useTradingStore } from '../../store/tradingStore';
 import {
     addTechnicalIndicators,
+    getTradingSignals,
     type IndicatorData,
     type TradingSignal
 } from '../../utils/technicalIndicators';
@@ -85,9 +86,9 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                     close: parseFloat(candle.close),
                     high: Math.max(lastCandle.high, parseFloat(candle.high)),
                     low: Math.min(lastCandle.low, parseFloat(candle.low)),
-                    volume: lastCandle.volume + parseFloat(candle.volume)
+                    volume: (lastCandle.volume || 0) + parseFloat(candle.volume)
                 };
-            } else if (newCandleTime > lastCandle.time) {
+            } else if (newCandleTime > (lastCandle.time as number)) {
                 // Add new candle
                 const newCandle: IndicatorData = {
                     date: new Date(candle.timestamp),
@@ -98,14 +99,9 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
                     close: parseFloat(candle.close),
                     volume: parseFloat(candle.volume),
                     sma20: undefined,
-                    ema20: undefined,
                     rsi: undefined,
                     macd: undefined,
-                    signal: undefined,
-                    histogram: undefined,
-                    upperBand: undefined,
-                    lowerBand: undefined,
-                    middleBand: undefined
+                    bollingerBands: undefined
                 };
                 newData.push(newCandle);
                 // Keep only last 500 candles to prevent memory issues
@@ -159,6 +155,14 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
         sma: showIndicators,
         volume: showVolume
     });
+
+    // Calculate Trading Signals
+    useEffect(() => {
+        if (indicatorData.length > 0) {
+            const signal = getTradingSignals(indicatorData);
+            setTradingSignal(signal);
+        }
+    }, [indicatorData]);
 
     // Konvertiere und bereite Daten auf - REMOVED to prevent overwriting fetched data
     // useEffect(() => {
@@ -520,8 +524,8 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
         // Volume chart
         if (visibleIndicators.volume) {
-            const volumeGroup = svg.append('g')
-                .attr('transform', `translate(0, ${margin.top + chartHeight + 40})`);
+            const volumeGroup = svg.append('g');
+            // .attr('transform', `translate(0, ${margin.top + chartHeight + 40})`); // REMOVED: Scale already handles positioning
 
             volumeGroup.selectAll('.volume-bar')
                 .data(visibleData)
