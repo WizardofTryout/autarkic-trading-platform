@@ -226,28 +226,29 @@ if rsi > 70
         </div>
       </div>
 
-      <div className="flex-1 p-0 min-h-0 relative overflow-hidden">
+      <div className="flex-1 p-0 min-h-0 relative flex flex-col overflow-hidden">
         {activeTab === 'pine' ? (
-          <CodeMirror
-            value={pineScriptCode}
-            height="100%"
-            theme={vscodeDark}
-            extensions={[javascript({ jsx: true })]}
-            onChange={(value) => {
-              setPineScriptCode(value);
-              onScriptChange?.(value);
-            }}
-            className="h-full text-sm"
-            basicSetup={{
-              lineNumbers: true,
-              highlightActiveLineGutter: true,
-              highlightSpecialChars: true,
-              history: true,
-              foldGutter: true,
-              drawSelection: true,
-              dropCursor: true,
-              allowMultipleSelections: true,
-              indentOnInput: true,
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <CodeMirror
+              value={pineScriptCode}
+              height="100%"
+              theme={vscodeDark}
+              extensions={[javascript({ jsx: true })]}
+              onChange={(value) => {
+                setPineScriptCode(value);
+                onScriptChange?.(value);
+              }}
+              className="h-full text-sm [&_.cm-editor]:h-full [&_.cm-scroller]:!overflow-auto"
+              basicSetup={{
+                lineNumbers: true,
+                highlightActiveLineGutter: true,
+                highlightSpecialChars: true,
+                history: true,
+                foldGutter: true,
+                drawSelection: true,
+                dropCursor: true,
+                allowMultipleSelections: true,
+                indentOnInput: true,
               syntaxHighlighting: true,
               bracketMatching: true,
               closeBrackets: true,
@@ -265,8 +266,9 @@ if rsi > 70
               lintKeymap: true,
             }}
           />
+          </div>
         ) : (
-          <div className="h-full flex flex-col">
+          <div className="flex-1 min-h-0 flex flex-col">
             {/* Python Tab Header with Unlock Button */}
             <div className="bg-gray-800 border-b border-gray-700 px-3 py-2 flex justify-between items-center">
               <span className="text-xs text-gray-400">
@@ -289,7 +291,7 @@ if rsi > 70
             </div>
 
             {/* Python Code Editor */}
-            <div className="flex-1">
+            <div className="flex-1 min-h-0 overflow-hidden">
               {currentPythonCode ? (
                 <CodeMirror
                   value={currentPythonCode}
@@ -303,7 +305,7 @@ if rsi > 70
                     }
                   }}
                   editable={isPythonUnlocked}
-                  className="h-full text-sm"
+                  className="h-full text-sm [&_.cm-editor]:h-full [&_.cm-scroller]:!overflow-auto"
                   basicSetup={{
                     lineNumbers: true,
                     highlightActiveLineGutter: true,
