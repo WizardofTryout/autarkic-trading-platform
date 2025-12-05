@@ -112,6 +112,9 @@ def execute_python_code(
             'abs': abs,
             'round': round,
             'sorted': sorted,
+            'reversed': reversed,
+            'all': all,  # Check if all elements are True
+            'any': any,  # Check if any element is True
             'list': list,
             'dict': dict,
             'set': set,
@@ -123,6 +126,19 @@ def execute_python_code(
             'True': True,
             'False': False,
             'None': None,
+            'isinstance': isinstance,  # Type checking
+            'hasattr': hasattr,  # Attribute checking
+            'getattr': getattr,  # Get attribute
+            'setattr': setattr,  # Set attribute
+            'callable': callable,  # Check if callable
+            'iter': iter,  # Create iterator
+            'next': next,  # Get next from iterator
+            'slice': slice,  # Slice objects
+            'type': type,  # Get type
+            'ValueError': ValueError,  # Allow raising ValueErrors
+            'TypeError': TypeError,  # Allow raising TypeErrors
+            'KeyError': KeyError,  # Allow raising KeyErrors
+            'IndexError': IndexError,  # Allow raising IndexErrors
             # Restrict imports
             '__import__': RestrictedImporter(),
         },
