@@ -293,8 +293,11 @@ const StrategyBuilderView: React.FC = () => {
                             isOpen={true}
                             onClose={() => setIsChatOpen(false)}
                             currentScript={currentCode}
+                            currentPythonCode={pythonCode}
                             onLoadCode={setCurrentCode}
+                            onLoadPythonCode={setPythonCode}
                             defaultMode="strategy"
+                            defaultLanguage="pinescript"
                         />
                     </div>
                 )
