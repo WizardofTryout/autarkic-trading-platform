@@ -10,11 +10,20 @@ interface PineScriptPanelProps {
   onToggleMaximize?: () => void;
   onScriptChange?: (script: string) => void;
   script?: string; // External script control
+  strategyName?: string; // External name control
+  onNameChange?: (name: string) => void; // Name change callback
 }
 
-const PineScriptPanel: React.FC<PineScriptPanelProps> = ({ isMaximized, onToggleMaximize, onScriptChange, script }) => {
+const PineScriptPanel: React.FC<PineScriptPanelProps> = ({
+  isMaximized,
+  onToggleMaximize,
+  onScriptChange,
+  script,
+  strategyName: externalStrategyName,
+  onNameChange
+}) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [strategyName, setStrategyName] = useState('My Strategy');
+  const [internalStrategyName, setInternalStrategyName] = useState('My Strategy');
   const [pineScriptCode, setPineScriptCode] = useState(`//@version=5
 strategy("My Strategy", overlay=true)
 
@@ -31,6 +40,9 @@ if rsi > 70
     strategy.close("Long")
 `);
   const [isUploading, setIsUploading] = useState(false);
+
+  // Use external name if provided, otherwise use internal state
+  const strategyName = externalStrategyName !== undefined ? externalStrategyName : internalStrategyName;
 
   // Sync external script prop with local state
   React.useEffect(() => {
@@ -52,7 +64,11 @@ if rsi > 70
       // Extract strategy name from script content if possible
       const match = text.match(/strategy\("([^"]+)"/);
       if (match && match[1]) {
-        setStrategyName(match[1]);
+        if (onNameChange) {
+          onNameChange(match[1]);
+        } else {
+          setInternalStrategyName(match[1]);
+        }
       }
     }
   };
@@ -82,7 +98,13 @@ if rsi > 70
               id="strategyName"
               type="text"
               value={strategyName}
-              onChange={(e) => setStrategyName(e.target.value)}
+              onChange={(e) => {
+                if (onNameChange) {
+                  onNameChange(e.target.value);
+                } else {
+                  setInternalStrategyName(e.target.value);
+                }
+              }}
               className="bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-600"
             />
           </div>

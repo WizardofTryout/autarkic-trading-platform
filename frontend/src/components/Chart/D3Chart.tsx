@@ -70,7 +70,10 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
     console.log('D3Chart Body Executing. Selected Timeframe:', selectedTimeframe);
 
     // Real-time updates via Binance WebSocket
+    const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+
     const handleRealTimeUpdate = useCallback((candle: any) => {
+        setLastUpdate(new Date());
         setIndicatorData(prevData => {
             if (prevData.length === 0) return prevData;
 
@@ -113,7 +116,7 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
         });
     }, []);
 
-    useBinanceWebSocket(symbol, selectedTimeframe, handleRealTimeUpdate);
+    useBinanceWebSocket(symbol, selectedTimeframe, handleRealTimeUpdate, { skipStateUpdate: true });
 
     // Sync prop timeframe to local state
     useEffect(() => {
@@ -668,6 +671,11 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
             <div className="flex items-center justify-between p-4 border-b border-gray-700">
                 <div className="flex items-center space-x-4">
                     <h3 className="text-white font-semibold">Advanced Financial Chart</h3>
+                    {lastUpdate && (
+                        <span className="text-xs text-gray-500 font-mono animate-pulse">
+                            Last Update: {lastUpdate.toLocaleTimeString()}
+                        </span>
+                    )}
 
                     {/* Timeframe Selector */}
                     <div className="flex bg-gray-800 rounded-lg p-1 space-x-1">

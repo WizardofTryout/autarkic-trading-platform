@@ -55,7 +55,58 @@ async def get_dashboard(
 ):
     service = PaperTradingService(db)
     portfolio = await service.get_portfolio(current_user.id)
-    return portfolio
+    
+    # Convert SQLAlchemy objects to dicts for JSON serialization
+    return {
+        "balance": float(portfolio["balance"]),
+        "positions": [
+            {
+                "id": str(pos.id),
+                "symbol": pos.symbol,
+                "side": pos.side,
+                "size": float(pos.size),
+                "entry_price": float(pos.entry_price),
+                "leverage": pos.leverage,
+                "margin": float(pos.margin),
+                "stop_loss": float(pos.stop_loss) if pos.stop_loss else None,
+                "take_profit": float(pos.take_profit) if pos.take_profit else None,
+                "is_trailing_stop": pos.is_trailing_stop,
+                "trailing_percent": float(pos.trailing_percent) if pos.trailing_percent else None,
+                "liquidation_price": float(pos.liquidation_price) if pos.liquidation_price else None,
+            }
+            for pos in portfolio["positions"]
+        ],
+        "orders": [
+            {
+                "id": str(order.id),
+                "symbol": order.symbol,
+                "side": order.side,
+                "type": order.type,
+                "price": float(order.price) if order.price else None,
+                "amount": float(order.amount),
+                "quantity": float(order.quantity),
+                "filled_quantity": float(order.filled_quantity),
+                "status": order.status,
+                "created_at": order.created_at.isoformat(),
+            }
+            for order in portfolio["orders"]
+        ],
+        "history": [
+            {
+                "id": str(order.id),
+                "symbol": order.symbol,
+                "side": order.side,
+                "type": order.type,
+                "price": float(order.price) if order.price else None,
+                "amount": float(order.amount),
+                "quantity": float(order.quantity),
+                "filled_quantity": float(order.filled_quantity),
+                "status": order.status,
+                "created_at": order.created_at.isoformat(),
+            }
+            for order in portfolio["history"]
+        ]
+    }
 
 @router.post("/reset")
 async def reset_account(

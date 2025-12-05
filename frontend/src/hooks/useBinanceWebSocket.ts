@@ -31,7 +31,12 @@ export interface CandleData {
     isClosed: boolean;
 }
 
-export const useBinanceWebSocket = (symbols: string | string[], timeframe: string, onUpdate?: (candle: any) => void) => {
+export const useBinanceWebSocket = (
+    symbols: string | string[],
+    timeframe: string,
+    onUpdate?: (candle: any) => void,
+    options: { skipStateUpdate?: boolean } = {}
+) => {
     const wsRef = useRef<WebSocket | null>(null);
     const [status, setStatus] = useState<'CONNECTING' | 'OPEN' | 'CLOSED'>('CLOSED');
     const [currentData, setCurrentData] = useState<Record<string, CandleData>>({});
@@ -86,10 +91,12 @@ export const useBinanceWebSocket = (symbols: string | string[], timeframe: strin
                     isClosed: k.x
                 };
 
-                setCurrentData(prev => ({
-                    ...prev,
-                    [key]: candle
-                }));
+                if (!options.skipStateUpdate) {
+                    setCurrentData(prev => ({
+                        ...prev,
+                        [key]: candle
+                    }));
+                }
 
                 if (onUpdate) {
                     onUpdate(candle);
@@ -109,7 +116,7 @@ export const useBinanceWebSocket = (symbols: string | string[], timeframe: strin
         return () => {
             ws.close();
         };
-    }, [JSON.stringify(symbols), timeframe, onUpdate]); // Use stringified symbols to avoid deep dependency issues
+    }, [JSON.stringify(symbols), timeframe, onUpdate, options.skipStateUpdate]); // Use stringified symbols to avoid deep dependency issues
 
     return { status, currentData };
 };
