@@ -116,6 +116,15 @@ class TranspileResponse(BaseModel):
     python_code: str
     status: str
 
+class ComposeRequest(BaseModel):
+    indicator_ids: List[str]  # List of indicator strategy IDs
+    composition_prompt: str  # User's instructions for combining
+
+class ComposeResponse(BaseModel):
+    python_code: str
+    status: str
+    indicators_used: List[str]  # Names of indicators combined
+
 # --- Endpoints ---
 
 @router.get("/", response_model=List[StrategyResponse])
@@ -227,7 +236,65 @@ async def transpile_strategy(
         )
 
 # --- Activation Endpoints ---
-
+@router.post("/compose", response_model=ComposeResponse)
+async def compose_strategy(
+    request: ComposeRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    """
+    Compose multiple indicators into a single trading strategy using AI.
+    
+    This endpoint uses Gemini AI to intelligently combine multiple indicator
+    Python codes into a cohesive trading strategy based on user instructions.
+    """
+    from app.services.strategy_composer import compose_strategy
+    
+    try:
+        # Validate we have at least 2 indicators
+        if len(request.indicator_ids) < 2:
+            raise HTTPException(
+                status_code=400,
+                detail="At least 2 indicators are required for composition"
+            )
+        
+        # Compose the strategy
+        python_code = await compose_strategy(
+            user_id=current_user.id,
+            indicator_ids=request.indicator_ids,
+            composition_prompt=request.composition_prompt,
+            db=db
+        )
+        
+        # Get indicator names for response
+        from sqlalchemy import select
+        from app.models.base import Strategy
+        
+        result = await db.execute(
+            select(Strategy.name).where(
+                Strategy.id.in_(request.indicator_ids),
+                Strategy.user_id == current_user.id
+            )
+        )
+        indicator_names = [row[0] for row in result.all()]
+        
+        return ComposeResponse(
+            python_code=python_code,
+            status="success",
+            indicators_used=indicator_names
+        )
+        
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Strategy composition failed: {str(e)}"
+        )
 @router.post("/activate", response_model=ActiveStrategyResponse)
 async def activate_strategy(
     activation_in: ActiveStrategyCreate,
