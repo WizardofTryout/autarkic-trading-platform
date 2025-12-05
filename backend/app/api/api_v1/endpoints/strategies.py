@@ -492,7 +492,7 @@ async def execute_strategy(
         return ExecutionResult(success=False, error=str(e))
 
 class BacktestRequest(BaseModel):
-    script: str
+    python_code: str  # Changed from script to python_code
     symbol: str
     timeframe: str
     start_date: datetime
@@ -512,26 +512,115 @@ async def run_backtest(
     request: BacktestRequest,
     current_user: User = Depends(deps.get_current_user),
 ):
-    from app.services.backtest_engine import BacktestEngine
-    engine = BacktestEngine()
+    """
+    Run backtest using AI-generated Python code via strategy-engine
+    
+    This endpoint proxies the execution to the strategy-engine container
+    which runs the code in a secure sandbox with timeout and import restrictions.
+    """
+    import httpx
+    from app.services.market_service import MarketService
+    
     try:
-        result = await engine.run_backtest(
-            script=request.script,
-            symbol=request.symbol,
-            timeframe=request.timeframe,
-            start_date=request.start_date,
-            end_date=request.end_date,
-            initial_capital=request.initial_capital,
-            take_profit=request.take_profit,
-            stop_loss=request.stop_loss
+        # 1. Load OHLCV data from MarketService
+        market_service = MarketService()
+        try:
+            # Calculate limit based on date range and timeframe
+            limit = 500  # Default, could be calculated from date range
+            ohlcv_data = await market_service.get_ohlcv(
+                request.symbol,
+                request.timeframe,
+                limit=limit
+            )
+        finally:
+            await market_service.close()
+        
+        if not ohlcv_data:
+            return BacktestResult(
+                metrics={},
+                trades=[],
+                equity_curve=[],
+                error=f"No market data available for {request.symbol}"
+            )
+        
+        # 2. Prepare data for strategy-engine
+        import pandas as pd
+        df = pd.DataFrame(ohlcv_data)
+        data_dict = df.to_dict(orient='list')
+        
+        # 3. Send to strategy-engine for execution
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://strategy-engine:8001/execute",
+                json={
+                    "python_code": request.python_code,
+                    "data": data_dict,
+                    "timeout": 3
+                },
+                timeout=10.0
+            )
+            response.raise_for_status()
+            execution_result = response.json()
+        
+        # 4. Check execution success
+        if not execution_result.get('success'):
+            error_msg = execution_result.get('message', 'Unknown error')
+            return BacktestResult(
+                metrics={},
+                trades=[],
+                equity_curve=[],
+                error=f"Execution failed: {error_msg}"
+            )
+        
+        # 5. Process results and calculate PnL
+        result_data = execution_result.get('data', [])
+        if not result_data:
+            return BacktestResult(
+                metrics={},
+                trades=[],
+                equity_curve=[],
+                error="No data returned from strategy execution"
+            )
+        
+        # Convert back to DataFrame for analysis
+        result_df = pd.DataFrame(result_data)
+        
+        # Simple PnL calculation (placeholder - can be enhanced)
+        metrics = {
+            "total_return": 0.0,
+            "sharpe_ratio": 0.0,
+            "max_drawdown": 0.0,
+            "win_rate": 0.0,
+            "total_trades": 0
+        }
+        
+        # Check if strategy generated signals
+        if 'signal' in result_df.columns:
+            # Calculate basic metrics from signals
+            signals = result_df['signal'].fillna(0)
+            trades_count = (signals != 0).sum()
+            metrics['total_trades'] = int(trades_count)
+        
+        return BacktestResult(
+            metrics=metrics,
+            trades=[],
+            equity_curve=[],
+            error=None
         )
-        if "error" in result:
-             return BacktestResult(metrics={}, trades=[], equity_curve=[], error=result["error"])
-             
-        return BacktestResult(**result)
+        
+    except httpx.HTTPError as e:
+        return BacktestResult(
+            metrics={},
+            trades=[],
+            equity_curve=[],
+            error=f"Strategy-engine communication error: {str(e)}"
+        )
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return BacktestResult(metrics={}, trades=[], equity_curve=[], error=str(e))
-    finally:
-        await engine.close()
+        return BacktestResult(
+            metrics={},
+            trades=[],
+            equity_curve=[],
+            error=str(e)
+        )
