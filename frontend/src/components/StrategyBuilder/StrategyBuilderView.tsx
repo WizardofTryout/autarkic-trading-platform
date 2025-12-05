@@ -247,6 +247,7 @@ const StrategyBuilderView: React.FC = () => {
                             pythonCode={pythonCode}
                             onPythonCodeChange={setPythonCode}
                             isMaximized={true}
+                            onSaveComplete={loadStrategies}
                         />
                     </div>
 

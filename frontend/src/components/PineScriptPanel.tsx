@@ -17,6 +17,7 @@ interface PineScriptPanelProps {
   onNameChange?: (name: string) => void; // Name change callback
   pythonCode?: string; // External python code
   onPythonCodeChange?: (code: string) => void; // Python code change callback
+  onSaveComplete?: () => void; // Callback after successful save
 }
 
 const PineScriptPanel: React.FC<PineScriptPanelProps> = ({
@@ -27,7 +28,8 @@ const PineScriptPanel: React.FC<PineScriptPanelProps> = ({
   strategyName: externalStrategyName,
   onNameChange,
   pythonCode: externalPythonCode,
-  onPythonCodeChange
+  onPythonCodeChange,
+  onSaveComplete
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [internalStrategyName, setInternalStrategyName] = useState('My Strategy');
@@ -101,13 +103,19 @@ if rsi > 70
   const handleSaveScript = async () => {
     setIsUploading(true);
     try {
-      await saveStrategy({ name: strategyName, script_code: pineScriptCode });
+      await saveStrategy({ 
+        name: strategyName, 
+        script_code: pineScriptCode,
+        python_code: currentPythonCode || undefined 
+      });
       console.log('Pine Script saved successfully');
+      // Notify parent to refresh strategy list
+      onSaveComplete?.();
       setNotification({
         isOpen: true,
         type: 'success',
         title: 'Success',
-        message: 'Strategy saved successfully! Check the Indicators menu.'
+        message: 'Strategy saved successfully! Check the Strategies menu.'
       });
     } catch (error) {
       console.error('Error saving Pine Script:', error);
