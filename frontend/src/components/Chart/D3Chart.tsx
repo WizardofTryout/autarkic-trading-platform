@@ -11,6 +11,10 @@ import IndicatorMatrix from '../IndicatorMatrix';
 import { getMarketData } from '../../services/api';
 import { useBinanceWebSocket } from '../../hooks/useBinanceWebSocket';
 import { LayoutGrid, Info, X } from 'lucide-react';
+import ChartToolbar from './ChartToolbar';
+import FVGOverlay from './FVGOverlay';
+import TrendlineTool, { type Trendline } from './TrendlineTool';
+import { detectFairValueGaps, filterFVGZones, type FVGZone } from '../../utils/fvgDetection';
 
 interface CandlestickData {
     time: string | number;
@@ -64,6 +68,12 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
     const [selectedTimeframe, setSelectedTimeframe] = useState('1h');
     const [isMatrixOpen, setIsMatrixOpen] = useState(false);
     const [isOverlayVisible, setIsOverlayVisible] = useState(true);
+
+    // Chart Tools State
+    const [activeTool, setActiveTool] = useState<string | null>(null);
+    const [showFVG, setShowFVG] = useState(true);
+    const [trendlines, setTrendlines] = useState<Trendline[]>([]);
+    const [fvgZones, setFVGZones] = useState<FVGZone[]>([]);
 
     const { portfolio } = useTradingStore(); // Subscribe to store updates
 
@@ -164,6 +174,18 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
         if (indicatorData.length > 0) {
             const signal = getTradingSignals(indicatorData);
             setTradingSignal(signal);
+
+            // Detect FVG zones
+            const candles = indicatorData.map(d => ({
+                time: d.time,
+                open: d.open,
+                high: d.high,
+                low: d.low,
+                close: d.close
+            }));
+            const allFVGs = detectFairValueGaps(candles);
+            const filteredFVGs = filterFVGZones(allFVGs, false, 10); // Show last 10 unfilled FVGs
+            setFVGZones(filteredFVGs);
         }
     }, [indicatorData]);
 
@@ -807,12 +829,66 @@ const AdvancedFinancialChart: React.FC<AdvancedFinancialChartProps> = ({
 
             {/* Chart */}
             <div className="relative">
+                {/* Chart Toolbar */}
+                <ChartToolbar
+                    activeTool={activeTool}
+                    onToolSelect={(tool) => {
+                        if (tool === 'clear') {
+                            setTrendlines([]);
+                            setActiveTool(null);
+                        } else {
+                            setActiveTool(tool);
+                        }
+                    }}
+                    showFVG={showFVG}
+                    onToggleFVG={() => setShowFVG(!showFVG)}
+                />
+
                 <svg
                     ref={svgRef}
                     width={dimensions.width}
                     height={dimensions.height}
                     className="bg-gray-900"
                 />
+
+                {/* FVG Overlay */}
+                {showFVG && indicatorData.length > 0 && (
+                    <FVGOverlay
+                        fvgZones={fvgZones}
+                        xScale={d3.scaleTime()
+                            .domain(d3.extent(indicatorData.slice(-100), (d: IndicatorData) => d.date) as [Date, Date])
+                            .range([10, dimensions.width - 60])}
+                        yScale={d3.scaleLinear()
+                            .domain(d3.extent(indicatorData.slice(-100), (d: IndicatorData) => Math.max(d.high, d.low)) as [number, number])
+                            .range([dimensions.height - 120, 20])}
+                        width={dimensions.width}
+                        height={dimensions.height}
+                        onFVGClick={(fvg) => console.log('FVG clicked:', fvg)}
+                    />
+                )}
+
+                {/* Trendline Tool */}
+                {indicatorData.length > 0 && (
+                    <TrendlineTool
+                        width={dimensions.width}
+                        height={dimensions.height}
+                        xScale={d3.scaleTime()
+                            .domain(d3.extent(indicatorData.slice(-100), (d: IndicatorData) => d.date) as [Date, Date])
+                            .range([10, dimensions.width - 60])}
+                        yScale={d3.scaleLinear()
+                            .domain(d3.extent(indicatorData.slice(-100), (d: IndicatorData) => Math.max(d.high, d.low)) as [number, number])
+                            .range([dimensions.height - 120, 20])}
+                        isActive={activeTool === 'trendline'}
+                        onTrendlineAdded={(trendline) => {
+                            setTrendlines([...trendlines, trendline]);
+                            setActiveTool(null);
+                        }}
+                        trendlines={trendlines}
+                        onTrendlineRemoved={(id) => {
+                            setTrendlines(trendlines.filter(t => t.id !== id));
+                        }}
+                    />
+                )}
 
                 {/* Trading Signal & Technical Analysis Indicators */}
                 {isOverlayVisible && (
