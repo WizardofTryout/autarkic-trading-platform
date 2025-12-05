@@ -259,6 +259,7 @@ const StrategyBuilderView: React.FC = () => {
                         <div className="flex-1 overflow-hidden">
                             <BacktestPanel
                                 script={currentCode}
+                                pythonCode={pythonCode}
                                 symbol={selectedStrategy ? 'BTC/USDT' : 'BTC/USDT'} // Default or strategy specific
                             />
                         </div>

@@ -7,11 +7,12 @@ import TradeList from './TradeList';
 import SearchableSelect from '../Common/SearchableSelect';
 
 interface BacktestPanelProps {
-    script: string;
+    script: string;  // Pine Script (for backward compatibility)
+    pythonCode?: string;  // AI-generated Python code
     symbol: string;
 }
 
-const BacktestPanel: React.FC<BacktestPanelProps> = ({ script, symbol }) => {
+const BacktestPanel: React.FC<BacktestPanelProps> = ({ script, pythonCode, symbol }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [results, setResults] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
@@ -44,17 +45,23 @@ const BacktestPanel: React.FC<BacktestPanelProps> = ({ script, symbol }) => {
     }, []);
 
     const handleRunBacktest = async () => {
-        let scriptToRun = script;
+        // Determine which code to use
+        let codeToRun = pythonCode;
+        let selectedPythonCode = '';
 
         if (selectedStrategyId) {
             const selected = strategies.find(s => s.id === selectedStrategyId);
             if (selected) {
-                scriptToRun = selected.source_code;
+                selectedPythonCode = selected.python_code || '';
+                codeToRun = selectedPythonCode;
             }
         }
 
-        if (!scriptToRun) {
-            setError("Please enter a Pine Script strategy or select one from the list.");
+        // Validation: Python code must exist
+        if (!codeToRun) {
+            setError(
+                "No Python code available. Please click 'Generate Engine' in the Pine Script Editor first to transpile your strategy to Python."
+            );
             return;
         }
 
@@ -64,7 +71,7 @@ const BacktestPanel: React.FC<BacktestPanelProps> = ({ script, symbol }) => {
 
         try {
             const data = await runBacktest({
-                script: scriptToRun,
+                python_code: codeToRun,  // Changed from 'script' to 'python_code'
                 symbol: backtestSymbol,
                 timeframe,
                 start_date: new Date(startDate).toISOString(),

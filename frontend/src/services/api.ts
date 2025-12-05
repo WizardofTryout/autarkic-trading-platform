@@ -492,7 +492,7 @@ export const updateUserPreferences = async (preferences: any) => {
 };
 
 export const runBacktest = async (params: {
-    script: string;
+    python_code: string;  // Changed from 'script' to 'python_code'
     symbol: string;
     timeframe: string;
     start_date: string;
