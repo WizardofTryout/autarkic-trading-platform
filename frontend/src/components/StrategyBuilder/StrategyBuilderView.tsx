@@ -12,6 +12,7 @@ const StrategyBuilderView: React.FC = () => {
     const [activeStrategies, setActiveStrategies] = useState<ActiveStrategy[]>([]);
     const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
     const [currentCode, setCurrentCode] = useState('//@version=5\nstrategy("My Strategy", overlay=true)\n\n// Your code here');
+    const [pythonCode, setPythonCode] = useState('');
     const [isChatOpen, setIsChatOpen] = useState(true);
     const [showActivationModal, setShowActivationModal] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -50,6 +51,7 @@ const StrategyBuilderView: React.FC = () => {
         setSelectedStrategy(strategy);
         setCurrentCode(strategy.source_code);
         setStrategyName(strategy.name);
+        setPythonCode(strategy.python_code || '');
     };
 
     const handleSave = async () => {
@@ -61,7 +63,8 @@ const StrategyBuilderView: React.FC = () => {
             if (selectedStrategy) {
                 await updateStrategy(selectedStrategy.id, {
                     name,
-                    source_code: currentCode
+                    source_code: currentCode,
+                    python_code: pythonCode || undefined
                 });
             } else {
                 const newStrat = await createStrategy({
@@ -241,6 +244,8 @@ const StrategyBuilderView: React.FC = () => {
                             onScriptChange={setCurrentCode}
                             strategyName={strategyName}
                             onNameChange={setStrategyName}
+                            pythonCode={pythonCode}
+                            onPythonCodeChange={setPythonCode}
                             isMaximized={true}
                         />
                     </div>
