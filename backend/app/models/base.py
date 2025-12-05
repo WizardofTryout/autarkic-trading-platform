@@ -46,12 +46,14 @@ class Strategy(Base):
     name = Column(String, nullable=False)
     source_code = Column(String, nullable=False) # Pine-like DSL
     compiled_artifact = Column(LargeBinary) # Executable
+    python_code = Column(String, nullable=True) # AI-generated Python code
     parameters = Column(JSONB, default={})
     status = Column(String, default="draft") # draft, testing, active, disabled
     type = Column(String, default="strategy") # strategy, indicator
     is_favorite = Column(Boolean, default=False)
     category = Column(String, default="Personal")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    compiled_at = Column(DateTime(timezone=True), nullable=True) # When python_code was last generated
     
     user = relationship("User", back_populates="strategies")
     active_instances = relationship("ActiveStrategy", back_populates="strategy", cascade="all, delete-orphan")

@@ -4,6 +4,7 @@ from typing import List, Optional, Any, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.services.pine_transpiler.parser import parse_pine_script
+from app.services.ai_transpiler import transpile_pine_to_python
 from app.models.base import User, Strategy, ActiveStrategy, PaperPosition
 from app.api import deps
 from datetime import datetime
@@ -57,6 +58,8 @@ class StrategyResponse(StrategyBase):
     created_at: datetime
     status: str
     type: str
+    python_code: Optional[str] = None
+    compiled_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -105,6 +108,13 @@ class BacktestResult(BaseModel):
     trades: List[Dict[str, Any]]
     equity_curve: List[Dict[str, Any]]
     error: Optional[str] = None
+
+class TranspileRequest(BaseModel):
+    pine_script: str
+
+class TranspileResponse(BaseModel):
+    python_code: str
+    status: str
 
 # --- Endpoints ---
 
@@ -181,6 +191,40 @@ async def delete_strategy(
     await db.delete(strategy)
     await db.commit()
     return {"message": "Strategy deleted"}
+
+# --- AI Transpiler Endpoint ---
+
+@router.post("/transpile", response_model=TranspileResponse)
+async def transpile_strategy(
+    request: TranspileRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    """
+    Transpile Pine Script to Python using Gemini AI.
+    
+    This endpoint converts Pine Script DSL code into executable Python code
+    that can be used for backtesting and strategy execution.
+    """
+    try:
+        python_code = await transpile_pine_to_python(
+            user_id=current_user.id,
+            pine_script=request.pine_script,
+            db=db
+        )
+        
+        return TranspileResponse(
+            python_code=python_code,
+            status="success"
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions from the service
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Transpilation failed: {str(e)}"
+        )
 
 # --- Activation Endpoints ---
 

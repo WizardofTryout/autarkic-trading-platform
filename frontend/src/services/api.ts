@@ -17,6 +17,8 @@ export interface Strategy {
     status: string;
     created_at: string;
     type: 'strategy' | 'indicator';
+    python_code?: string;
+    compiled_at?: string;
 }
 
 export interface ActiveStrategy {
@@ -371,6 +373,25 @@ export const deleteActiveStrategy = async (activeId: string) => {
 export const compileStrategy = async (script: string) => {
     const response = await api.post('/strategies/compile', { script });
     return response;
+};
+
+// --- AI Transpiler ---
+
+export const transpilePineScript = async (pineScript: string): Promise<{ python_code: string; status: string }> => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${API_BASE}/strategies/transpile`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ pine_script: pineScript }),
+    });
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'Failed to transpile Pine Script');
+    }
+    return response.json();
 };
 
 export const requestPasswordReset = async (email: string) => {
