@@ -141,13 +141,30 @@ def execute_python_code(
         with execution_timeout(timeout_seconds):
             exec(code, restricted_globals, local_namespace)
         
-        # Extract results
-        # Look for 'df' or 'result' in local namespace
-        result_df = local_namespace.get('df')
-        if result_df is None:
-            result_df = local_namespace.get('result')
+        # Check if calculate() function was defined and call it
+        if 'calculate' in local_namespace and callable(local_namespace['calculate']):
+            input_df = data.get('df')
+            if input_df is not None and isinstance(input_df, pd.DataFrame):
+                # Call the calculate function with the input DataFrame
+                result_df = local_namespace['calculate'](input_df)
+            else:
+                result_df = None
+        else:
+            # Fallback: Look for 'df' or 'result' in local namespace
+            result_df = local_namespace.get('df')
+            if result_df is None:
+                result_df = local_namespace.get('result')
         
         if result_df is not None and isinstance(result_df, pd.DataFrame):
+            # Convert any Timestamp columns to strings for JSON serialization
+            for col in result_df.columns:
+                if pd.api.types.is_datetime64_any_dtype(result_df[col]):
+                    result_df[col] = result_df[col].astype(str)
+                elif result_df[col].dtype == 'object':
+                    result_df[col] = result_df[col].apply(
+                        lambda x: x.isoformat() if hasattr(x, 'isoformat') else x
+                    )
+            
             return {
                 'success': True,
                 'data': result_df.to_dict(orient='records'),

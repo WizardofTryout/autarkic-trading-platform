@@ -61,7 +61,7 @@ export const saveSettings = async (settings: Settings) => {
     return response.json();
 };
 
-export const saveStrategy = async (strategy: { name: string; script_code: string }) => {
+export const saveStrategy = async (strategy: { name: string; script_code: string; python_code?: string }) => {
     const token = useAuthStore.getState().token;
     const response = await fetch(`${API_BASE}/strategies/save`, {
         method: 'POST',
@@ -69,7 +69,11 @@ export const saveStrategy = async (strategy: { name: string; script_code: string
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ script: strategy.script_code }),
+        body: JSON.stringify({ 
+            script: strategy.script_code,
+            name: strategy.name,
+            python_code: strategy.python_code 
+        }),
     });
     if (!response.ok) throw new Error('Failed to save strategy');
     return response.json();
