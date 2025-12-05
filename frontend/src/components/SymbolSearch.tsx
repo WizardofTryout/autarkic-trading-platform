@@ -20,7 +20,7 @@ const SymbolSearch: React.FC = () => {
         }
     }, []);
 
-    useBinanceWebSocket(symbol, '1m', handlePriceUpdate);
+    useBinanceWebSocket(symbol, '1m', handlePriceUpdate, { skipStateUpdate: true });
 
     useEffect(() => {
         const fetchSymbols = async () => {

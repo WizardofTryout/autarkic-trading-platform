@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Save, Trash2, Play, Code, MessageSquare, Layout, Star } from 'lucide-react';
+import { Plus, Save, Trash2, Play, MessageSquare, Layout, Star } from 'lucide-react';
 import PineScriptPanel from '../PineScriptPanel';
 import BacktestPanel from '../Backtest/BacktestPanel';
 import ChatPanel from '../AIAssistant/ChatPanel';
@@ -15,6 +15,8 @@ const StrategyBuilderView: React.FC = () => {
     const [isChatOpen, setIsChatOpen] = useState(true);
     const [showActivationModal, setShowActivationModal] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; strategyId: string | null; strategyName: string }>({ show: false, strategyId: null, strategyName: '' });
+    const [strategyName, setStrategyName] = useState('My Strategy');
 
     useEffect(() => {
         loadStrategies();
@@ -47,14 +49,14 @@ const StrategyBuilderView: React.FC = () => {
     const handleSelectStrategy = (strategy: Strategy) => {
         setSelectedStrategy(strategy);
         setCurrentCode(strategy.source_code);
+        setStrategyName(strategy.name);
     };
 
     const handleSave = async () => {
         setLoading(true);
         try {
-            // Extract name from code
-            const nameMatch = currentCode.match(/strategy\("([^"]+)"/);
-            const name = nameMatch ? nameMatch[1] : (selectedStrategy?.name || "New Strategy");
+            // Use the strategyName from state (set via PineScriptPanel input)
+            const name = strategyName || "New Strategy";
 
             if (selectedStrategy) {
                 await updateStrategy(selectedStrategy.id, {
@@ -78,14 +80,20 @@ const StrategyBuilderView: React.FC = () => {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure?')) return;
+    const handleDeleteClick = (id: string, name: string) => {
+        setDeleteConfirm({ show: true, strategyId: id, strategyName: name });
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!deleteConfirm.strategyId) return;
         try {
-            await deleteStrategy(id);
-            if (selectedStrategy?.id === id) handleNewStrategy();
+            await deleteStrategy(deleteConfirm.strategyId);
+            if (selectedStrategy?.id === deleteConfirm.strategyId) handleNewStrategy();
             await loadStrategies();
+            setDeleteConfirm({ show: false, strategyId: null, strategyName: '' });
         } catch (err) {
-            console.error(err);
+            console.error('Failed to delete strategy:', err);
+            setDeleteConfirm({ show: false, strategyId: null, strategyName: '' });
         }
     };
 
@@ -156,10 +164,10 @@ const StrategyBuilderView: React.FC = () => {
                                 <div className="text-xs text-gray-500 pl-6">{new Date(s.created_at).toLocaleDateString()}</div>
                             </div>
                             <button
-                                onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
+                                onClick={(e) => { e.stopPropagation(); handleDeleteClick(s.id, s.name); }}
                                 className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-400"
                             >
-                                <Trash2 className="w-3 h-3" />
+                                <Trash2 className="w-4 h-4" />
                             </button>
                         </div>
                     ))}
@@ -231,6 +239,8 @@ const StrategyBuilderView: React.FC = () => {
                         <PineScriptPanel
                             script={currentCode}
                             onScriptChange={setCurrentCode}
+                            strategyName={strategyName}
+                            onNameChange={setStrategyName}
                             isMaximized={true}
                         />
                     </div>
@@ -279,6 +289,33 @@ const StrategyBuilderView: React.FC = () => {
                     />
                 )
             }
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirm.show && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 border border-gray-700">
+                        <h3 className="text-lg font-bold text-white mb-4">Delete Strategy</h3>
+                        <p className="text-gray-300 mb-6">
+                            Are you sure you want to delete <span className="font-bold text-blue-400">{deleteConfirm.strategyName}</span>?
+                            This action cannot be undone.
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={() => setDeleteConfirm({ show: false, strategyId: null, strategyName: '' })}
+                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDeleteConfirm}
+                                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-colors"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

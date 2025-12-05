@@ -137,6 +137,7 @@ class PaperTradingService:
                 trailing_percent=Decimal(str(trailing_percent)) if trailing_percent else None
             )
             self.db.add(order)
+            await self.db.flush()  # Generate order.id before creating trade
             
             # Create Trade
             fee_rate = Decimal("0.001") # 0.1% fee
@@ -144,7 +145,7 @@ class PaperTradingService:
             
             trade = PaperTrade(
                 account_id=account.id,
-                order_id=order.id,
+                order_id=order.id,  # Now order.id is populated
                 symbol=symbol,
                 side=side.upper(),
                 price=current_price,
