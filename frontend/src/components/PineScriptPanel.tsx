@@ -336,7 +336,7 @@ if rsi > 70
         )}
       </div>
 
-      <div className="border-t border-gray-700 p-3 sm:p-4 flex-shrink-0 bg-gray-800">
+      <div className="border-t border-gray-700 p-3 sm:p-4 flex-shrink-0 bg-gray-800 z-10 relative">
         <div className="flex flex-wrap gap-2 sm:gap-4 justify-end">
           <input
             type="file"

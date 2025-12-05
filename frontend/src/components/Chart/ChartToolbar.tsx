@@ -32,7 +32,7 @@ const ChartToolbar: React.FC<ChartToolbarProps> = ({
     ];
 
     return (
-        <div className="absolute left-4 top-20 z-10 bg-gray-800 rounded-lg shadow-xl border border-gray-700 p-2 flex flex-col gap-2">
+        <div className="absolute left-4 top-20 z-50 bg-gray-800 rounded-lg shadow-xl border border-gray-700 p-2 flex flex-col gap-2">
             {/* Drawing Tools */}
             {tools.map((tool) => {
                 const Icon = tool.icon;
@@ -43,8 +43,8 @@ const ChartToolbar: React.FC<ChartToolbarProps> = ({
                         key={tool.id}
                         onClick={() => onToolSelect(isActive ? null : tool.id)}
                         className={`p-2 rounded transition-colors group relative ${isActive
-                                ? 'bg-blue-600 text-white'
-                                : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-400 hover:bg-gray-700 hover:text-white'
                             }`}
                         title={tool.label}
                     >
@@ -65,8 +65,8 @@ const ChartToolbar: React.FC<ChartToolbarProps> = ({
             <button
                 onClick={onToggleFVG}
                 className={`p-2 rounded transition-colors group relative ${showFVG
-                        ? 'bg-purple-600 text-white'
-                        : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                    ? 'bg-purple-600 text-white'
+                    : 'text-gray-400 hover:bg-gray-700 hover:text-white'
                     }`}
                 title="Fair Value Gaps"
             >
