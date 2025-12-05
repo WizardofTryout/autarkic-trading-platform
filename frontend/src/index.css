@@ -18,3 +18,18 @@
     font-style: normal;
     border-radius: 0 0.375rem 0.375rem 0;
 }
+
+/* Shimmer animation for progress bars */
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+.animate-shimmer {
+    animation: shimmer 2s infinite;
+}

@@ -6,6 +6,7 @@ import { python } from '@codemirror/lang-python';
 import { vscodeDark } from '@uiw/codemirror-theme-vscode';
 import { Maximize2, Minimize2, Lock, Unlock } from 'lucide-react';
 import { NotificationModal } from './Common/NotificationModal';
+import TranspilationProgress from './Common/TranspilationProgress';
 
 interface PineScriptPanelProps {
   isMaximized?: boolean;
@@ -380,6 +381,9 @@ if rsi > 70
         message={notification.message}
         onClose={() => setNotification({ ...notification, isOpen: false })}
       />
+
+      {/* Transpilation Progress Modal */}
+      <TranspilationProgress isOpen={isTranspiling} />
     </div>
   );
 };
