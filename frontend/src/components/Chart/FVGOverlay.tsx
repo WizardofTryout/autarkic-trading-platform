@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import { FVGZone } from '../../utils/fvgDetection';
+import type { FVGZone } from '../../utils/fvgDetection';
 
 interface FVGOverlayProps {
     fvgZones: FVGZone[];
