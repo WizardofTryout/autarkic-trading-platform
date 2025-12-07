@@ -10,9 +10,107 @@
 
 import React, { useEffect, useRef } from 'react';
 import { KLineChartPro } from '@klinecharts/pro';
+import { registerLocale } from 'klinecharts';
 import '@klinecharts/pro/dist/klinecharts-pro.css';
 import { binanceDatafeed } from '../../services/BinanceDatafeed';
 import { useTradingStore } from '../../store/tradingStore';
+
+// English translations for KlineCharts Pro UI
+// Source: https://github.com/klinecharts/pro/blob/main/src/i18n/en-US.json
+const enUSLocale = {
+    indicator: 'Indicator',
+    main_indicator: 'Main Indicator',
+    sub_indicator: 'Sub Indicator',
+    setting: 'Setting',
+    timezone: 'Timezone',
+    screenshot: 'Screenshot',
+    full_screen: 'Full Screen',
+    exit_full_screen: 'Exit',
+    save: 'Save',
+    confirm: 'Confirm',
+    cancel: 'Cancel',
+    symbol_search: 'Symbol Search',
+    symbol_code: 'Symbol Code',
+    params_1: 'Parameter 1',
+    params_2: 'Parameter 2',
+    params_3: 'Parameter 3',
+    params_4: 'Parameter 4',
+    params_5: 'Parameter 5',
+    period: 'Period',
+    standard_deviation: 'Standard Deviation',
+    candle_type: 'Candle Type',
+    candle_solid: 'Candle Solid',
+    candle_stroke: 'Candle Stroke',
+    candle_up_stroke: 'Candle Up Stroke',
+    candle_down_stroke: 'Candle Down Stroke',
+    ohlc: 'OHLC',
+    area: 'Area',
+    last_price_show: 'Show Last Price',
+    high_price_show: 'Show Highest Price',
+    low_price_show: 'Show Lowest Price',
+    indicator_last_value_show: "Show Indicator's Last Value",
+    price_axis_type: 'Price Axis Type',
+    normal: 'Normal',
+    percentage: 'Percentage',
+    log: 'Log',
+    reverse_coordinate: 'Reverse Coordinate',
+    grid_show: 'Show Grids',
+    restore_default: 'Restore Defaults',
+    // Drawing tools
+    horizontal_straight_line: 'Horizontal Line',
+    horizontal_ray_line: 'Horizontal Ray',
+    vertical_straight_line: 'Vertical Line',
+    straight_line: 'Trend Line',
+    ray_line: 'Ray',
+    segment: 'Segment',
+    arrow: 'Arrow',
+    price_line: 'Price Line',
+    parallel_straight_line: 'Parallel Line',
+    fibonacci_line: 'Fibonacci Line',
+    fibonacci_segment: 'Fibonacci Segment',
+    fibonacci_circle: 'Fibonacci Circle',
+    fibonacci_extension: 'Fibonacci Extension',
+    rect: 'Rectangle',
+    circle: 'Circle',
+    triangle: 'Triangle',
+    three_waves: 'Three Waves',
+    five_waves: 'Five Waves',
+    eight_waves: 'Eight Waves',
+    // Indicators
+    ma: 'MA (Moving Average)',
+    ema: 'EMA (Exponential Moving Average)',
+    sma: 'SMA',
+    boll: 'BOLL (Bollinger Bands)',
+    sar: 'SAR (Stop and Reverse)',
+    vol: 'VOL (Volume)',
+    macd: 'MACD',
+    kdj: 'KDJ',
+    rsi: 'RSI (Relative Strength Index)',
+    cci: 'CCI (Commodity Channel Index)',
+    dmi: 'DMI (Directional Movement Index)',
+    obv: 'OBV (On Balance Volume)',
+    wr: 'WR (Williams %R)',
+    roc: 'ROC (Rate of Change)',
+    ao: 'AO (Awesome Oscillator)',
+    // Time units (for core chart)
+    time: 'Time',
+    open: 'Open',
+    high: 'High',
+    low: 'Low',
+    close: 'Close',
+    volume: 'Volume',
+    turnover: 'Turnover',
+    second: 'Second',
+    minute: 'Minute',
+    hour: 'Hour',
+    day: 'Day',
+    week: 'Week',
+    month: 'Month',
+    year: 'Year',
+};
+
+// Register locale with core klinecharts
+registerLocale('en-US', enUSLocale);
 
 interface KlineChartProProps {
     symbol?: string;
