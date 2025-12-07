@@ -33,3 +33,35 @@
 .animate-shimmer {
     animation: shimmer 2s infinite;
 }
+
+/* KlineCharts Pro Container Fixes - Force containment within parent */
+.klinechart-wrapper {
+    position: relative !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+}
+
+/* Target all direct children of our wrapper */
+.klinechart-wrapper>* {
+    max-height: 100% !important;
+    overflow: hidden !important;
+}
+
+/* KlineCharts generates nested divs - contain them all */
+.klinechart-wrapper div[style*="height"] {
+    max-height: 100% !important;
+}
+
+/* Fix for the main chart area */
+.flex-1.min-h-0>.klinechart-wrapper {
+    height: 100% !important;
+    max-height: calc(100vh - 200px) !important;
+}
+
+/* Fix for embedded chart in split layout (Analysis view - 40% height) */
+.h-\[40\%\]>.klinechart-wrapper,
+.h-\[40\%\] .klinechart-wrapper {
+    height: 100% !important;
+    max-height: 100% !important;
+}
