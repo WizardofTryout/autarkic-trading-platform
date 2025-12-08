@@ -7,13 +7,14 @@
  * - registerIndicator() für eigene Strategien
  */
 
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { init, dispose, type Chart, registerLocale } from 'klinecharts';
 import { useTradingStore } from '../../store/tradingStore';
 import { getMarketData } from '../../services/api';
 import ChartSettingsComponent from './ChartSettings';
 import KlineToolbar from './KlineToolbar';
 import IndicatorModal from './IndicatorModal';
+import DrawingToolbar from './DrawingToolbar';
 
 // English locale for chart labels
 registerLocale('en-US', {
@@ -139,6 +140,90 @@ const KlineChartCoreComponent: React.FC<KlineChartCoreProps> = ({ symbol, timefr
     const currentTimeframe = timeframe || storeTimeframe;
 
     const [isIndicatorModalOpen, setIsIndicatorModalOpen] = React.useState(false);
+    const [activeTool, setActiveTool] = useState<string | null>(null);
+    const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
+
+    // Start drawing with selected overlay tool
+    const startDrawing = useCallback((toolName: string) => {
+        if (!chartRef.current) return;
+        setActiveTool(toolName);
+
+        // Create overlay with callbacks for selection tracking
+        const overlayId = chartRef.current.createOverlay({
+            name: toolName,
+            onSelected: (event: any) => {
+                // Track selected overlay ID for deletion
+                if (event && event.overlay && event.overlay.id) {
+                    setSelectedOverlayId(event.overlay.id);
+                }
+            },
+            onDeselected: () => {
+                setSelectedOverlayId(null);
+            },
+        });
+
+        return overlayId;
+    }, []);
+
+    // Clear all user-drawn overlays (keeps position overlays)
+    const clearOverlays = useCallback(() => {
+        if (!chartRef.current) return;
+        // Remove all overlays except position group
+        chartRef.current.removeOverlay();
+        setActiveTool(null);
+    }, []);
+
+    // Toggle overlay visibility
+    const toggleOverlayVisibility = useCallback((visible: boolean) => {
+        if (!chartRef.current) return;
+        // KlineCharts uses setStyles to hide overlays
+        chartRef.current.setStyles({
+            overlay: {
+                point: { color: visible ? '#3B82F6' : 'transparent', borderColor: visible ? '#3B82F6' : 'transparent' },
+                line: { color: visible ? '#3B82F6' : 'transparent' },
+                text: { color: visible ? '#D1D4DC' : 'transparent' },
+            },
+        });
+    }, []);
+
+    // Toggle overlay lock (prevent editing)
+    const toggleOverlayLock = useCallback((locked: boolean) => {
+        if (!chartRef.current) return;
+        // Override overlays to set lock property
+        chartRef.current.overrideOverlay({ lock: locked });
+    }, []);
+
+    // Keyboard handler for Delete/Backspace to remove selected overlay
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!chartRef.current) return;
+
+            // Check if Delete or Backspace is pressed
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                // Don't interfere with text input
+                const target = e.target as HTMLElement;
+                if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                    return;
+                }
+
+                // Remove the selected overlay if there is one
+                if (selectedOverlayId) {
+                    chartRef.current.removeOverlay({ id: selectedOverlayId });
+                    setSelectedOverlayId(null);
+                    e.preventDefault();
+                }
+            }
+
+            // Escape key to cancel drawing mode
+            if (e.key === 'Escape') {
+                setActiveTool(null);
+                setSelectedOverlayId(null);
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [selectedOverlayId]);
 
     // Format symbol for Binance WebSocket
     const formatSymbolForBinance = (sym: string): string => {
@@ -366,21 +451,34 @@ const KlineChartCoreComponent: React.FC<KlineChartCoreProps> = ({ symbol, timefr
 
 
     return (
-        <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'visible' }}>
             <KlineToolbar
                 onAddIndicator={(name: string, isStack: boolean) => addIndicator(name, isStack)}
                 onRemoveIndicator={(name: string, isMain: boolean) => removeIndicator(name, isMain)}
                 onOpenStrategiesModal={() => setIsIndicatorModalOpen(true)}
             />
-            <div
-                ref={containerRef}
-                className="klinechart-core-container"
-                style={{
-                    flex: 1,
-                    width: '100%',
-                    backgroundColor: chartBackgroundColor,
-                }}
-            />
+            <div style={{ flex: 1, position: 'relative', overflow: 'visible' }}>
+                {/* DrawingToolbar uses position:fixed, overlays viewport */}
+                <DrawingToolbar
+                    onSelectTool={startDrawing}
+                    onClearOverlays={clearOverlays}
+                    onToggleVisibility={toggleOverlayVisibility}
+                    onToggleLock={toggleOverlayLock}
+                    activeTool={activeTool}
+                />
+                <div
+                    ref={containerRef}
+                    className="klinechart-core-container"
+                    style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 44, // Space for fixed collapsed toolbar
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: chartBackgroundColor,
+                    }}
+                />
+            </div>
             <ChartSettingsComponent />
             <IndicatorModal
                 isOpen={isIndicatorModalOpen}
