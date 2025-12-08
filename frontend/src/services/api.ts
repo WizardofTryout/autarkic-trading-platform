@@ -1,6 +1,28 @@
 import { useAuthStore } from '../store/authStore';
-// Use relative URL so Vite dev server proxy can intercept and forward to backend
-const API_BASE = '/api/v1';
+
+// Resolve API base URL for browser + Docker compose (frontend:5173, backend:8000)
+// Priority: env override -> dev host on port 5173/4173 -> same-origin
+const resolveApiBase = () => {
+    const envBase = import.meta.env.VITE_BACKEND_URL as string | undefined;
+    if (envBase && envBase.trim()) {
+        return envBase.replace(/\/$/, '') + '/api/v1';
+    }
+
+    if (typeof window !== 'undefined') {
+        const { protocol, hostname, port } = window.location;
+        // When front is served on Vite dev ports, talk to backend on 8000 on same host
+        if (port === '5173' || port === '4173') {
+            return `${protocol}//${hostname}:8000/api/v1`;
+        }
+        // Otherwise same-origin
+        return `${protocol}//${hostname}${port ? `:${port}` : ''}/api/v1`;
+    }
+
+    // Fallback for SSR/build contexts
+    return '/api/v1';
+};
+
+const API_BASE = resolveApiBase();
 
 export interface Settings {
     bitgetApiKey: string;
@@ -436,12 +458,17 @@ export const confirmPasswordReset = async (token: string, newPassword: string) =
 export const api = {
     get: async (endpoint: string) => {
         const token = useAuthStore.getState().token;
-        const response = await fetch(`${API_BASE}${endpoint}`, {
+        const url = `${API_BASE}${endpoint}`;
+        console.log('[api.get] Fetching URL:', url);
+        const response = await fetch(url, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
         });
-        if (!response.ok) throw new Error(`GET ${endpoint} failed`);
+        if (!response.ok) {
+            const text = await response.text().catch(() => '');
+            throw new Error(`GET ${endpoint} failed [${response.status}] ${text || response.statusText}`);
+        }
         return response.json();
     },
     post: async (endpoint: string, data?: any) => {

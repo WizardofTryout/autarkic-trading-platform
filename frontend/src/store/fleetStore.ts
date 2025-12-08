@@ -165,7 +165,18 @@ export const useFleetStore = create<FleetState>((set, get) => ({
             set({ agents: response.agents || [], isLoading: false });
         } catch (error: any) {
             console.error('Failed to fetch agents:', error);
-            set({ error: error.message || 'Failed to fetch agents', isLoading: false });
+            const message = error?.message || 'Failed to fetch agents';
+
+            // If auth failed, force logout so the user can re-login and refresh tokens.
+            if (message.includes('[401]') || message.includes('[403]')) {
+                try {
+                    useAuthStore.getState().logout();
+                } catch (e) {
+                    console.warn('Failed to logout after auth error', e);
+                }
+            }
+
+            set({ error: message, isLoading: false });
         }
     },
 
