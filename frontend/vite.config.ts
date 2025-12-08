@@ -6,6 +6,13 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0', // Allow external access from Docker
+    watch: {
+      usePolling: true, // Required for Docker on macOS/Windows
+    },
+    hmr: {
+      host: 'localhost',
+      port: 5173,
+    },
     proxy: {
       // Proxy API requests to backend - use Docker service name
       '/api': {
