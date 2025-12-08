@@ -85,16 +85,16 @@ class TradingAgentUpdate(BaseModel):
 class TradingAgentResponse(TradingAgentBase):
     """Schema for trading agent response."""
     id: UUID
-    user_id: UUID
-    status: str
-    locked_budget: Decimal
-    session_pnl: Decimal
-    total_trades: int
-    winning_trades: int
-    active_order_id: Optional[UUID]
-    created_at: datetime
-    updated_at: Optional[datetime]
-    last_signal_at: Optional[datetime]
+    user_id: Optional[UUID] = None  # May be missing if created via direct SQL
+    status: str = "PAUSED"
+    locked_budget: Decimal = Decimal("0")
+    session_pnl: Decimal = Decimal("0")
+    total_trades: int = 0
+    winning_trades: int = 0
+    active_order_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    last_signal_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

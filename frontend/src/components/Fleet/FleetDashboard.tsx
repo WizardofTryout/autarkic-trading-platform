@@ -58,8 +58,8 @@ const FleetDashboard: React.FC = () => {
 
     // Calculate fleet stats
     const activeCount = agents.filter(a => ['SCANNING', 'PROPOSING', 'ACTIVE', 'IN_POSITION'].includes(a.status)).length;
-    const totalPnL = agents.reduce((sum, a) => sum + a.session_pnl, 0);
-    const totalBudget = agents.reduce((sum, a) => sum + a.budget, 0);
+    const totalPnL = agents.reduce((sum, a) => sum + (Number(a.session_pnl) || 0), 0);
+    const totalBudget = agents.reduce((sum, a) => sum + (Number(a.budget) || 0), 0);
 
     const handleDelete = async (agentId: string, agentName: string) => {
         if (window.confirm(`Are you sure you want to delete agent "${agentName}"? This will release its budget.`)) {
@@ -238,15 +238,15 @@ const FleetDashboard: React.FC = () => {
                                         </span>
                                     </td>
                                     <td>{renderStatusBadge(agent.status)}</td>
-                                    <td className="agent-budget">${agent.budget.toLocaleString()}</td>
-                                    <td className={`agent-pnl ${agent.session_pnl >= 0 ? 'profit' : 'loss'}`}>
-                                        {agent.session_pnl >= 0 ? '+' : ''}{agent.session_pnl.toFixed(2)}
+                                    <td className="agent-budget">${Number(agent.budget || 0).toLocaleString()}</td>
+                                    <td className={`agent-pnl ${Number(agent.session_pnl) >= 0 ? 'profit' : 'loss'}`}>
+                                        {Number(agent.session_pnl) >= 0 ? '+' : ''}{Number(agent.session_pnl || 0).toFixed(2)}
                                     </td>
                                     <td className="agent-trades">
                                         {agent.winning_trades}/{agent.total_trades}
                                     </td>
                                     <td className="agent-killswitch">
-                                        {agent.max_drawdown_percent}%
+                                        {Number(agent.max_drawdown_percent || 0)}%
                                     </td>
                                     <td>{renderAgentActions(agent)}</td>
                                 </tr>
