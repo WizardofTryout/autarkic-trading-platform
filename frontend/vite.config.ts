@@ -5,11 +5,12 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: '0.0.0.0', // Allow external access from Docker
     proxy: {
       // Proxy API requests to backend to avoid CORS issues in development
-      // Use Docker service name 'backend' since frontend runs in container
+      // Use localhost since browser makes requests (not the container)
       '/api': {
-        target: 'http://backend:8000',
+        target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
       },
