@@ -173,24 +173,36 @@ async def start_agent(
     
     Begins the analysis loop and starts scanning for signals.
     """
-    manager = AgentFleetManager(db)
-    agent = await manager.get_agent(agent_id)
+    import logging
+    logger = logging.getLogger(__name__)
     
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    if agent.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    success = await manager.start_agent(agent_id)
-    
-    if not success:
+    try:
+        manager = AgentFleetManager(db)
+        agent = await manager.get_agent(agent_id)
+        
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        
+        if agent.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        
+        success = await manager.start_agent(agent_id)
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to start agent"
+            )
+        
+        return {"status": "started", "agent_id": str(agent_id)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error starting agent {agent_id}: {type(e).__name__}: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to start agent"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to start agent: {str(e)}"
         )
-    
-    return {"status": "started", "agent_id": str(agent_id)}
 
 
 @router.post("/agents/{agent_id}/pause")
@@ -204,18 +216,30 @@ async def pause_agent(
     
     Stops the analysis loop but keeps budget locked.
     """
-    manager = AgentFleetManager(db)
-    agent = await manager.get_agent(agent_id)
+    import logging
+    logger = logging.getLogger(__name__)
     
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    if agent.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    success = await manager.pause_agent(agent_id)
-    
-    return {"status": "paused", "agent_id": str(agent_id)}
+    try:
+        manager = AgentFleetManager(db)
+        agent = await manager.get_agent(agent_id)
+        
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        
+        if agent.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        
+        success = await manager.pause_agent(agent_id)
+        
+        return {"status": "paused", "agent_id": str(agent_id)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error pausing agent {agent_id}: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to pause agent: {str(e)}"
+        )
 
 
 @router.post("/agents/{agent_id}/stop")
@@ -230,18 +254,30 @@ async def stop_agent(
     
     Optionally releases budget back to paper_account.
     """
-    manager = AgentFleetManager(db)
-    agent = await manager.get_agent(agent_id)
+    import logging
+    logger = logging.getLogger(__name__)
     
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    if agent.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    await manager.stop_agent(agent_id, release_budget=release_budget)
-    
-    return {"status": "stopped", "agent_id": str(agent_id)}
+    try:
+        manager = AgentFleetManager(db)
+        agent = await manager.get_agent(agent_id)
+        
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        
+        if agent.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        
+        await manager.stop_agent(agent_id, release_budget=release_budget)
+        
+        return {"status": "stopped", "agent_id": str(agent_id)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error stopping agent {agent_id}: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to stop agent: {str(e)}"
+        )
 
 
 @router.post("/agents/{agent_id}/approve")
