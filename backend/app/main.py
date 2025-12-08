@@ -1,4 +1,5 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from typing import List
 import json
@@ -12,6 +13,17 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
+# CORS Middleware - MUST be added before routes
+# Using more permissive settings to debug CORS issues
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for debugging
+    allow_credentials=False,  # Must be False when allow_origins is "*"
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 from app.services.background_monitor import monitor_positions
@@ -19,16 +31,6 @@ from app.services.background_monitor import monitor_positions
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(monitor_positions())
-
-from fastapi.middleware.cors import CORSMiddleware
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 class ConnectionManager:

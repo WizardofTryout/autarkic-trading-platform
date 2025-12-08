@@ -1,5 +1,6 @@
 import { useAuthStore } from '../store/authStore';
-const API_BASE = 'http://localhost:8000/api/v1';
+// Use relative URL so Vite dev server proxy can intercept and forward to backend
+const API_BASE = '/api/v1';
 
 export interface Settings {
     bitgetApiKey: string;
