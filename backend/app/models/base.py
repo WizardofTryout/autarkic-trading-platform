@@ -217,3 +217,94 @@ class PaperTrade(Base):
 User.secrets = relationship("UserSecret", back_populates="user", cascade="all, delete-orphan")
 User.documents = relationship("UserDocument", back_populates="user", cascade="all, delete-orphan")
 User.paper_account = relationship("PaperAccount", back_populates="user", uselist=False, cascade="all, delete-orphan")
+
+
+# ===============================
+# AI Trading Fleet Models
+# ===============================
+
+class TradingAgent(Base):
+    """
+    Represents an autonomous trading agent instance.
+    Each agent monitors a specific trading pair and executes trades
+    based on configured strategies and risk parameters.
+    """
+    __tablename__ = "trading_agents"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    name = Column(String(50), nullable=False)  # e.g. "BTC Trend Follower"
+    symbol = Column(String(20), nullable=False)  # e.g. "BTC/USDT"
+    
+    # Mode: PAPER (simulated) or LIVE (real trading)
+    mode = Column(String(10), default="PAPER", nullable=False)
+    
+    # Agent Status: SCANNING, PROPOSING, AWAITING_APPROVAL, ACTIVE, IN_POSITION, COOLDOWN, PAUSED, STOPPED
+    status = Column(String(20), default="PAUSED", nullable=False)
+    
+    # Budget Management (locked from paper_account)
+    budget = Column(Numeric(precision=20, scale=8), default=0, nullable=False)
+    locked_budget = Column(Numeric(precision=20, scale=8), default=0)
+    
+    # Risk Management
+    max_drawdown_percent = Column(Numeric(precision=5, scale=2), default=10.0)  # Kill switch threshold
+    risk_per_trade = Column(Numeric(precision=5, scale=4), default=0.01)  # 1% default
+    min_rr_ratio = Column(Numeric(precision=5, scale=2), default=2.0)  # Min risk-reward ratio
+    
+    # Session Performance
+    session_pnl = Column(Numeric(precision=20, scale=8), default=0)
+    total_trades = Column(Integer, default=0)
+    winning_trades = Column(Integer, default=0)
+    
+    # Strategy Links (Multi-Timeframe)
+    macro_strategy_id = Column(UUID(as_uuid=True), ForeignKey("strategies.id"), nullable=True)
+    micro_strategy_id = Column(UUID(as_uuid=True), ForeignKey("strategies.id"), nullable=True)
+    macro_timeframe = Column(String(10), default="4h")  # Higher timeframe for trend
+    micro_timeframe = Column(String(10), default="15m")  # Lower timeframe for entry
+    
+    # Current Position (if IN_POSITION)
+    active_order_id = Column(UUID(as_uuid=True), ForeignKey("paper_orders.id"), nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    last_signal_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationships
+    user = relationship("User", back_populates="trading_agents")
+    macro_strategy = relationship("Strategy", foreign_keys=[macro_strategy_id])
+    micro_strategy = relationship("Strategy", foreign_keys=[micro_strategy_id])
+    logs = relationship("AgentLog", back_populates="agent", cascade="all, delete-orphan")
+
+
+class AgentLog(Base):
+    """
+    High-frequency log entries for trading agent activity.
+    Stores status updates, visual snapshots, and metadata for audit trails.
+    Cleaned up after 15 days by Celery task.
+    """
+    __tablename__ = "agent_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    agent_id = Column(UUID(as_uuid=True), ForeignKey("trading_agents.id"), nullable=False)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    
+    # Status at time of log
+    status = Column(String(20), nullable=False)  # SCANNING, PROPOSING, etc.
+    
+    # Log message
+    log_text = Column(String, nullable=True)  # e.g. "RSI Divergence detected..."
+    
+    # Visual snapshot for chart overlays (Ghost Lines)
+    visual_snapshot = Column(JSONB, default=[])  # [{"shape": "line", "price": 95000, ...}]
+    
+    # Additional metadata
+    meta_data = Column(JSONB, default={})  # {"price": 98000, "rsi": 32, "macd_signal": "bullish"}
+    
+    # Relationship
+    agent = relationship("TradingAgent", back_populates="logs")
+
+
+# Update User relationship for trading agents
+User.trading_agents = relationship("TradingAgent", back_populates="user", cascade="all, delete-orphan")
+
