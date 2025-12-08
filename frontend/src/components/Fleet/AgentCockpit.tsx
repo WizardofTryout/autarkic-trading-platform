@@ -9,10 +9,11 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { useFleetStore, TradingAgent, AgentLog, VisualOverlay } from '../../store/fleetStore';
+import { useFleetStore } from '../../store/fleetStore';
+import type { TradingAgent, AgentLog } from '../../store/fleetStore';
 import {
     ArrowLeft, Play, Pause, StopCircle, Check, X,
-    RefreshCw, Settings, MessageCircle, Terminal
+    RefreshCw, Terminal
 } from 'lucide-react';
 import './AgentCockpit.css';
 

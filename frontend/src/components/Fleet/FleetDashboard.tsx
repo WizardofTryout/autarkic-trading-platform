@@ -5,8 +5,9 @@
  * Provides controls for deploying, starting, and managing agents.
  */
 
-import React, { useEffect, useState } from 'react';
-import { useFleetStore, TradingAgent, AgentStatus } from '../../store/fleetStore';
+import React, { useEffect } from 'react';
+import { useFleetStore } from '../../store/fleetStore';
+import type { TradingAgent, AgentStatus } from '../../store/fleetStore';
 import { Plus, Play, Pause, StopCircle, Trash2, Eye, RefreshCw, Bot } from 'lucide-react';
 import DeployAgentModal from './DeployAgentModal';
 import AgentCockpit from './AgentCockpit';
