@@ -114,6 +114,47 @@ services:
       backend:
         condition: service_started
 
+  # Celery Worker - Background task processing for AI Fleet
+  celery_worker:
+    build: ../backend
+    container_name: celery_worker
+    restart: unless-stopped
+    command: celery -A app.core.celery_app worker --loglevel=info
+    networks:
+      - app_net
+      - data_net
+    volumes:
+      - ../backend:/app
+    secrets:
+      - db_password
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - POSTGRES_SERVER=ledger-db
+      - POSTGRES_DB=trading_db
+    depends_on:
+      redis:
+        condition: service_healthy
+      ledger-db:
+        condition: service_healthy
+
+  # Celery Beat - Scheduled task runner (log cleanup, etc.)
+  celery_beat:
+    build: ../backend
+    container_name: celery_beat
+    restart: unless-stopped
+    command: celery -A app.core.celery_app beat --loglevel=info
+    networks:
+      - app_net
+    volumes:
+      - ../backend:/app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+      celery_worker:
+        condition: service_started
+
 volumes:
   postgres_data:
   redis_data:
