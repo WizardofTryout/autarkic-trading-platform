@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Activity, Settings, LogOut } from 'lucide-react';
-import KlineChartPro from './components/Chart/KlineChartPro';
+import KlineChartCore from './components/Chart/KlineChartCore';
 import { OrderEntry } from './components/OrderEntry';
 import DocumentViewer from './components/Analysis/DocumentViewer';
 import { BottomPanel } from './components/Layout/BottomPanel';
@@ -183,7 +183,7 @@ function App() {
                       {activeTab === 'chart' ? (
                         <>
                           <div className="flex-1 min-h-0">
-                            <KlineChartPro symbol={symbol} timeframe={timeframe} />
+                            <KlineChartCore symbol={symbol} timeframe={timeframe} />
                           </div>
 
                           {/* Embedded AI Assistant */}
@@ -207,7 +207,7 @@ function App() {
                         // Analysis View: Split Layout (Chart Top 40%, Doc Bottom 60%)
                         <div className="flex-col h-full flex">
                           <div className="h-[40%] border-b border-gray-800 min-h-0">
-                            <KlineChartPro symbol={symbol} timeframe={timeframe} />
+                            <KlineChartCore symbol={symbol} timeframe={timeframe} />
                           </div>
                           <div className="flex-1 min-h-0 overflow-hidden">
                             <DocumentViewer

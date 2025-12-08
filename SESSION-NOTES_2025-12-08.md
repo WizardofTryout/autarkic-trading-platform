@@ -301,3 +301,32 @@ fix: Paper trading position update with correct NULL comparison
 - [KlineCharts Pro Dokumentation](https://pro.klinecharts.com)
 - [KlineCharts Pro en-US.json](https://github.com/klinecharts/pro/blob/main/src/i18n/en-US.json)
 - [SQLAlchemy NULL Comparison](https://docs.sqlalchemy.org/en/20/core/sqlelement.html#sqlalchemy.sql.expression.ColumnElement.is_)
+
+## KlineCharts Core Migration
+**Status**: Completed
+**Ziel**: Entfernung des `@klinecharts/pro` Wrappers für vollen API-Zugriff auf die Chart-Instanz.
+
+### Änderungen
+1.  **Core Component (`KlineChartCore.tsx`)**:
+    *   Neuer React-Wrapper basierend auf `klinecharts` (Core).
+    *   Integration von Position Overlays (Entry, TP, SL) über `chart.createOverlay()`.
+    *   Dark Theme passend zur App-UI.
+    *   WebSocket-Anbindung für Live-Daten via `BinanceDatafeed`.
+
+2.  **Custom Toolbar (`KlineToolbar.tsx`)**:
+    *   Eigene Implementation der Toolbar.
+    *   Features: Timeframe-Buttons (1s - 1d), Indikator-Auswahl, "Custom Strategies" Button.
+    *   Bugfix: Korrektes Hinzufügen und Entfernen von Indikatoren (Pane-Management).
+
+3.  **Indicator System**:
+    *   `IndicatorModal.tsx`: Neues Modal für die Auswahl von Indikatoren.
+    *   Logik zur Unterscheidung zwischen Main- (Overlay) und Sub-Indikatoren (separate Pane).
+
+4.  **Integration**:
+    *   `App.tsx` auf `KlineChartCore` umgestellt.
+
+### Verifikation
+*   Chart rendert korrekt mit Candlesticks.
+*   Timeframe-Wechsel funktioniert.
+*   Indikatoren lassen sich hinzufügen und entfernen (Bugfix bestätigt).
+*   Position Overlays werden angezeigt.
