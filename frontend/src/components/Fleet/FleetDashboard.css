@@ -1,0 +1,347 @@
+/**
+ * Fleet Dashboard Styles
+ * Modern, dark theme matching existing trading platform UI
+ */
+
+.fleet-dashboard {
+    padding: 1.5rem;
+    background: #0f172a;
+    min-height: 100vh;
+    color: #e2e8f0;
+}
+
+/* Header */
+.fleet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.fleet-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.fleet-title h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.ws-indicator {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 9999px;
+}
+
+.ws-indicator.connected {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+}
+
+.ws-indicator.disconnected {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+}
+
+.fleet-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-refresh {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #9ca3af;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-refresh:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #e2e8f0;
+}
+
+.btn-refresh .spinning {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.btn-deploy {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    border: none;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-deploy:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+}
+
+/* Stats Bar */
+.fleet-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-card {
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-top: 0.25rem;
+}
+
+.stat-value.active {
+    color: #22c55e;
+}
+
+.stat-value.profit {
+    color: #22c55e;
+}
+
+.stat-value.loss {
+    color: #ef4444;
+}
+
+/* Error Display */
+.fleet-error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #f87171;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+/* Table Container */
+.agents-table-container {
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+
+/* No Agents State */
+.no-agents {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    color: #64748b;
+    gap: 1rem;
+}
+
+.no-agents p {
+    font-size: 1.125rem;
+}
+
+/* Agents Table */
+.agents-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.agents-table th,
+.agents-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.agents-table th {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: rgba(15, 23, 42, 0.5);
+}
+
+.agents-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.agents-table tbody tr.selected {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+/* Table Cell Styles */
+.agent-name {
+    font-weight: 500;
+    color: #f1f5f9;
+}
+
+.agent-symbol {
+    font-family: 'SF Mono', monospace;
+    color: #60a5fa;
+}
+
+.mode-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-weight: 500;
+}
+
+.mode-badge.paper {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+}
+
+.mode-badge.live {
+    background: rgba(249, 115, 22, 0.2);
+    color: #fb923c;
+}
+
+/* Status Badge */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-weight: 500;
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.agent-budget,
+.agent-killswitch {
+    font-family: 'SF Mono', monospace;
+}
+
+.agent-pnl {
+    font-family: 'SF Mono', monospace;
+    font-weight: 500;
+}
+
+.agent-pnl.profit {
+    color: #22c55e;
+}
+
+.agent-pnl.loss {
+    color: #ef4444;
+}
+
+.agent-trades {
+    color: #94a3b8;
+}
+
+/* Agent Actions */
+.agent-actions {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(255, 255, 255, 0.05);
+    color: #9ca3af;
+}
+
+.action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.action-btn.start:hover {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+}
+
+.action-btn.pause:hover {
+    background: rgba(234, 179, 8, 0.2);
+    color: #eab308;
+}
+
+.action-btn.view:hover {
+    background: rgba(59, 130, 246, 0.2);
+    color: #3b82f6;
+}
+
+.action-btn.stop:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+.action-btn.delete:hover {
+    background: rgba(220, 38, 38, 0.2);
+    color: #dc2626;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .fleet-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .fleet-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .agents-table-container {
+        overflow-x: auto;
+    }
+}
