@@ -161,3 +161,16 @@ body>div[class*="dropdown"] {
     visibility: hidden !important;
     opacity: 0 !important;
 }
+
+/* ===========================================
+   DrawingToolbar Overlay Support
+   Toolbar is positioned absolute inside chart container
+   =========================================== */
+.klinechart-core-container {
+    overflow: visible !important;
+}
+
+/* Ensure submenus can overflow */
+.drawing-toolbar .tool-submenu {
+    z-index: 10000 !important;
+}
