@@ -14,6 +14,7 @@ import { registerLocale } from 'klinecharts';
 import '@klinecharts/pro/dist/klinecharts-pro.css';
 import { binanceDatafeed } from '../../services/BinanceDatafeed';
 import { useTradingStore } from '../../store/tradingStore';
+import ChartSettingsComponent from './ChartSettings';
 
 // English translations for KlineCharts Pro UI
 // Source: https://github.com/klinecharts/pro/blob/main/src/i18n/en-US.json
@@ -119,14 +120,19 @@ interface KlineChartProProps {
     onTimeframeChange?: (timeframe: string) => void;
 }
 
-// Verfügbare Perioden/Timeframes
+// Verfügbare Perioden/Timeframes (inkl. Sekunden-Intervalle)
 const periods = [
+    // Sekunden (Binance unterstützt nur 1s für WebSocket)
+    { multiplier: 1, timespan: 'second', text: '1s' },
+    // Minuten
     { multiplier: 1, timespan: 'minute', text: '1m' },
     { multiplier: 5, timespan: 'minute', text: '5m' },
     { multiplier: 15, timespan: 'minute', text: '15m' },
     { multiplier: 30, timespan: 'minute', text: '30m' },
+    // Stunden
     { multiplier: 1, timespan: 'hour', text: '1h' },
     { multiplier: 4, timespan: 'hour', text: '4h' },
+    // Tage/Wochen
     { multiplier: 1, timespan: 'day', text: '1D' },
     { multiplier: 1, timespan: 'week', text: '1W' },
 ];
@@ -145,7 +151,7 @@ const KlineChartProComponent: React.FC<KlineChartProProps> = ({
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<KLineChartPro | null>(null);
-    const { setSymbol, setTimeframe } = useTradingStore();
+    const { setSymbol, setTimeframe, chartBackgroundColor, chartTextColor } = useTradingStore();
 
     // Chart initialisieren - wird bei Symbol/Timeframe-Änderung neu erstellt
     useEffect(() => {
@@ -218,7 +224,7 @@ const KlineChartProComponent: React.FC<KlineChartProProps> = ({
                         color: 'rgba(75, 85, 99, 0.5)',
                     },
                     tickText: {
-                        color: '#9CA3AF',
+                        color: chartTextColor,
                     },
                 },
                 yAxis: {
@@ -226,7 +232,7 @@ const KlineChartProComponent: React.FC<KlineChartProProps> = ({
                         color: 'rgba(75, 85, 99, 0.5)',
                     },
                     tickText: {
-                        color: '#9CA3AF',
+                        color: chartTextColor,
                     },
                 },
                 crosshair: {
@@ -277,13 +283,48 @@ const KlineChartProComponent: React.FC<KlineChartProProps> = ({
             }
             chartRef.current = null;
         };
-    }, [symbol, timeframe]); // Neu erstellen wenn Symbol oder Timeframe sich ändert
+    }, [symbol, timeframe, chartTextColor]); // Neu erstellen wenn Symbol, Timeframe oder Textfarbe sich ändert
+
+    // Update background color when it changes
+    useEffect(() => {
+        if (containerRef.current) {
+            containerRef.current.style.backgroundColor = chartBackgroundColor;
+            // Set CSS custom properties for toolbar styling
+            containerRef.current.style.setProperty('--chart-bg-color', chartBackgroundColor);
+        }
+    }, [chartBackgroundColor]);
+
+    // Update text color CSS variable when it changes
+    useEffect(() => {
+        if (containerRef.current) {
+            containerRef.current.style.setProperty('--chart-text-color', chartTextColor);
+        }
+    }, [chartTextColor]);
 
     return (
         <div
-            ref={containerRef}
-            className="klinechart-wrapper w-full h-full bg-gray-900 overflow-hidden"
-        />
+            className="relative w-full h-full"
+            style={{
+                '--chart-bg-color': chartBackgroundColor,
+                '--chart-text-color': chartTextColor,
+            } as React.CSSProperties}
+        >
+            {/* Chart Container */}
+            <div
+                ref={containerRef}
+                className="klinechart-wrapper w-full h-full overflow-hidden"
+                style={{
+                    backgroundColor: chartBackgroundColor,
+                    '--chart-bg-color': chartBackgroundColor,
+                    '--chart-text-color': chartTextColor,
+                } as React.CSSProperties}
+            />
+
+            {/* Settings Icon - positioned in top right */}
+            <div className="absolute top-2 right-2 z-10">
+                <ChartSettingsComponent />
+            </div>
+        </div>
     );
 };
 

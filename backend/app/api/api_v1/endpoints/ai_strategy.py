@@ -22,7 +22,7 @@ class StrategyGenResponse(BaseModel):
 
 
 # ============= PINE SCRIPT SYSTEM PROMPT =============
-PINESCRIPT_SYSTEM_PROMPT = """You are an expert Pine Script v5 Developer.
+PINESCRIPT_SYSTEM_PROMPT = """You are an expert Pine Script v5 and v6 Developer.
 Your task is to generate valid, compilable Pine Script code based on the user's description.
 
 Rules:

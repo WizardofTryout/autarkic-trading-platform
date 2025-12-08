@@ -43,17 +43,30 @@ interface TradingState {
     currentAnalysis: string | null;
     portfolio: Portfolio | null;
     activeStrategies: any[]; // Using any[] for now to avoid circular dependency with api.ts types
+    chartBackgroundColor: string; // Chart background color preference
+    chartTextColor: string; // Chart text color preference
 
     setSymbol: (symbol: string) => void;
     setTimeframe: (timeframe: string) => void;
     setCurrentPrice: (price: number) => void;
     setCurrentAnalysis: (analysis: string | null) => void;
+    setChartBackgroundColor: (color: string) => void;
+    setChartTextColor: (color: string) => void;
 
     fetchPortfolio: () => Promise<void>;
     fetchActiveStrategies: () => Promise<void>;
     placeOrder: (symbol: string, side: 'buy' | 'sell', amount: number, leverage: number, type?: 'MARKET' | 'LIMIT', price?: number, stopLoss?: number, takeProfit?: number, isTrailingStop?: boolean, trailingPercent?: number) => Promise<void>;
     resetAccount: () => Promise<void>;
 }
+
+// Load saved chart colors from localStorage
+const savedChartBgColor = typeof window !== 'undefined'
+    ? localStorage.getItem('chartBackgroundColor') || '#111827'
+    : '#111827';
+
+const savedChartTextColor = typeof window !== 'undefined'
+    ? localStorage.getItem('chartTextColor') || '#9CA3AF'
+    : '#9CA3AF';
 
 export const useTradingStore = create<TradingState>((set, get) => ({
     symbol: 'BTC/USDT',
@@ -62,11 +75,21 @@ export const useTradingStore = create<TradingState>((set, get) => ({
     currentAnalysis: null,
     portfolio: null,
     activeStrategies: [],
+    chartBackgroundColor: savedChartBgColor,
+    chartTextColor: savedChartTextColor,
 
     setSymbol: (symbol) => set({ symbol }),
     setTimeframe: (timeframe) => set({ timeframe }),
     setCurrentPrice: (price) => set({ currentPrice: price }),
     setCurrentAnalysis: (analysis) => set({ currentAnalysis: analysis }),
+    setChartBackgroundColor: (color) => {
+        localStorage.setItem('chartBackgroundColor', color);
+        set({ chartBackgroundColor: color });
+    },
+    setChartTextColor: (color) => {
+        localStorage.setItem('chartTextColor', color);
+        set({ chartTextColor: color });
+    },
 
     fetchPortfolio: async () => {
         try {
