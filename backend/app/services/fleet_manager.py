@@ -136,9 +136,12 @@ class AgentFleetManager:
             logger.error(f"Agent {agent_id} not found")
             return False
         
+        # If an instance exists (paused), resume it instead of failing
         if agent_id in self._active_agents:
-            logger.warning(f"Agent {agent_id} already running")
-            return False
+            instance = self._active_agents[agent_id]
+            await instance.start()
+            await self._update_agent_status(agent_id, AgentStatus.SCANNING.value)
+            return True
         
         # Get strategy code
         macro_code = None
