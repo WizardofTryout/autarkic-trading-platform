@@ -69,6 +69,8 @@ services:
     environment:
       - POSTGRES_SERVER=ledger-db
       - POSTGRES_DB=trading_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
 
   strategy-engine:
     build: ../strategy-engine
@@ -105,6 +107,7 @@ services:
     restart: unless-stopped
     networks:
       - public_net
+      - app_net
     ports:
       - "5173:5173"
     volumes:

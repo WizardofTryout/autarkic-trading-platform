@@ -214,15 +214,24 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     },
 
     pauseAgent: async (agentId: string) => {
+        console.log('[fleetStore] pauseAgent called for:', agentId);
         try {
-            await api.post(`/fleet/agents/${agentId}/pause`);
+            console.log('[fleetStore] Sending POST to:', `/fleet/agents/${agentId}/pause`);
+            const response = await api.post(`/fleet/agents/${agentId}/pause`);
+            console.log('[fleetStore] Pause response:', response);
             set(state => ({
                 agents: state.agents.map(a =>
                     a.id === agentId ? { ...a, status: 'PAUSED' as AgentStatus } : a
                 )
             }));
         } catch (error: any) {
-            console.error('Failed to pause agent:', error);
+            console.error('[fleetStore] Failed to pause agent:', error);
+            console.error('[fleetStore] Error details:', {
+                message: error.message,
+                response: error.response,
+                status: error.response?.status,
+                data: error.response?.data
+            });
             throw error;
         }
     },
