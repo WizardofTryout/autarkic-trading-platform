@@ -65,3 +65,84 @@
     height: 100% !important;
     max-height: 100% !important;
 }
+
+/* ===========================================
+   KlineCharts Pro Toolbar Dark Theme Overrides
+   
+   Diese Regeln überschreiben die Standard-Toolbar
+   von KlineCharts Pro für ein dunkles Theme.
+   Die Farben werden via CSS Custom Properties gesteuert.
+   =========================================== */
+
+/* AGGRESSIVE: Alle Texte innerhalb des Chart-Containers */
+.klinechart-wrapper span,
+.klinechart-wrapper button,
+.klinechart-wrapper div,
+.klinechart-wrapper a,
+.klinechart-wrapper p {
+    color: var(--chart-text-color, #9CA3AF) !important;
+}
+
+/* SVG Icons */
+.klinechart-wrapper svg {
+    color: var(--chart-text-color, #9CA3AF) !important;
+    fill: var(--chart-text-color, #9CA3AF) !important;
+}
+
+.klinechart-wrapper svg path {
+    fill: var(--chart-text-color, #9CA3AF) !important;
+    stroke: var(--chart-text-color, #9CA3AF) !important;
+}
+
+/* Aktive/Ausgewählte Elemente (der aktuell aktive Timeframe Button) */
+.klinechart-wrapper [class*="active"],
+.klinechart-wrapper [class*="selected"],
+.klinechart-wrapper [aria-selected="true"],
+.klinechart-wrapper [data-active="true"] {
+    color: #ffffff !important;
+    background-color: rgba(99, 102, 241, 0.4) !important;
+}
+
+/* Hover-Effekte für interaktive Elemente */
+.klinechart-wrapper button:hover,
+.klinechart-wrapper [role="button"]:hover,
+.klinechart-wrapper span:hover {
+    color: #ffffff !important;
+    background-color: rgba(75, 85, 99, 0.5) !important;
+}
+
+/* Hintergrund für alle Container-Elemente */
+.klinechart-wrapper>div,
+.klinechart-wrapper>div>div {
+    background-color: var(--chart-bg-color, #111827) !important;
+}
+
+/* Dropdown/Popup-Menüs die möglicherweise außerhalb des Containers gerendert werden */
+[class*="klinechart"] [class*="dropdown"],
+[class*="klinechart"] [class*="popup"],
+[class*="klinechart"] [class*="menu"],
+[class*="klinechart"] [class*="modal"],
+[class*="klinechart"] [class*="dialog"],
+body>div[class*="popup"],
+body>div[class*="dropdown"] {
+    background-color: #1f2937 !important;
+    border-color: rgba(75, 85, 99, 0.5) !important;
+    color: var(--chart-text-color, #9CA3AF) !important;
+}
+
+/* Spezifisch für die Toolbar-Zeile (erste Reihe) */
+.klinechart-wrapper>div>div:first-child {
+    border-bottom: 1px solid rgba(75, 85, 99, 0.5) !important;
+}
+
+/* MA-Werte und andere bunte Indikatoren-Labels behalten ihre Farbe */
+.klinechart-wrapper [style*="color: rgb("] {
+    /* Überschreibung zurücksetzen für inline-gestylte farbige Elemente */
+}
+
+/* Input-Felder innerhalb des Charts */
+.klinechart-wrapper input {
+    background-color: #374151 !important;
+    color: var(--chart-text-color, #9CA3AF) !important;
+    border-color: rgba(75, 85, 99, 0.5) !important;
+}
