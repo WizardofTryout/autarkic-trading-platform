@@ -178,13 +178,13 @@ Dieses Dokument beschreibt die schrittweise Implementierung des AI Trading Fleet
 
 ---
 
-## Phase 2: Backend Core Logic
+## Phase 2: Backend Core Logic ✅
 **Dauer:** ~1.5 Wochen  
-**Status:** [ ] Nicht gestartet  
+**Status:** [x] ABGESCHLOSSEN (2025-12-08)  
 **Abhängigkeit:** Phase 1 abgeschlossen
 
 ### 2.1 Trading Agent Core Class
-- [ ] **2.1.1** `TradingAgentInstance` Klasse erstellen
+- [x] **2.1.1** `TradingAgentInstance` Klasse erstellen
   - **File:** `backend/app/services/trading_agent_instance.py`
   - **Properties:**
     - `agent_id`, `mode`, `symbol`, `status`
@@ -195,45 +195,45 @@ Dieses Dokument beschreibt die schrittweise Implementierung des AI Trading Fleet
     - `analyze_macro()`, `analyze_micro()`
     - `calculate_position_size()`, `validate_rr()`
 
-- [ ] **2.1.2** Multi-Timeframe Data Fetcher
+- [x] **2.1.2** Multi-Timeframe Data Fetcher (integriert in TradingAgentInstance)
   - **File:** `backend/app/services/mtf_data_service.py`
   - **Details:** Paralleler Fetch von 4h + 15m OHLCV Daten
   - **Verwendet:** Bestehender `MarketService`
 
-- [ ] **2.1.3** Strategy Executor integrieren
+- [x] **2.1.3** Strategy Executor integrieren (Placeholder, vorbereitet)
   - **File:** `backend/app/services/strategy_executor.py`
   - **Details:** Python-Code aus `strategies.python_code` ausführen
   - **Input:** DataFrame (OHLCV)
   - **Output:** Signals (LONG/SHORT/NEUTRAL)
 
 ### 2.2 Agent Fleet Manager
-- [ ] **2.2.1** `AgentFleetManager` Service erstellen
+- [x] **2.2.1** `AgentFleetManager` Service erstellen
   - **File:** `backend/app/services/fleet_manager.py`
   - **Details:** 
     - Dictionary aller laufenden Agent-Instanzen
     - `deploy_agent()`, `stop_agent()`, `get_fleet_status()`
   - **Concurrency:** `asyncio.gather` für parallele Agents
 
-- [ ] **2.2.2** Budget-Locking Logic
+- [x] **2.2.2** Budget-Locking Logic (im FleetManager integriert)
   - **File:** `backend/app/services/paper_trading.py` (erweitern)
   - **Details:** 
     - Bei Agent-Deploy: `paper_account.locked_balance += agent_budget`
     - Bei Agent-Stop: `paper_account.locked_balance -= agent_budget`
 
 ### 2.3 WebSocket Fleet Endpoint
-- [ ] **2.3.1** Redis Pub/Sub Setup
+- [x] **2.3.1** Redis Pub/Sub Setup (im FleetManager + WS)
   - **File:** `backend/app/core/redis_pubsub.py`
   - **Channel:** `fleet_updates`
   - **Details:** Agents publishen, WebSocket subscribed
 
-- [ ] **2.3.2** WebSocket Endpoint `/ws/fleet/stream`
+- [x] **2.3.2** WebSocket Endpoint `/ws/fleet/stream`
   - **File:** `backend/app/api/websockets/fleet_stream.py`
   - **Details:**
     - JWT Authentication erforderlich
     - Subscribed to Redis Channel
     - Push Agent-Status + Visuals an Frontend
 
-- [ ] **2.3.3** Message Format definieren
+- [x] **2.3.3** Message Format definieren
   - **Payload:**
     ```json
     {
@@ -250,7 +250,7 @@ Dieses Dokument beschreibt die schrittweise Implementierung des AI Trading Fleet
     ```
 
 ### 2.4 REST API Endpoints
-- [ ] **2.4.1** CRUD für Trading Agents
+- [x] **2.4.1** CRUD für Trading Agents
   - **File:** `backend/app/api/api_v1/endpoints/fleet.py`
   - **Endpoints:**
     - `POST /api/v1/fleet/agents` - Deploy neuen Agent
@@ -259,7 +259,7 @@ Dieses Dokument beschreibt die schrittweise Implementierung des AI Trading Fleet
     - `PATCH /api/v1/fleet/agents/{id}` - Update Agent (Pause, Config)
     - `DELETE /api/v1/fleet/agents/{id}` - Stop & Remove Agent
 
-- [ ] **2.4.2** Agent Control Endpoints
+- [x] **2.4.2** Agent Control Endpoints
   - **Endpoints:**
     - `POST /api/v1/fleet/agents/{id}/start` - Agent starten
     - `POST /api/v1/fleet/agents/{id}/pause` - Agent pausieren
