@@ -12,7 +12,22 @@ export default defineConfig({
         target: 'http://backend:8000',
         changeOrigin: true,
         secure: false,
+        configure: (proxy, options) => {
+          proxy.on('proxyReq', (_proxyReq, req) => {
+            console.log(`[Vite Proxy] ${req.method} ${req.url} -> ${options.target}`);
+          });
+          proxy.on('error', (err, req, res) => {
+            console.error(`[Vite Proxy Error] ${req.url}:`, err.message);
+            // Send JSON error response instead of letting it fail silently
+            const response = res as any;
+            if (response.writeHead && !response.headersSent) {
+              response.writeHead(503, { 'Content-Type': 'application/json' });
+              response.end(JSON.stringify({ error: 'Backend unavailable', detail: err.message }));
+            }
+          });
+        },
       },
     },
   },
 })
+
