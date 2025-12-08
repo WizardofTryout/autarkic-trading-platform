@@ -7,6 +7,7 @@
 
 import { create } from 'zustand';
 import { api } from '../services/api';
+import { useAuthStore } from './authStore';
 
 // ==================== Types ====================
 
@@ -282,7 +283,7 @@ export const useFleetStore = create<FleetState>((set, get) => ({
             return; // Already connected
         }
 
-        const token = localStorage.getItem('token');
+        const token = useAuthStore.getState().token;
         if (!token) {
             console.warn('No token available for Fleet WebSocket');
             return;
