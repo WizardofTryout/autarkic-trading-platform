@@ -58,7 +58,9 @@ const DeployAgentModal: React.FC = () => {
     useEffect(() => {
         const fetchStrategies = async () => {
             try {
+                console.log('Fetching strategies...');
                 const data = await api.get('/strategies');
+                console.log('Strategies response:', data);
                 // Show all strategies (not just compiled ones)
                 setStrategies(data || []);
             } catch (e) {
