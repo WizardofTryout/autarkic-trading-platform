@@ -9,7 +9,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useFleetStore, DeployAgentParams } from '../../store/fleetStore';
+import { useFleetStore } from '../../store/fleetStore';
+import type { DeployAgentParams } from '../../store/fleetStore';
 import { X, Bot, ChevronRight, ChevronLeft, Check, AlertTriangle } from 'lucide-react';
 import { api } from '../../services/api';
 import './DeployAgentModal.css';
