@@ -7,10 +7,9 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // Allow external access from Docker
     proxy: {
-      // Proxy API requests to backend to avoid CORS issues in development
-      // Use localhost since browser makes requests (not the container)
+      // Proxy API requests to backend - use Docker service name
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://backend:8000',
         changeOrigin: true,
         secure: false,
       },
