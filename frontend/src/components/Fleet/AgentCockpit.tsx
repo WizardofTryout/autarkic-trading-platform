@@ -210,12 +210,12 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
                         <div className="stats-grid">
                             <div className="stat">
                                 <span className="stat-label">Budget</span>
-                                <span className="stat-value">${agent.budget.toLocaleString()}</span>
+                                <span className="stat-value">${Number(agent.budget || 0).toLocaleString()}</span>
                             </div>
                             <div className="stat">
                                 <span className="stat-label">P&L</span>
-                                <span className={`stat-value ${agent.session_pnl >= 0 ? 'profit' : 'loss'}`}>
-                                    {agent.session_pnl >= 0 ? '+' : ''}{agent.session_pnl.toFixed(2)}
+                                <span className={`stat-value ${Number(agent.session_pnl) >= 0 ? 'profit' : 'loss'}`}>
+                                    {Number(agent.session_pnl) >= 0 ? '+' : ''}{Number(agent.session_pnl || 0).toFixed(2)}
                                 </span>
                             </div>
                             <div className="stat">
@@ -233,11 +233,11 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
                             </div>
                             <div className="stat">
                                 <span className="stat-label">Kill Switch</span>
-                                <span className="stat-value">{agent.max_drawdown_percent}%</span>
+                                <span className="stat-value">{Number(agent.max_drawdown_percent || 0)}%</span>
                             </div>
                             <div className="stat">
                                 <span className="stat-label">Risk/Trade</span>
-                                <span className="stat-value">{(agent.risk_per_trade * 100).toFixed(1)}%</span>
+                                <span className="stat-value">{(Number(agent.risk_per_trade || 0) * 100).toFixed(1)}%</span>
                             </div>
                         </div>
                     </div>
