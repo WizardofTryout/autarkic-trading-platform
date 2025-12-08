@@ -246,7 +246,9 @@ const KlineChartCoreComponent: React.FC<KlineChartCoreProps> = ({ symbol, timefr
                     volume: parseFloat(candle.volume || 0),
                     turnover: parseFloat(candle.volume || 0) * parseFloat(candle.close),
                 }));
-                chartRef.current.applyNewData(klineData);
+                if (chartRef.current) {
+                    chartRef.current.applyNewData(klineData);
+                }
             }
         } catch (error) {
             console.error('Failed to load historical data:', error);
