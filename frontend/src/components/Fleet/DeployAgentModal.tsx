@@ -8,11 +8,11 @@
  * 4. Risk Settings
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useFleetStore } from '../../store/fleetStore';
 import type { DeployAgentParams } from '../../store/fleetStore';
-import { X, Bot, ChevronRight, ChevronLeft, Check, AlertTriangle } from 'lucide-react';
-import { api } from '../../services/api';
+import { X, Bot, ChevronRight, ChevronLeft, Check, AlertTriangle, Search } from 'lucide-react';
+import { api, getSymbols } from '../../services/api';
 import './DeployAgentModal.css';
 
 interface Strategy {
@@ -22,7 +22,7 @@ interface Strategy {
     python_code: string | null;
 }
 
-const POPULAR_SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT'];
+const POPULAR_SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT', 'ADA/USDT', 'DOGE/USDT', 'AVAX/USDT'];
 const TIMEFRAMES = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
 
 const DeployAgentModal: React.FC = () => {
@@ -31,6 +31,13 @@ const DeployAgentModal: React.FC = () => {
     const [step, setStep] = useState(1);
     const [strategies, setStrategies] = useState<Strategy[]>([]);
     const [error, setError] = useState<string | null>(null);
+
+    // Symbol search state
+    const [allSymbols, setAllSymbols] = useState<string[]>([]);
+    const [symbolSearch, setSymbolSearch] = useState('');
+    const [symbolDropdownOpen, setSymbolDropdownOpen] = useState(false);
+    const [loadingSymbols, setLoadingSymbols] = useState(false);
+    const symbolInputRef = useRef<HTMLInputElement>(null);
 
     // Form state
     const [formData, setFormData] = useState<DeployAgentParams>({
@@ -61,6 +68,29 @@ const DeployAgentModal: React.FC = () => {
         };
         fetchStrategies();
     }, []);
+
+    // Fetch all symbols on mount
+    useEffect(() => {
+        const fetchSymbolList = async () => {
+            setLoadingSymbols(true);
+            try {
+                const symbols = await getSymbols();
+                setAllSymbols(symbols);
+            } catch (e) {
+                console.error('Failed to fetch symbols:', e);
+                // Fallback to popular symbols if API fails
+                setAllSymbols(POPULAR_SYMBOLS);
+            } finally {
+                setLoadingSymbols(false);
+            }
+        };
+        fetchSymbolList();
+    }, []);
+
+    // Filter symbols based on search
+    const filteredSymbols = symbolSearch
+        ? allSymbols.filter(s => s.toLowerCase().includes(symbolSearch.toLowerCase()))
+        : POPULAR_SYMBOLS; // Show popular symbols when no search
 
     const handleChange = (field: keyof DeployAgentParams, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -105,16 +135,62 @@ const DeployAgentModal: React.FC = () => {
                             />
                         </div>
 
-                        <div className="form-group">
+                        <div className="form-group symbol-search-group">
                             <label>Trading Symbol</label>
-                            <select
-                                value={formData.symbol}
-                                onChange={(e) => handleChange('symbol', e.target.value)}
-                            >
-                                {POPULAR_SYMBOLS.map(s => (
-                                    <option key={s} value={s}>{s}</option>
-                                ))}
-                            </select>
+                            <div className="symbol-search-container">
+                                <div
+                                    className="symbol-search-input"
+                                    onClick={() => {
+                                        setSymbolDropdownOpen(true);
+                                        setTimeout(() => symbolInputRef.current?.focus(), 0);
+                                    }}
+                                >
+                                    <Search size={16} className="search-icon" />
+                                    <span className="selected-symbol">{formData.symbol}</span>
+                                </div>
+
+                                {symbolDropdownOpen && (
+                                    <>
+                                        <div
+                                            className="symbol-dropdown-backdrop"
+                                            onClick={() => setSymbolDropdownOpen(false)}
+                                        />
+                                        <div className="symbol-dropdown">
+                                            <input
+                                                ref={symbolInputRef}
+                                                type="text"
+                                                className="symbol-filter-input"
+                                                placeholder="Search symbols..."
+                                                value={symbolSearch}
+                                                onChange={(e) => setSymbolSearch(e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                            <div className="symbol-list">
+                                                {loadingSymbols ? (
+                                                    <div className="symbol-loading">Loading symbols...</div>
+                                                ) : filteredSymbols.length === 0 ? (
+                                                    <div className="symbol-empty">No symbols found</div>
+                                                ) : (
+                                                    filteredSymbols.slice(0, 50).map(s => (
+                                                        <div
+                                                            key={s}
+                                                            className={`symbol-option ${s === formData.symbol ? 'selected' : ''}`}
+                                                            onClick={() => {
+                                                                handleChange('symbol', s);
+                                                                setSymbolDropdownOpen(false);
+                                                                setSymbolSearch('');
+                                                            }}
+                                                        >
+                                                            {s}
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                            <span className="form-hint">Type to search {allSymbols.length} trading pairs</span>
                         </div>
                     </div>
                 );

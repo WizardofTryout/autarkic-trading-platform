@@ -153,7 +153,8 @@ async def delete_agent(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     
-    if agent.user_id != current_user.id:
+    # Allow deletion if user_id is NULL (legacy agents) or matches current user
+    if agent.user_id is not None and agent.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
     await manager.delete_agent(agent_id)

@@ -472,6 +472,10 @@ export const api = {
             const error = await response.json().catch(() => ({}));
             throw new Error(error.detail || `DELETE ${endpoint} failed`);
         }
+        // Handle 204 No Content - don't try to parse empty body
+        if (response.status === 204) {
+            return null;
+        }
         return response.json();
     },
     put: async (endpoint: string, data?: any) => {
