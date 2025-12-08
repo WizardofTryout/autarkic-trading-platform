@@ -59,9 +59,8 @@ const DeployAgentModal: React.FC = () => {
         const fetchStrategies = async () => {
             try {
                 const data = await api.get('/strategies');
-                // Filter to only show strategies with Python code
-                const compiled = data.filter((s: Strategy) => s.python_code);
-                setStrategies(compiled);
+                // Show all strategies (not just compiled ones)
+                setStrategies(data || []);
             } catch (e) {
                 console.error('Failed to fetch strategies:', e);
             }
@@ -299,7 +298,7 @@ const DeployAgentModal: React.FC = () => {
 
                         {strategies.length === 0 && (
                             <div className="no-strategies-hint">
-                                No compiled strategies found. Create and compile a strategy first.
+                                No strategies found. Create a strategy in the Strategy Builder first.
                             </div>
                         )}
                     </div>
