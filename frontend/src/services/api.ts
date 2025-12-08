@@ -1,24 +1,30 @@
 import { useAuthStore } from '../store/authStore';
 
 // Resolve API base URL for browser + Docker compose (frontend:5173, backend:8000)
-// Priority: env override -> Vite dev uses same-origin proxy -> otherwise same-origin with fallback
+// Priority: Vite dev proxy -> same-origin -> fallback
 const resolveApiBase = () => {
-    const envBase = import.meta.env.VITE_BACKEND_URL as string | undefined;
-    if (envBase && envBase.trim()) {
-        return envBase.replace(/\/$/, '') + '/api/v1';
-    }
-
     if (typeof window !== 'undefined') {
         const { protocol, hostname, port } = window.location;
-        const origin = `${protocol}//${hostname}${port ? `:${port}` : ''}`;
         const isDevPort = port === '5173' || port === '4173';
 
-        // In Vite dev, prefer same-origin proxy to avoid CORS
+        // CRITICAL: On dev ports, ALWAYS use Vite proxy to avoid CORS
+        // This prevents issues when VITE_BACKEND_URL is set to Docker hostnames like "backend:8000"
         if (isDevPort) {
+            console.log('[API] Using Vite proxy on dev port:', port);
             return '/api/v1';
         }
 
-        // Same-origin default
+        // Check env override ONLY if not on dev port
+        const envBase = import.meta.env.VITE_BACKEND_URL as string | undefined;
+        if (envBase && envBase.trim() && !envBase.includes('backend:')) {
+            // Ignore Docker-internal hostnames like "backend:8000" in browser context
+            console.log('[API] Using env override:', envBase);
+            return envBase.replace(/\/$/, '') + '/api/v1';
+        }
+
+        // Same-origin default (production)
+        const origin = `${protocol}//${hostname}${port ? `:${port}` : ''}`;
+        console.log('[API] Using same-origin:', origin);
         return `${origin}/api/v1`;
     }
 
