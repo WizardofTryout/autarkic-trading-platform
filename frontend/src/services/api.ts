@@ -1,5 +1,6 @@
 import { useAuthStore } from '../store/authStore';
 
+// VERSION: 2025-12-09-v2 - Force cache bust
 // Resolve API base URL for browser + Docker compose (frontend:5173, backend:8000)
 // Priority: Vite dev proxy -> same-origin -> fallback
 const resolveApiBase = () => {
