@@ -104,7 +104,8 @@
 .modal-content {
     flex: 1;
     padding: 1.5rem;
-    overflow-y: auto;
+    overflow-y: visible;
+    overflow-x: visible;
 }
 
 .modal-step h3 {
@@ -422,7 +423,7 @@
 .symbol-dropdown-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 100;
+    z-index: 1100;
 }
 
 .symbol-dropdown {
@@ -435,7 +436,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 0.5rem;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-    z-index: 101;
+    z-index: 1101;
     max-height: 300px;
     display: flex;
     flex-direction: column;
