@@ -1,7 +1,7 @@
 import { useAuthStore } from '../store/authStore';
 
 // Resolve API base URL for browser + Docker compose (frontend:5173, backend:8000)
-// Priority: env override -> dev host on port 5173/4173 -> same-origin
+// Priority: env override -> Vite dev uses same-origin proxy -> otherwise same-origin with fallback
 const resolveApiBase = () => {
     const envBase = import.meta.env.VITE_BACKEND_URL as string | undefined;
     if (envBase && envBase.trim()) {
@@ -10,12 +10,16 @@ const resolveApiBase = () => {
 
     if (typeof window !== 'undefined') {
         const { protocol, hostname, port } = window.location;
-        // When front is served on Vite dev ports, talk to backend on 8000 on same host
-        if (port === '5173' || port === '4173') {
-            return `${protocol}//${hostname}:8000/api/v1`;
+        const origin = `${protocol}//${hostname}${port ? `:${port}` : ''}`;
+        const isDevPort = port === '5173' || port === '4173';
+
+        // In Vite dev, prefer same-origin proxy to avoid CORS
+        if (isDevPort) {
+            return '/api/v1';
         }
-        // Otherwise same-origin
-        return `${protocol}//${hostname}${port ? `:${port}` : ''}/api/v1`;
+
+        // Same-origin default
+        return `${origin}/api/v1`;
     }
 
     // Fallback for SSR/build contexts
