@@ -21,7 +21,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 1rem;
     width: 100%;
-    max-width: 560px;
+    max-width: 720px;
     max-height: 85vh;
     display: flex;
     flex-direction: column;
@@ -219,8 +219,21 @@
 /* Strategy Grid */
 .strategy-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 1.5rem;
+}
+
+.strategy-column {
+    position: relative;
+    min-width: 0;
+}
+
+.strategy-column select {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .strategy-column label {

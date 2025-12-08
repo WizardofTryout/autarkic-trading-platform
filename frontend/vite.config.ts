@@ -9,7 +9,8 @@ export default defineConfig({
     proxy: {
       // Proxy API requests to backend - use Docker service name
       '/api': {
-        target: 'http://backend:8000',
+        // Allow override for host-dev; default works inside Docker Compose network
+        target: process.env.VITE_BACKEND_URL || 'http://backend:8000',
         changeOrigin: true,
         secure: false,
         configure: (proxy, options) => {

@@ -30,6 +30,7 @@ const DeployAgentModal: React.FC = () => {
 
     const [step, setStep] = useState(1);
     const [strategies, setStrategies] = useState<Strategy[]>([]);
+    const [strategiesError, setStrategiesError] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     // Symbol search state
@@ -63,8 +64,10 @@ const DeployAgentModal: React.FC = () => {
                 console.log('Strategies response:', data);
                 // Show all strategies (not just compiled ones)
                 setStrategies(data || []);
+                setStrategiesError(null);
             } catch (e) {
                 console.error('Failed to fetch strategies:', e);
+                setStrategiesError('Strategien konnten nicht geladen werden. Bitte erneut einloggen oder Backend prüfen.');
             }
         };
         fetchStrategies();
@@ -298,7 +301,13 @@ const DeployAgentModal: React.FC = () => {
                             </div>
                         </div>
 
-                        {strategies.length === 0 && (
+                        {strategiesError && (
+                            <div className="no-strategies-hint">
+                                {strategiesError}
+                            </div>
+                        )}
+
+                        {!strategiesError && strategies.length === 0 && (
                             <div className="no-strategies-hint">
                                 No strategies found. Create a strategy in the Strategy Builder first.
                             </div>
