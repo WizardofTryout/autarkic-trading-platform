@@ -301,6 +301,14 @@ const KlineChartProComponent: React.FC<KlineChartProProps> = ({
         }
     }, [chartTextColor]);
 
+    // TODO: Position Overlays für Entry/TP/SL Linien
+    // Das KlineCharts Pro API exponiert leider keine createOverlay() Methode.
+    // Die interne widget-Instanz unterstützt es, aber ist nicht zugänglich.
+    // Mögliche Lösungen für die Zukunft:
+    // 1. KlineCharts Pro forken und widget exponieren
+    // 2. Natives klinecharts (ohne Pro) verwenden
+    // 3. Custom SVG Overlay mit Chart-Skala-Berechnung
+
     return (
         <div
             className="relative w-full h-full"

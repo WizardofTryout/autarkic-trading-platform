@@ -172,15 +172,19 @@ class PaperTradingService:
                     account.locked_balance -= fee
             
             # Update/Create Position
-            result = await self.db.execute(select(PaperPosition).where(
-                PaperPosition.account_id == account.id,
-                PaperPosition.symbol == symbol,
-                PaperPosition.strategy_id == strategy_id # Separate positions for manual vs strategy?
-                # Actually, if I have a manual position on BTC and strategy buys BTC...
-                # Should they merge?
-                # User might want to see them separate.
-                # Adding strategy_id to WHERE clause separates them.
-            ))
+            # Fix: Use proper NULL comparison for strategy_id
+            if strategy_id is None:
+                result = await self.db.execute(select(PaperPosition).where(
+                    PaperPosition.account_id == account.id,
+                    PaperPosition.symbol == symbol,
+                    PaperPosition.strategy_id.is_(None)  # Correct NULL comparison
+                ))
+            else:
+                result = await self.db.execute(select(PaperPosition).where(
+                    PaperPosition.account_id == account.id,
+                    PaperPosition.symbol == symbol,
+                    PaperPosition.strategy_id == strategy_id
+                ))
             position = result.scalars().first()
             
             if position:
