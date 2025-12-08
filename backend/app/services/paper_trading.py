@@ -81,12 +81,28 @@ class PaperTradingService:
                 raise Exception("Insufficient balance")
 
         # LIMIT ORDER LOGIC
+        # Check if this is a valid (non-marketable) limit order
+        execute_as_market = order_type.upper() == "MARKET"
+        limit_price = None
+        
         if order_type.upper() == "LIMIT":
             if not price:
                 raise Exception("Price required for Limit Order")
             
             limit_price = Decimal(str(price))
             
+            # Check if limit order would execute immediately (marketable)
+            # BUY LIMIT at or above current price -> execute as MARKET
+            # SELL LIMIT at or below current price -> execute as MARKET
+            if side.upper() == "BUY" and limit_price >= current_price:
+                print(f"Limit order is marketable (BUY Limit: {limit_price} >= Market: {current_price}). Executing as MARKET.")
+                execute_as_market = True
+            elif side.upper() == "SELL" and limit_price <= current_price:
+                print(f"Limit order is marketable (SELL Limit: {limit_price} <= Market: {current_price}). Executing as MARKET.")
+                execute_as_market = True
+        
+        if not execute_as_market:
+            # True LIMIT order - place as pending
             # Calculate estimated quantity based on Limit Price
             position_size_usdt = margin * leverage
             quantity = position_size_usdt / limit_price
@@ -113,144 +129,143 @@ class PaperTradingService:
             await self.db.refresh(order)
             return order
 
-        # MARKET ORDER LOGIC
+        # MARKET ORDER LOGIC (or marketable limit orders)
+        position_size_usdt = margin * leverage
+        quantity = position_size_usdt / current_price
+        
+        # Create Order
+        order = PaperOrder(
+            account_id=account.id,
+            strategy_id=strategy_id,
+            symbol=symbol,
+            side=side.upper(),
+            type="MARKET",
+            amount=margin,
+            quantity=quantity,
+            filled_quantity=quantity,
+            status="FILLED",
+            leverage=leverage,
+            price=current_price,
+            stop_loss=Decimal(str(stop_loss)) if stop_loss else None,
+            take_profit=Decimal(str(take_profit)) if take_profit else None,
+            is_trailing_stop=is_trailing_stop,
+            trailing_percent=Decimal(str(trailing_percent)) if trailing_percent else None
+        )
+        self.db.add(order)
+        await self.db.flush()  # Generate order.id before creating trade
+        
+        # Create Trade
+        fee_rate = Decimal("0.001") # 0.1% fee
+        fee = position_size_usdt * fee_rate
+        
+        trade = PaperTrade(
+            account_id=account.id,
+            order_id=order.id,  # Now order.id is populated
+            symbol=symbol,
+            side=side.upper(),
+            price=current_price,
+            quantity=quantity,
+            fee=fee,
+            fee_currency="USDT"
+        )
+        self.db.add(trade)
+        
+        # Update Account Balance
+        # Update Account Balance (Fees Only first, Margin handled later based on action)
+        if not strategy_id:
+            account.balance -= fee
         else:
-            position_size_usdt = margin * leverage
-            quantity = position_size_usdt / current_price
+            # Strategy Fee deduction
+            if account.locked_balance >= fee:
+                account.locked_balance -= fee
+            else:
+                account.locked_balance -= fee
+        
+        # Update/Create Position
+        # Fix: Use proper NULL comparison for strategy_id
+        if strategy_id is None:
+            result = await self.db.execute(select(PaperPosition).where(
+                PaperPosition.account_id == account.id,
+                PaperPosition.symbol == symbol,
+                PaperPosition.strategy_id.is_(None)  # Correct NULL comparison
+            ))
+        else:
+            result = await self.db.execute(select(PaperPosition).where(
+                PaperPosition.account_id == account.id,
+                PaperPosition.symbol == symbol,
+                PaperPosition.strategy_id == strategy_id
+            ))
+        position = result.scalars().first()
+        
+        if position:
+            if position.side == side.upper():
+                # Add to position -> Deduct Margin
+                if not strategy_id:
+                    account.balance -= margin
+                else:
+                    # For strategy, ensure we check/deduct from virtual allocation?
+                    # For now, simplistic approach
+                    pass
+
+                # Add to position logic
+                total_cost = (position.size * position.entry_price) + (quantity * current_price)
+                new_size = position.size + quantity
+                position.entry_price = total_cost / new_size
+                position.size = new_size
+                position.margin += margin
+                # Update TP/SL if provided (overwrite or keep? Overwrite for now)
+                if stop_loss: position.stop_loss = Decimal(str(stop_loss))
+                if take_profit: position.take_profit = Decimal(str(take_profit))
+                # Update Trailing settings
+                position.is_trailing_stop = is_trailing_stop
+                if trailing_percent: position.trailing_percent = Decimal(str(trailing_percent))
+            else:
+                # Reduce/Close Position logic (simplified)
+                close_qty = min(position.size, quantity)
+                
+                if position.side == "LONG":
+                    pnl = (current_price - position.entry_price) * close_qty
+                else:
+                    pnl = (position.entry_price - current_price) * close_qty
+                    
+                margin_released = (close_qty / position.size) * position.margin
+                
+                if not strategy_id:
+                    account.balance += margin_released + pnl
+                else:
+                    # Return to Locked Balance
+                    account.locked_balance += margin_released + pnl
+                
+                position.size -= close_qty
+                position.margin -= margin_released
+                
+                if position.size <= 0:
+                    await self.db.delete(position)
+        else:
+            # New Position -> Deduct Margin
+            if not strategy_id:
+                account.balance -= margin
             
-            # Create Order
-            order = PaperOrder(
+            # New Position logic
+            position = PaperPosition(
                 account_id=account.id,
                 strategy_id=strategy_id,
                 symbol=symbol,
                 side=side.upper(),
-                type="MARKET",
-                amount=margin,
-                quantity=quantity,
-                filled_quantity=quantity,
-                status="FILLED",
+                size=quantity,
+                entry_price=current_price,
                 leverage=leverage,
-                price=current_price,
+                margin=margin,
                 stop_loss=Decimal(str(stop_loss)) if stop_loss else None,
                 take_profit=Decimal(str(take_profit)) if take_profit else None,
                 is_trailing_stop=is_trailing_stop,
                 trailing_percent=Decimal(str(trailing_percent)) if trailing_percent else None
             )
-            self.db.add(order)
-            await self.db.flush()  # Generate order.id before creating trade
-            
-            # Create Trade
-            fee_rate = Decimal("0.001") # 0.1% fee
-            fee = position_size_usdt * fee_rate
-            
-            trade = PaperTrade(
-                account_id=account.id,
-                order_id=order.id,  # Now order.id is populated
-                symbol=symbol,
-                side=side.upper(),
-                price=current_price,
-                quantity=quantity,
-                fee=fee,
-                fee_currency="USDT"
-            )
-            self.db.add(trade)
-            
-            # Update Account Balance
-            # Update Account Balance (Fees Only first, Margin handled later based on action)
-            if not strategy_id:
-                account.balance -= fee
-            else:
-                # Strategy Fee deduction
-                if account.locked_balance >= fee:
-                    account.locked_balance -= fee
-                else:
-                    account.locked_balance -= fee
-            
-            # Update/Create Position
-            # Fix: Use proper NULL comparison for strategy_id
-            if strategy_id is None:
-                result = await self.db.execute(select(PaperPosition).where(
-                    PaperPosition.account_id == account.id,
-                    PaperPosition.symbol == symbol,
-                    PaperPosition.strategy_id.is_(None)  # Correct NULL comparison
-                ))
-            else:
-                result = await self.db.execute(select(PaperPosition).where(
-                    PaperPosition.account_id == account.id,
-                    PaperPosition.symbol == symbol,
-                    PaperPosition.strategy_id == strategy_id
-                ))
-            position = result.scalars().first()
-            
-            if position:
-                if position.side == side.upper():
-                    # Add to position -> Deduct Margin
-                    if not strategy_id:
-                        account.balance -= margin
-                    else:
-                        # For strategy, ensure we check/deduct from virtual allocation?
-                        # For now, simplistic approach
-                        pass
+            self.db.add(position)
 
-                    # Add to position logic
-                    total_cost = (position.size * position.entry_price) + (quantity * current_price)
-                    new_size = position.size + quantity
-                    position.entry_price = total_cost / new_size
-                    position.size = new_size
-                    position.margin += margin
-                    # Update TP/SL if provided (overwrite or keep? Overwrite for now)
-                    if stop_loss: position.stop_loss = Decimal(str(stop_loss))
-                    if take_profit: position.take_profit = Decimal(str(take_profit))
-                    # Update Trailing settings
-                    position.is_trailing_stop = is_trailing_stop
-                    if trailing_percent: position.trailing_percent = Decimal(str(trailing_percent))
-                else:
-                    # Reduce/Close Position logic (simplified)
-                    close_qty = min(position.size, quantity)
-                    
-                    if position.side == "LONG":
-                        pnl = (current_price - position.entry_price) * close_qty
-                    else:
-                        pnl = (position.entry_price - current_price) * close_qty
-                        
-                    margin_released = (close_qty / position.size) * position.margin
-                    
-                    if not strategy_id:
-                        account.balance += margin_released + pnl
-                    else:
-                        # Return to Locked Balance
-                        account.locked_balance += margin_released + pnl
-                    
-                    position.size -= close_qty
-                    position.margin -= margin_released
-                    
-                    if position.size <= 0:
-                        await self.db.delete(position)
-            else:
-                # New Position -> Deduct Margin
-                if not strategy_id:
-                    account.balance -= margin
-                
-                # New Position logic
-                position = PaperPosition(
-                    account_id=account.id,
-                    strategy_id=strategy_id,
-                    symbol=symbol,
-                    side=side.upper(),
-                    size=quantity,
-                    entry_price=current_price,
-                    leverage=leverage,
-                    margin=margin,
-                    stop_loss=Decimal(str(stop_loss)) if stop_loss else None,
-                    take_profit=Decimal(str(take_profit)) if take_profit else None,
-                    is_trailing_stop=is_trailing_stop,
-                    trailing_percent=Decimal(str(trailing_percent)) if trailing_percent else None
-                )
-                self.db.add(position)
-    
-            await self.db.commit()
-            await self.db.refresh(order)
-            return order
+        await self.db.commit()
+        await self.db.refresh(order)
+        return order
 
     async def check_fills(self, account_id: uuid.UUID):
         """
@@ -316,62 +331,152 @@ class PaperTradingService:
                         order.updated_at = func.now()
                         
                         # 3. Deduct Balance (Margin + Fee)
-                        # Note: In place_order we didn't deduct for Limit orders.
                         account_res = await self.db.execute(select(PaperAccount).where(PaperAccount.id == account_id))
                         account = account_res.scalars().first()
-                        account.balance -= (order.amount + fee)
                         
-                        # 4. Update/Create Position
-                        pos_res = await self.db.execute(select(PaperPosition).where(
-                            PaperPosition.account_id == account_id,
-                            PaperPosition.symbol == symbol
-                        ))
+                        if account:
+                             # For strategy, deduction happens from Strategy Capital (virtual)
+                             if order.strategy_id:
+                                 # TODO: Strategy specific deduction
+                                 pass
+                             else:
+                                 account.balance -= (order.amount + fee)
+                        
+                        # 4. Create/Update Position
+                        
+                        # Find existing position
+                        if order.strategy_id is None:
+                            pos_res = await self.db.execute(select(PaperPosition).where(
+                                PaperPosition.account_id == account_id,
+                                PaperPosition.symbol == symbol,
+                                PaperPosition.strategy_id.is_(None)
+                            ))
+                        else:
+                            pos_res = await self.db.execute(select(PaperPosition).where(
+                                PaperPosition.account_id == account_id,
+                                PaperPosition.symbol == symbol,
+                                PaperPosition.strategy_id == order.strategy_id
+                            ))
                         position = pos_res.scalars().first()
                         
                         if position:
-                            if position.side == order.side:
-                                # Add
-                                total_cost = (position.size * position.entry_price) + (order.quantity * current_price)
-                                new_size = position.size + order.quantity
-                                position.entry_price = total_cost / new_size
-                                position.size = new_size
-                                position.margin += order.amount
-                            else:
-                                # Reduce/Close
-                                close_qty = min(position.size, order.quantity)
-                                if position.side == "LONG":
-                                    pnl = (current_price - position.entry_price) * close_qty
-                                else:
-                                    pnl = (position.entry_price - current_price) * close_qty
-                                
-                                margin_released = (close_qty / position.size) * position.margin
-                                account.balance += margin_released + pnl
-                                
-                                position.size -= close_qty
-                                position.margin -= margin_released
-                                
-                                if position.size <= 0:
-                                    await self.db.delete(position)
+                             if position.side == order.side: # Add
+                                 total_cost = (position.size * position.entry_price) + (trade.quantity * trade.price)
+                                 new_size = position.size + trade.quantity
+                                 position.entry_price = total_cost / new_size
+                                 position.size = new_size
+                                 position.margin += order.amount
+                                 # Update SL/TP if order had them
+                                 if order.stop_loss: position.stop_loss = order.stop_loss
+                                 if order.take_profit: position.take_profit = order.take_profit
+                             else: # Reduce/Close
+                                 close_qty = min(position.size, trade.quantity)
+                                 
+                                 pnl = 0
+                                 if position.side == "LONG":
+                                     pnl = (current_price - position.entry_price) * close_qty
+                                 else:
+                                     pnl = (position.entry_price - current_price) * close_qty
+                                     
+                                 margin_released = (close_qty / position.size) * position.margin if position.size > 0 else 0
+                                 
+                                 # Return to Balance
+                                 if not order.strategy_id and account:
+                                     account.balance += margin_released + pnl
+                                 
+                                 position.size -= close_qty
+                                 position.margin -= margin_released
+                                 
+                                 if position.size <= 0:
+                                     await self.db.delete(position)
                         else:
                             # New Position
                             position = PaperPosition(
                                 account_id=account_id,
+                                strategy_id=order.strategy_id,
                                 symbol=symbol,
                                 side=order.side,
-                                size=order.quantity,
+                                size=trade.quantity,
                                 entry_price=current_price,
                                 leverage=order.leverage,
                                 margin=order.amount,
                                 stop_loss=order.stop_loss,
-                                take_profit=order.take_profit
+                                take_profit=order.take_profit,
+                                is_trailing_stop=order.is_trailing_stop,
+                                trailing_percent=order.trailing_percent
                             )
                             self.db.add(position)
-                            
+
             except Exception as e:
                 print(f"Error checking fills for {symbol}: {e}")
                 continue
-
+                
         await self.db.commit()
+
+    async def cancel_order(self, user_id: uuid.UUID, order_id: uuid.UUID):
+        # 1. Get Account
+        account = await self.get_or_create_account(user_id)
+        
+        # 2. Get Order
+        res = await self.db.execute(select(PaperOrder).where(
+            PaperOrder.id == order_id,
+            PaperOrder.account_id == account.id
+        ))
+        order = res.scalars().first()
+        
+        if not order:
+            raise Exception("Order not found")
+            
+        if order.status != "OPEN":
+            raise Exception("Cannot cancel order that is not OPEN")
+            
+        # 3. Cancel (Delete)
+        await self.db.delete(order)
+        await self.db.commit()
+        return True
+
+    async def update_order(self, user_id: uuid.UUID, order_id: uuid.UUID, price: float = None, amount: float = None, stop_loss: float = None, take_profit: float = None):
+        # 1. Get Account
+        account = await self.get_or_create_account(user_id)
+        
+        # 2. Get Order
+        res = await self.db.execute(select(PaperOrder).where(
+            PaperOrder.id == order_id,
+            PaperOrder.account_id == account.id
+        ))
+        order = res.scalars().first()
+        
+        if not order:
+             raise Exception("Order not found")
+        
+        if order.status != "OPEN":
+             raise Exception("Cannot update order that is not OPEN")
+
+        # 3. Update Fields
+        if price is not None:
+             order.price = Decimal(str(price))
+        
+        if amount is not None:
+             order.amount = Decimal(str(amount))
+             
+        # Recalculate Quantity
+        if price is not None or amount is not None:
+             # Use new or existing values
+             # Note: logic requires amount (margin) and price to be valid
+             if order.price > 0:
+                 position_size = order.amount * order.leverage
+                 order.quantity = position_size / order.price
+        
+        if stop_loss is not None:
+             order.stop_loss = Decimal(str(stop_loss)) if stop_loss else None
+             
+        if take_profit is not None:
+             order.take_profit = Decimal(str(take_profit)) if take_profit else None
+             
+        order.updated_at = func.now()
+        await self.db.commit()
+        await self.db.refresh(order)
+        return order
 
     async def check_positions(self, account_id: uuid.UUID):
         """

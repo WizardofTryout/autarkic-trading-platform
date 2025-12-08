@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ApprovalModal } from './ApprovalModal';
+import AlertModal from './Common/AlertModal';
 import { useTradingStore } from '../store/tradingStore';
 import { Wallet, AlertTriangle } from 'lucide-react';
 import { useBinanceWebSocket } from '../hooks/useBinanceWebSocket';
@@ -23,6 +24,9 @@ export const OrderEntry: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [pendingSide, setPendingSide] = useState<'buy' | 'sell' | null>(null);
+
+    // Alert Modal State
+    const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
     const { placeOrder, symbol, portfolio, fetchPortfolio } = useTradingStore();
 
@@ -49,32 +53,52 @@ export const OrderEntry: React.FC = () => {
     }, [symbol]);
 
     const handleOrderClick = (side: 'buy' | 'sell') => {
-        if (!margin) return;
-        if (orderType === 'LIMIT' && !price) return;
+        if (!margin) {
+            setAlertMessage("Please enter a Margin amount!");
+            return;
+        }
+        if (orderType === 'LIMIT' && !price) {
+            setAlertMessage("Please enter a Limit Price!");
+            return;
+        }
 
-        // Validation: SL/TP vs Side
-        const entry = orderType === 'LIMIT' && price ? parseFloat(price) : currentPrice;
+        // Helper to parse floats safely (handle commas)
+        const parseInput = (val: string) => parseFloat(val.replace(',', '.'));
+
+        const entry = orderType === 'LIMIT' && price
+            ? parseInput(price)
+            : currentPrice;
+
+        console.log(`Validation Check: Side=${side}, Entry=${entry}, SL=${stopLoss} (${slEnabled}), TP=${takeProfit} (${tpEnabled})`);
 
         if (slEnabled && stopLoss) {
-            const slVal = parseFloat(stopLoss);
+            const slVal = parseInput(stopLoss);
+            if (isNaN(slVal)) {
+                setAlertMessage("Invalid Stop Loss value");
+                return;
+            }
             if (side === 'buy' && slVal >= entry) {
-                alert(`Invalid Stop Loss for LONG: ${slVal} must be below Entry Price ${entry.toFixed(2)}`);
+                setAlertMessage(`Invalid Stop Loss for LONG: ${slVal} must be below Entry Price ${entry.toFixed(2)}`);
                 return;
             }
             if (side === 'sell' && slVal <= entry) {
-                alert(`Invalid Stop Loss for SHORT: ${slVal} must be above Entry Price ${entry.toFixed(2)}`);
+                setAlertMessage(`Invalid Stop Loss for SHORT: ${slVal} must be above Entry Price ${entry.toFixed(2)}`);
                 return;
             }
         }
 
         if (tpEnabled && takeProfit) {
-            const tpVal = parseFloat(takeProfit);
+            const tpVal = parseInput(takeProfit);
+            if (isNaN(tpVal)) {
+                setAlertMessage("Invalid Take Profit value");
+                return;
+            }
             if (side === 'buy' && tpVal <= entry) {
-                alert(`Invalid Take Profit for LONG: ${tpVal} must be above Entry Price ${entry.toFixed(2)}`);
+                setAlertMessage(`Invalid Take Profit for LONG: ${tpVal} must be above Entry Price ${entry.toFixed(2)}`);
                 return;
             }
             if (side === 'sell' && tpVal >= entry) {
-                alert(`Invalid Take Profit for SHORT: ${tpVal} must be below Entry Price ${entry.toFixed(2)}`);
+                setAlertMessage(`Invalid Take Profit for SHORT: ${tpVal} must be below Entry Price ${entry.toFixed(2)}`);
                 return;
             }
         }
@@ -347,6 +371,13 @@ export const OrderEntry: React.FC = () => {
                 action={pendingSide === 'buy' ? 'OPEN LONG' : 'OPEN SHORT'}
                 amount={margin} // Display Margin in modal
                 isLoading={isSubmitting}
+            />
+
+            <AlertModal
+                isOpen={!!alertMessage}
+                message={alertMessage || ''}
+                onClose={() => setAlertMessage(null)}
+                title="Input Error"
             />
         </div>
     );
