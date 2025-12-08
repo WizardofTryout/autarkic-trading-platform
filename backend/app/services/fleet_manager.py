@@ -17,6 +17,7 @@ from sqlalchemy import select, update
 
 from app.models.base import TradingAgent, AgentLog, PaperAccount, Strategy
 from app.services.trading_agent_instance import TradingAgentInstance, AgentStatus
+from app.db.session import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -334,13 +335,15 @@ class AgentFleetManager:
         await self.db.commit()
     
     async def _update_agent_status(self, agent_id: UUID, status: str):
-        """Update agent status in database."""
-        await self.db.execute(
-            update(TradingAgent)
-            .where(TradingAgent.id == agent_id)
-            .values(status=status, updated_at=datetime.utcnow())
-        )
-        await self.db.commit()
+        """Update agent status in database using a new session."""
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                await session.execute(
+                    update(TradingAgent)
+                    .where(TradingAgent.id == agent_id)
+                    .values(status=status, updated_at=datetime.utcnow())
+                )
+                await session.commit()
     
     async def _on_agent_status_change(self, agent_id: UUID, status: AgentStatus):
         """Callback when an agent's status changes."""
@@ -353,19 +356,21 @@ class AgentFleetManager:
         })
     
     async def _on_agent_log(self, log_entry: Dict):
-        """Callback when an agent creates a log entry."""
-        # Save to database
+        """Callback when an agent creates a log entry using a new session."""
+        # Save to database with a new session
         agent_id = UUID(log_entry["agent_id"])
         
-        db_log = AgentLog(
-            agent_id=agent_id,
-            status=log_entry["status"],
-            log_text=log_entry.get("log_text"),
-            visual_snapshot=log_entry.get("visual_snapshot", []),
-            meta_data=log_entry.get("meta_data", {}),
-        )
-        self.db.add(db_log)
-        await self.db.commit()
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                db_log = AgentLog(
+                    agent_id=agent_id,
+                    status=log_entry["status"],
+                    log_text=log_entry.get("log_text"),
+                    visual_snapshot=log_entry.get("visual_snapshot", []),
+                    meta_data=log_entry.get("meta_data", {}),
+                )
+                session.add(db_log)
+                await session.commit()
         
         # Broadcast to WebSocket
         await self._broadcast_update({
