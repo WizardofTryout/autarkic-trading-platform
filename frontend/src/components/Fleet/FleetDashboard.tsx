@@ -5,7 +5,7 @@
  * Provides controls for deploying, starting, and managing agents.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useFleetStore } from '../../store/fleetStore';
 import type { TradingAgent, AgentStatus } from '../../store/fleetStore';
 import { Plus, Play, Pause, StopCircle, Trash2, Eye, RefreshCw, Bot } from 'lucide-react';
@@ -61,14 +61,27 @@ const FleetDashboard: React.FC = () => {
     const totalPnL = agents.reduce((sum, a) => sum + (Number(a.session_pnl) || 0), 0);
     const totalBudget = agents.reduce((sum, a) => sum + (Number(a.budget) || 0), 0);
 
-    const handleDelete = async (agentId: string, agentName: string) => {
-        if (window.confirm(`Are you sure you want to delete agent "${agentName}"? This will release its budget.`)) {
-            try {
-                await deleteAgent(agentId);
-            } catch (e) {
-                console.error('Delete failed:', e);
-            }
+    // Delete confirmation modal state
+    const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; agentId: string; agentName: string }>({
+        show: false, agentId: '', agentName: ''
+    });
+
+    const handleDeleteClick = (agentId: string, agentName: string) => {
+        setDeleteConfirm({ show: true, agentId, agentName });
+    };
+
+    const handleDeleteConfirm = async () => {
+        try {
+            await deleteAgent(deleteConfirm.agentId);
+        } catch (e) {
+            console.error('Delete failed:', e);
+        } finally {
+            setDeleteConfirm({ show: false, agentId: '', agentName: '' });
         }
+    };
+
+    const handleDeleteCancel = () => {
+        setDeleteConfirm({ show: false, agentId: '', agentName: '' });
     };
 
     const renderStatusBadge = (status: AgentStatus) => {
@@ -131,7 +144,7 @@ const FleetDashboard: React.FC = () => {
                 {(agent.status === 'PAUSED' || agent.status === 'STOPPED') && (
                     <button
                         className="action-btn delete"
-                        onClick={() => handleDelete(agent.id, agent.name)}
+                        onClick={() => handleDeleteClick(agent.id, agent.name)}
                         title="Delete Agent"
                     >
                         <Trash2 size={14} />
@@ -258,6 +271,33 @@ const FleetDashboard: React.FC = () => {
 
             {/* Deploy Modal */}
             {showDeployModal && <DeployAgentModal />}
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirm.show && (
+                <div className="modal-overlay" onClick={handleDeleteCancel}>
+                    <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="confirm-header">
+                            <Trash2 size={24} className="confirm-icon" />
+                            <h3>Delete Agent</h3>
+                        </div>
+                        <p className="confirm-message">
+                            Are you sure you want to delete <strong>"{deleteConfirm.agentName}"</strong>?
+                        </p>
+                        <p className="confirm-warning">
+                            This will release the agent's locked budget back to your account.
+                        </p>
+                        <div className="confirm-actions">
+                            <button className="btn-cancel" onClick={handleDeleteCancel}>
+                                Cancel
+                            </button>
+                            <button className="btn-delete" onClick={handleDeleteConfirm}>
+                                <Trash2 size={16} />
+                                Delete Agent
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
