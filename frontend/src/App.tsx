@@ -15,6 +15,7 @@ import { useTradingStore } from './store/tradingStore';
 import { analyzeMarket } from './services/api';
 import SymbolSearch from './components/SymbolSearch';
 import StrategyBuilderView from './components/StrategyBuilder/StrategyBuilderView';
+import { FleetDashboard } from './components/Fleet';
 import { ResearchAgentSidebar } from './components/Research/ResearchAgentSidebar';
 import DocumentExplorer from './components/Research/DocumentExplorer';
 import type { DocumentResponse } from './services/api';
@@ -24,7 +25,7 @@ function App() {
   const { symbol, timeframe, setSymbol, setTimeframe } = useTradingStore();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [currentScript, setCurrentScript] = useState('');
-  const [activeTab, setActiveTab] = useState<'chart' | 'analysis' | 'strategy'>('chart');
+  const [activeTab, setActiveTab] = useState<'chart' | 'analysis' | 'strategy' | 'fleet'>('chart');
   const [chatInitialMessage, setChatInitialMessage] = useState('');
   const [currentAnalysis, setCurrentAnalysis] = useState<string | undefined>(undefined);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -56,7 +57,7 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleTabChange = (tab: 'chart' | 'analysis' | 'strategy') => {
+  const handleTabChange = (tab: 'chart' | 'analysis' | 'strategy' | 'fleet') => {
     setActiveTab(tab);
     if (location.pathname !== '/') {
       navigate('/');
@@ -114,6 +115,15 @@ function App() {
                 >
                   Strategy Builder
                 </button>
+                <button
+                  onClick={() => handleTabChange('fleet')}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${activeTab === 'fleet' && location.pathname === '/'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-900/50'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                    }`}
+                >
+                  🤖 Fleet
+                </button>
               </nav>
               <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-800/50 rounded-full border border-gray-700/50">
                 <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
@@ -165,7 +175,9 @@ function App() {
         <Route path="/" element={
           <ProtectedRoute>
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              {activeTab === 'strategy' ? (
+              {activeTab === 'fleet' ? (
+                <FleetDashboard />
+              ) : activeTab === 'strategy' ? (
                 <StrategyBuilderView />
               ) : (
                 <div className="flex-1 flex overflow-hidden">

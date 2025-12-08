@@ -303,9 +303,9 @@ Dieses Dokument beschreibt die schrittweise Implementierung des AI Trading Fleet
 
 ---
 
-## Phase 4: Frontend "Mission Control"
+## Phase 4: Frontend "Mission Control" ✅
 **Dauer:** ~1.5 Wochen  
-**Status:** [ ] Nicht gestartet  
+**Status:** [x] ABGESCHLOSSEN (2025-12-08)  
 **Abhängigkeit:** Phase 2.3 (WebSocket) abgeschlossen
 
 ### 4.0 UI Integration Approach (WICHTIG!)
@@ -336,14 +336,14 @@ const [activeTab, setActiveTab] = useState<
 ```
 
 ### 4.1 Fleet Dashboard
-- [ ] **4.1.1** Fleet Overview Komponente (NEUE Datei, nichts überschreiben)
+- [x] **4.1.1** Fleet Overview Komponente (NEUE Datei, nichts überschreiben)
   - **File:** `frontend/src/components/Fleet/FleetDashboard.tsx`
   - **Features:**
     - Tabelle: Agent Name | Pair | Mode | Status | PnL | Kill Switch
     - Live PnL Updates via WebSocket
     - Farbkodierung: 🟢 ACTIVE, 🟡 PROPOSING, ⚪ SCANNING, 🔴 STOPPED
 
-- [ ] **4.1.2** "Deploy Agent" Wizard
+- [x] **4.1.2** "Deploy Agent" Wizard
   - **File:** `frontend/src/components/Fleet/DeployAgentModal.tsx`
   - **Steps:**
     1. Name & Symbol wählen
