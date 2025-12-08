@@ -174,8 +174,130 @@ Features:
 
 ---
 
+## Update 01:10 - Chart Farb-Customization
+
+### 5. Chart Color Picker Feature
+
+**Neue Komponente:** `frontend/src/components/Chart/ChartSettings.tsx`
+
+Ein Settings-Popup (⚙️ Icon oben rechts im Chart) mit:
+- 🎨 **Background Color Picker** - Hintergrundfarbe des Charts ändern
+- ✏️ **Text Color Picker** - Textfarbe für Achsen und Toolbar ändern
+- 📍 **12 Preset-Farben** pro Picker (dunkle Farben für Hintergrund, helle für Text)
+- 👁️ **Live-Preview** der Farbkombination
+- 💾 **Persistenz** via localStorage
+
+**Geänderte Dateien:**
+
+| Datei | Änderung |
+|-------|----------|
+| `frontend/src/store/tradingStore.ts` | `chartBackgroundColor` und `chartTextColor` State mit localStorage |
+| `frontend/src/components/Chart/KlineChartPro.tsx` | Integration von ChartSettings + CSS Custom Properties |
+| `frontend/src/index.css` | KlineCharts Pro Toolbar Dark Theme Overrides |
+
+**CSS Custom Properties:**
+```css
+--chart-bg-color    /* Hintergrundfarbe */
+--chart-text-color  /* Textfarbe */
+```
+
+Diese werden dynamisch gesetzt und steuern das Styling der KlineCharts Pro Toolbar.
+
+### 6. Timeframe-Erweiterung
+
+**Neue Timeframes hinzugefügt:**
+- `1s` (1 Sekunde)
+- `10s` (10 Sekunden)  
+- `30s` (30 Sekunden)
+
+Binance unterstützt 1s-Daten via WebSocket und das Backend (CCXT) liefert die historischen Daten.
+
+---
+
+## Git Commits
+
+### Commit 1: KlineCharts Pro Integration
+```
+feat: Integrate KlineCharts Pro replacing D3.js chart
+
+- Add klinecharts and @klinecharts/pro dependencies
+- Create BinanceDatafeed.ts for custom datafeed implementation
+- Create KlineChartPro.tsx React wrapper with dark theme
+- Update App.tsx to use new chart component
+- Rename D3Chart.tsx to D3ChartLegacy.tsx as fallback
+- Add CSS fixes for chart container sizing
+```
+
+### Commit 2: Chart Customization (29eb650)
+```
+feat: Add chart customization with background and text color pickers
+
+- Add 1-second timeframe support for Binance WebSocket
+- Create ChartSettings component with dual color pickers
+- Add chartBackgroundColor and chartTextColor to tradingStore with localStorage persistence
+- Apply CSS custom properties for KlineCharts Pro toolbar styling
+- Include live preview and preset color palettes
+```
+
+---
+
+## Update 01:45 - Paper Trading Position Update Bug Fix
+
+### 7. Bug: Orders aktualisierten bestehende Positionen nicht
+
+**Problem:**
+Beim Platzieren neuer Market Orders für ein Symbol mit bereits offener Position wurde die Position nicht aktualisiert. Size und Entry Price blieben unverändert, obwohl die Order in `paper_orders` korrekt als `FILLED` markiert wurde.
+
+**Root Cause:**
+In `backend/app/services/paper_trading.py` wurde SQLAlchemy `== None` verwendet, um nach manuellen Trades (ohne `strategy_id`) zu suchen. Bei async SQLAlchemy wird dies nicht korrekt zu `IS NULL` übersetzt.
+
+**Fix:**
+```python
+# VORHER (fehlerhaft)
+result = await self.db.execute(select(PaperPosition).where(
+    PaperPosition.strategy_id == strategy_id  # Funktioniert nicht für None
+))
+
+# NACHHER (korrekt)
+if strategy_id is None:
+    result = await self.db.execute(select(PaperPosition).where(
+        PaperPosition.strategy_id.is_(None)  # Korrekter NULL-Vergleich
+    ))
+else:
+    result = await self.db.execute(select(PaperPosition).where(
+        PaperPosition.strategy_id == strategy_id
+    ))
+```
+
+**Geänderte Datei:**
+| Datei | Zeilen |
+|-------|--------|
+| `backend/app/services/paper_trading.py` | 174-188 |
+
+**Verifiziert:**
+| Metrik | Vorher | Nachher |
+|--------|--------|---------|
+| BTC Position Size | 0.0887 | 0.1053 |
+| Entry Price | 90159.55 | 90197.64 (gewichteter Ø) |
+
+---
+
+## Git Commits (aktualisiert)
+
+### Commit 3: Paper Trading Bug Fix
+```
+fix: Paper trading position update with correct NULL comparison
+
+- Use is_(None) for SQLAlchemy async queries instead of == None
+- Fixes issue where new orders did not update existing positions
+- Position size and entry price now correctly averaged
+```
+
+---
+
 ## Referenzen
 
 - [KlineCharts Pro GitHub](https://github.com/klinecharts/pro)
 - [KlineCharts Pro Dokumentation](https://pro.klinecharts.com)
 - [KlineCharts Pro en-US.json](https://github.com/klinecharts/pro/blob/main/src/i18n/en-US.json)
+- [SQLAlchemy NULL Comparison](https://docs.sqlalchemy.org/en/20/core/sqlelement.html#sqlalchemy.sql.expression.ColumnElement.is_)
