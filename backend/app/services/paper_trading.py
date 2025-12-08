@@ -156,19 +156,14 @@ class PaperTradingService:
             self.db.add(trade)
             
             # Update Account Balance
+            # Update Account Balance (Fees Only first, Margin handled later based on action)
             if not strategy_id:
-                account.balance -= (margin + fee)
+                account.balance -= fee
             else:
-                # For strategy, we don't touch main balance.
-                # But we should probably deduct fee from somewhere?
-                # If we don't deduct fee, the strategy gets free trades?
-                # The fee should reduce the "Locked Balance" (Strategy Capital).
-                # Yes, locked_balance -= fee.
+                # Strategy Fee deduction
                 if account.locked_balance >= fee:
                     account.locked_balance -= fee
                 else:
-                    # Strategy ran out of money for fees?
-                    # Just deduct what we can or go negative?
                     account.locked_balance -= fee
             
             # Update/Create Position
@@ -189,7 +184,15 @@ class PaperTradingService:
             
             if position:
                 if position.side == side.upper():
-                    # Add to position
+                    # Add to position -> Deduct Margin
+                    if not strategy_id:
+                        account.balance -= margin
+                    else:
+                        # For strategy, ensure we check/deduct from virtual allocation?
+                        # For now, simplistic approach
+                        pass
+
+                    # Add to position logic
                     total_cost = (position.size * position.entry_price) + (quantity * current_price)
                     new_size = position.size + quantity
                     position.entry_price = total_cost / new_size
@@ -224,7 +227,11 @@ class PaperTradingService:
                     if position.size <= 0:
                         await self.db.delete(position)
             else:
-                # New Position
+                # New Position -> Deduct Margin
+                if not strategy_id:
+                    account.balance -= margin
+                
+                # New Position logic
                 position = PaperPosition(
                     account_id=account.id,
                     strategy_id=strategy_id,

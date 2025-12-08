@@ -4,7 +4,7 @@ import { api } from '../services/api';
 interface Position {
     id: string;
     symbol: string;
-    side: 'LONG' | 'SHORT';
+    side: 'LONG' | 'SHORT' | 'BUY' | 'SELL';
     size: number;
     entry_price: number;
     mark_price: number;
@@ -45,6 +45,7 @@ interface TradingState {
     activeStrategies: any[]; // Using any[] for now to avoid circular dependency with api.ts types
     chartBackgroundColor: string; // Chart background color preference
     chartTextColor: string; // Chart text color preference
+    favorites: string[];
 
     setSymbol: (symbol: string) => void;
     setTimeframe: (timeframe: string) => void;
@@ -52,6 +53,7 @@ interface TradingState {
     setCurrentAnalysis: (analysis: string | null) => void;
     setChartBackgroundColor: (color: string) => void;
     setChartTextColor: (color: string) => void;
+    toggleFavorite: (name: string) => void;
 
     fetchPortfolio: () => Promise<void>;
     fetchActiveStrategies: () => Promise<void>;
@@ -77,6 +79,7 @@ export const useTradingStore = create<TradingState>((set, get) => ({
     activeStrategies: [],
     chartBackgroundColor: savedChartBgColor,
     chartTextColor: savedChartTextColor,
+    favorites: JSON.parse(localStorage.getItem('indicatorFavorites') || '[]'),
 
     setSymbol: (symbol) => set({ symbol }),
     setTimeframe: (timeframe) => set({ timeframe }),
@@ -89,6 +92,15 @@ export const useTradingStore = create<TradingState>((set, get) => ({
     setChartTextColor: (color) => {
         localStorage.setItem('chartTextColor', color);
         set({ chartTextColor: color });
+    },
+    toggleFavorite: (name: string) => {
+        const current = get().favorites || [];
+        const newFavorites = current.includes(name)
+            ? current.filter((n: string) => n !== name)
+            : [...current, name];
+
+        localStorage.setItem('indicatorFavorites', JSON.stringify(newFavorites));
+        set({ favorites: newFavorites });
     },
 
     fetchPortfolio: async () => {

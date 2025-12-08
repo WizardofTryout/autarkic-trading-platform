@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Search, Star, Activity, BarChart2 } from 'lucide-react';
+import { X, Search, Star, Activity, BarChart2, Plus } from 'lucide-react';
 import { useTradingStore } from '../../store/tradingStore';
 
 interface IndicatorModalProps {
@@ -8,40 +8,48 @@ interface IndicatorModalProps {
     onAddIndicator: (name: string, isStack: boolean) => void;
 }
 
-const BUILT_IN_INDICATORS = {
-    main: [
-        { name: 'MA', label: 'MA (Moving Average)', desc: 'Trend following indicator' },
-        { name: 'EMA', label: 'EMA (Exponential MA)', desc: 'Weighted moving average' },
-        { name: 'SMA', label: 'SMA (Simple MA)', desc: 'Simple moving average' },
-        { name: 'BOLL', label: 'Bollinger Bands', desc: 'Volatility indicator' },
-        { name: 'SAR', label: 'SAR (Stop and Reverse)', desc: 'Trend reversal' },
-    ],
-    sub: [
-        { name: 'VOL', label: 'Volume', desc: 'Trading volume' },
-        { name: 'MACD', label: 'MACD', desc: 'Momentum oscillator' },
-        { name: 'RSI', label: 'RSI (Relative Strength)', desc: 'Momentum indicator' },
-        { name: 'KDJ', label: 'KDJ', desc: 'Momentum indicator' },
-        { name: 'CCI', label: 'CCI', desc: 'Cyclical trends' },
-        { name: 'WR', label: 'Williams %R', desc: 'Momentum indicator' },
-        { name: 'OBV', label: 'On Balance Volume', desc: 'Volume flow' },
-        { name: 'ROC', label: 'Rate of Change', desc: 'Momentum' },
-        { name: 'ATR', label: 'ATR (True Range)', desc: 'Volatility' },
-    ],
-};
+const MAIN_INDICATORS = [
+    { name: 'MA', label: 'MA (Moving Average)', desc: 'Trend following indicator' },
+    { name: 'EMA', label: 'EMA (Exponential MA)', desc: 'Weighted moving average' },
+    { name: 'SMA', label: 'SMA (Simple MA)', desc: 'Simple moving average' },
+    { name: 'BOLL', label: 'Bollinger Bands', desc: 'Volatility indicator' },
+    { name: 'SAR', label: 'SAR (Stop and Reverse)', desc: 'Trend reversal' },
+];
+
+const SUB_INDICATORS = [
+    { name: 'VOL', label: 'Volume', desc: 'Trading volume' },
+    { name: 'MACD', label: 'MACD', desc: 'Momentum oscillator' },
+    { name: 'RSI', label: 'RSI (Relative Strength)', desc: 'Momentum indicator' },
+    { name: 'KDJ', label: 'KDJ', desc: 'Momentum indicator' },
+    { name: 'CCI', label: 'CCI', desc: 'Cyclical trends' },
+    { name: 'WR', label: 'Williams %R', desc: 'Momentum indicator' },
+    { name: 'OBV', label: 'On Balance Volume', desc: 'Volume flow' },
+    { name: 'ROC', label: 'Rate of Change', desc: 'Momentum' },
+    { name: 'ATR', label: 'ATR (True Range)', desc: 'Volatility' },
+];
 
 const IndicatorModal: React.FC<IndicatorModalProps> = ({ isOpen, onClose, onAddIndicator }) => {
     const [activeTab, setActiveTab] = useState<'main' | 'sub' | 'custom' | 'favorites'>('main');
     const [searchQuery, setSearchQuery] = useState('');
-    // const { strategies } = useTradingStore(); // TODO: Add strategies to store or fetch from API
+    const { favorites, toggleFavorite } = useTradingStore();
 
     if (!isOpen) return null;
 
-    const filteredIndicators = (category: 'main' | 'sub') => {
-        return BUILT_IN_INDICATORS[category].filter(ind =>
-            ind.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            ind.name.toLowerCase().includes(searchQuery.toLowerCase())
-        );
+    const getIndicators = () => {
+        if (activeTab === 'main') return MAIN_INDICATORS.map(i => ({ ...i, isStack: true }));
+        if (activeTab === 'sub') return SUB_INDICATORS.map(i => ({ ...i, isStack: false }));
+        if (activeTab === 'favorites') {
+            return [
+                ...MAIN_INDICATORS.map(i => ({ ...i, isStack: true })),
+                ...SUB_INDICATORS.map(i => ({ ...i, isStack: false }))
+            ].filter(ind => favorites?.includes(ind.name));
+        }
+        return [];
     };
+
+    const displayIndicators = getIndicators()
+        .filter(ind => ind.name.toLowerCase().includes(searchQuery.toLowerCase()) || (ind.label && ind.label.toLowerCase().includes(searchQuery.toLowerCase())))
+        .sort((a, b) => a.name.localeCompare(b.name));
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -93,59 +101,53 @@ const IndicatorModal: React.FC<IndicatorModalProps> = ({ isOpen, onClose, onAddI
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-2">
-                    {activeTab === 'main' && (
-                        <div className="grid grid-cols-1 gap-1">
-                            {filteredIndicators('main').map(ind => (
-                                <div
-                                    key={ind.name}
-                                    onClick={() => {
-                                        onAddIndicator(ind.name, true);
-                                        onClose();
-                                    }}
-                                    className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-800 cursor-pointer group transition-colors"
-                                >
-                                    <div>
-                                        <div className="font-medium text-gray-200">{ind.label}</div>
-                                        <div className="text-xs text-gray-500">{ind.desc}</div>
-                                    </div>
-                                    <button className="text-gray-600 hover:text-yellow-500 opacity-0 group-hover:opacity-100 transition-all">
-                                        <Star className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {activeTab === 'sub' && (
-                        <div className="grid grid-cols-1 gap-1">
-                            {filteredIndicators('sub').map(ind => (
-                                <div
-                                    key={ind.name}
-                                    onClick={() => {
-                                        onAddIndicator(ind.name, false);
-                                        onClose();
-                                    }}
-                                    className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-800 cursor-pointer group transition-colors"
-                                >
-                                    <div>
-                                        <div className="font-medium text-gray-200">{ind.label}</div>
-                                        <div className="text-xs text-gray-500">{ind.desc}</div>
-                                    </div>
-                                    <button className="text-gray-600 hover:text-yellow-500 opacity-0 group-hover:opacity-100 transition-all">
-                                        <Star className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {activeTab === 'custom' && (
+                    {activeTab === 'custom' ? (
                         <div className="flex flex-col items-center justify-center py-12 text-gray-500">
                             <BarChart2 className="w-12 h-12 mb-4 opacity-50" />
                             <p>No custom strategies found</p>
                             <button className="mt-4 text-blue-400 hover:text-blue-300 text-sm">
                                 Open Strategy Builder
                             </button>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-1">
+                            {displayIndicators.map((ind) => (
+                                <div
+                                    key={ind.name}
+                                    className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-800 cursor-pointer group transition-colors"
+                                    onClick={() => {
+                                        onAddIndicator(ind.name, ind.isStack);
+                                        onClose();
+                                    }}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleFavorite(ind.name);
+                                            }}
+                                            className={`p-1 rounded hover:bg-gray-700 transition-colors ${favorites?.includes(ind.name) ? 'text-yellow-400' : 'text-gray-600 hover:text-gray-400'
+                                                }`}
+                                        >
+                                            <Star className="w-4 h-4" fill={favorites?.includes(ind.name) ? "currentColor" : "none"} />
+                                        </button>
+                                        <div>
+                                            <div className="font-medium text-gray-200">{ind.label || ind.name}</div>
+                                            <div className="text-xs text-gray-500">{ind.desc}</div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        className="p-1.5 bg-gray-700 hover:bg-blue-600 rounded text-gray-300 hover:text-white transition-colors"
+                                    >
+                                        <Plus size={16} />
+                                    </button>
+                                </div>
+                            ))}
+                            {displayIndicators.length === 0 && (
+                                <div className="p-8 text-center text-gray-500">
+                                    No indicators found.
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

@@ -51,6 +51,34 @@ export const OrderEntry: React.FC = () => {
     const handleOrderClick = (side: 'buy' | 'sell') => {
         if (!margin) return;
         if (orderType === 'LIMIT' && !price) return;
+
+        // Validation: SL/TP vs Side
+        const entry = orderType === 'LIMIT' && price ? parseFloat(price) : currentPrice;
+
+        if (slEnabled && stopLoss) {
+            const slVal = parseFloat(stopLoss);
+            if (side === 'buy' && slVal >= entry) {
+                alert(`Invalid Stop Loss for LONG: ${slVal} must be below Entry Price ${entry.toFixed(2)}`);
+                return;
+            }
+            if (side === 'sell' && slVal <= entry) {
+                alert(`Invalid Stop Loss for SHORT: ${slVal} must be above Entry Price ${entry.toFixed(2)}`);
+                return;
+            }
+        }
+
+        if (tpEnabled && takeProfit) {
+            const tpVal = parseFloat(takeProfit);
+            if (side === 'buy' && tpVal <= entry) {
+                alert(`Invalid Take Profit for LONG: ${tpVal} must be above Entry Price ${entry.toFixed(2)}`);
+                return;
+            }
+            if (side === 'sell' && tpVal >= entry) {
+                alert(`Invalid Take Profit for SHORT: ${tpVal} must be below Entry Price ${entry.toFixed(2)}`);
+                return;
+            }
+        }
+
         setPendingSide(side);
         setIsModalOpen(true);
     };

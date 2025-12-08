@@ -113,8 +113,9 @@ export const TradingDashboard: React.FC = () => {
                             {portfolio.positions.map((pos) => {
                                 // Calculate PnL locally using WebSocket data
                                 const currentPrice = currentData[pos.symbol]?.close || pos.entry_price;
+                                const isLong = pos.side === 'LONG' || pos.side === 'BUY';
                                 let pnl = 0;
-                                if (pos.side === 'LONG') {
+                                if (isLong) {
                                     pnl = (currentPrice - pos.entry_price) * pos.size;
                                 } else {
                                     pnl = (pos.entry_price - currentPrice) * pos.size;
@@ -130,7 +131,7 @@ export const TradingDashboard: React.FC = () => {
                                                 title="Click to view chart"
                                             >
                                                 <span className="font-bold text-white group-hover:text-blue-400 transition-colors">{pos.symbol}</span>
-                                                <span className={`text-xs px-1.5 py-0.5 rounded ${pos.side === 'LONG' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                <span className={`text-xs px-1.5 py-0.5 rounded ${isLong ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                                                     {pos.side} {pos.leverage}x
                                                 </span>
                                             </div>
@@ -157,7 +158,29 @@ export const TradingDashboard: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="p-3 text-right">
-                                            <button className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white transition-colors">
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        const normalizedSide = String(pos.side).trim().toUpperCase();
+                                                        const side = (normalizedSide === 'LONG' || normalizedSide === 'BUY') ? 'sell' : 'buy';
+                                                        // Calculate approximate margin needed to close full size
+                                                        // Adding 1% buffer to ensure full closure if price moves slightly or rounding
+                                                        const closeAmount = ((pos.size * currentPrice) / pos.leverage) * 1.01;
+
+                                                        // Use the store's placeOrder
+                                                        const { placeOrder } = useTradingStore.getState();
+                                                        await placeOrder(
+                                                            pos.symbol,
+                                                            side,
+                                                            closeAmount,
+                                                            pos.leverage
+                                                        );
+                                                    } catch (error) {
+                                                        console.error('Failed to close position:', error);
+                                                    }
+                                                }}
+                                                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white transition-colors"
+                                            >
                                                 Close
                                             </button>
                                         </td>
@@ -215,8 +238,10 @@ export const TradingDashboard: React.FC = () => {
                             <tr>
                                 <th className="p-3 font-medium">Time</th>
                                 <th className="p-3 font-medium">Symbol</th>
+                                <th className="p-3 font-medium">Type</th>
                                 <th className="p-3 font-medium">Side</th>
                                 <th className="p-3 font-medium">Price</th>
+                                <th className="p-3 font-medium">Amount</th>
                                 <th className="p-3 font-medium">Filled</th>
                                 <th className="p-3 font-medium">Status</th>
                             </tr>
@@ -228,7 +253,6 @@ export const TradingDashboard: React.FC = () => {
                                     <td
                                         className="p-3 font-bold text-white cursor-pointer hover:text-blue-400 transition-colors"
                                         onClick={() => setSymbol(order.symbol)}
-                                        title="Click to view chart"
                                     >
                                         {order.symbol}
                                     </td>
@@ -236,37 +260,6 @@ export const TradingDashboard: React.FC = () => {
                                     <td className={`p-3 ${order.side === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>{order.side}</td>
                                     <td className="p-3 text-gray-300">{order.price?.toFixed(2) || 'Market'}</td>
                                     <td className="p-3 text-gray-300">{order.amount}</td>
-                                    <td className="p-3 text-gray-300">{order.filled_quantity}</td>
-                                    <td className="p-3 text-right">
-                                        <button className="text-gray-400 hover:text-red-400 transition-colors">
-                                            <XCircle className="w-4 h-4" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-
-                {activeTab === 'history' && (
-                    <table className="w-full text-left border-collapse">
-                        <thead className="bg-gray-800/50 text-gray-400 sticky top-0">
-                            <tr>
-                                <th className="p-3 font-medium">Time</th>
-                                <th className="p-3 font-medium">Symbol</th>
-                                <th className="p-3 font-medium">Side</th>
-                                <th className="p-3 font-medium">Price</th>
-                                <th className="p-3 font-medium">Filled</th>
-                                <th className="p-3 font-medium">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-800">
-                            {portfolio.history.map((order) => (
-                                <tr key={order.id} className="hover:bg-gray-800/30 transition-colors">
-                                    <td className="p-3 text-gray-400">{new Date(order.created_at).toLocaleString()}</td>
-                                    <td className="p-3 font-bold text-white">{order.symbol}</td>
-                                    <td className={`p-3 ${order.side === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>{order.side}</td>
-                                    <td className="p-3 text-gray-300">{order.price?.toFixed(2)}</td>
                                     <td className="p-3 text-gray-300">{order.filled_quantity}</td>
                                     <td className="p-3 text-gray-300">{order.status}</td>
                                 </tr>
@@ -348,25 +341,27 @@ export const TradingDashboard: React.FC = () => {
                 )}
             </div>
 
-            {editingStrategy && (
-                <React.Suspense fallback={null}>
-                    <StrategyActivationModal
-                        strategyId={editingStrategy.strategy_id}
-                        strategyName={editingStrategy.strategy_name}
-                        initialData={{
-                            symbol: editingStrategy.symbol,
-                            timeframe: editingStrategy.timeframe,
-                            amount: editingStrategy.amount
-                        }}
-                        onClose={() => setEditingStrategy(null)}
-                        onSuccess={() => {
-                            setEditingStrategy(null);
-                            fetchActiveStrategies();
-                            fetchPortfolio();
-                        }}
-                    />
-                </React.Suspense>
-            )}
+            {
+                editingStrategy && (
+                    <React.Suspense fallback={null}>
+                        <StrategyActivationModal
+                            strategyId={editingStrategy.strategy_id}
+                            strategyName={editingStrategy.strategy_name}
+                            initialData={{
+                                symbol: editingStrategy.symbol,
+                                timeframe: editingStrategy.timeframe,
+                                amount: editingStrategy.amount
+                            }}
+                            onClose={() => setEditingStrategy(null)}
+                            onSuccess={() => {
+                                setEditingStrategy(null);
+                                fetchActiveStrategies();
+                                fetchPortfolio();
+                            }}
+                        />
+                    </React.Suspense>
+                )
+            }
 
             <React.Suspense fallback={null}>
                 <ConfirmationModal
@@ -391,6 +386,6 @@ export const TradingDashboard: React.FC = () => {
                     onCancel={() => setDeletingStrategyId(null)}
                 />
             </React.Suspense>
-        </div>
+        </div >
     );
 };
