@@ -13,6 +13,7 @@ import { useFleetStore } from '../../store/fleetStore';
 import type { DeployAgentParams } from '../../store/fleetStore';
 import { X, Bot, ChevronRight, ChevronLeft, Check, AlertTriangle, Search } from 'lucide-react';
 import { api, getSymbols } from '../../services/api';
+import { useAuthStore } from '../../store/authStore';
 import './DeployAgentModal.css';
 
 interface Strategy {
@@ -59,15 +60,26 @@ const DeployAgentModal: React.FC = () => {
     useEffect(() => {
         const fetchStrategies = async () => {
             try {
-                console.log('Fetching strategies...');
+                console.log('[DeployModal] Fetching strategies...');
+                console.log('[DeployModal] Has token:', !!useAuthStore.getState().token);
+                
                 const data = await api.get('/strategies');
-                console.log('Strategies response:', data);
+                console.log('[DeployModal] Strategies response:', data);
+                
                 // Show all strategies (not just compiled ones)
-                setStrategies(data || []);
-                setStrategiesError(null);
-            } catch (e) {
-                console.error('Failed to fetch strategies:', e);
-                setStrategiesError('Strategien konnten nicht geladen werden. Bitte erneut einloggen oder Backend prüfen.');
+                if (Array.isArray(data)) {
+                    setStrategies(data);
+                    setStrategiesError(null);
+                    console.log(`[DeployModal] Loaded ${data.length} strategies`);
+                } else {
+                    console.warn('[DeployModal] Response is not an array:', data);
+                    setStrategies([]);
+                    setStrategiesError('Strategien konnten nicht geladen werden. Ungültiges Format.');
+                }
+            } catch (e: any) {
+                console.error('[DeployModal] Failed to fetch strategies:', e);
+                console.error('[DeployModal] Error details:', e.message);
+                setStrategiesError(`Strategien konnten nicht geladen werden: ${e.message || 'Backend-Fehler'}`);
             }
         };
         fetchStrategies();
