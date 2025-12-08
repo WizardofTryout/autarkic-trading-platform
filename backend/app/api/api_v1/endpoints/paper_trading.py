@@ -56,9 +56,13 @@ async def get_dashboard(
     service = PaperTradingService(db)
     portfolio = await service.get_portfolio(current_user.id)
     
+    # Calculate reserved margin from open orders
+    reserved_margin = sum(float(order.amount) for order in portfolio["orders"])
+    available_balance = float(portfolio["balance"]) - reserved_margin
+    
     # Convert SQLAlchemy objects to dicts for JSON serialization
     return {
-        "balance": float(portfolio["balance"]),
+        "balance": available_balance,  # Show available balance (total - reserved)
         "positions": [
             {
                 "id": str(pos.id),
@@ -88,6 +92,8 @@ async def get_dashboard(
                 "filled_quantity": float(order.filled_quantity),
                 "status": order.status,
                 "created_at": order.created_at.isoformat(),
+                "stop_loss": float(order.stop_loss) if order.stop_loss else None,
+                "take_profit": float(order.take_profit) if order.take_profit else None,
             }
             for order in portfolio["orders"]
         ],
@@ -107,6 +113,46 @@ async def get_dashboard(
             for order in portfolio["history"]
         ]
     }
+
+@router.delete("/order/{order_id}")
+async def cancel_order(
+    order_id: uuid.UUID,
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    service = PaperTradingService(db)
+    try:
+        await service.cancel_order(current_user.id, order_id)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+class PaperOrderUpdate(BaseModel):
+    price: Optional[float] = None
+    amount: Optional[float] = None
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+
+@router.put("/order/{order_id}")
+async def update_order(
+    order_id: uuid.UUID,
+    order_update: PaperOrderUpdate,
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    service = PaperTradingService(db)
+    try:
+        order = await service.update_order(
+            user_id=current_user.id,
+            order_id=order_id,
+            price=order_update.price,
+            amount=order_update.amount,
+            stop_loss=order_update.stop_loss,
+            take_profit=order_update.take_profit
+        )
+        return {"status": "success", "order_id": str(order.id)}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/reset")
 async def reset_account(

@@ -69,10 +69,10 @@ export const saveStrategy = async (strategy: { name: string; script_code: string
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
             script: strategy.script_code,
             name: strategy.name,
-            python_code: strategy.python_code 
+            python_code: strategy.python_code
         }),
     });
     if (!response.ok) throw new Error('Failed to save strategy');
@@ -264,8 +264,8 @@ export const chatWithAI = async (message: string, context?: any, signal?: AbortS
 };
 
 export const generateStrategy = async (
-    prompt: string, 
-    currentCode?: string, 
+    prompt: string,
+    currentCode?: string,
     signal?: AbortSignal,
     mode: 'pinescript' | 'python' = 'pinescript'
 ) => {
@@ -470,6 +470,22 @@ export const api = {
         if (!response.ok) {
             const error = await response.json().catch(() => ({}));
             throw new Error(error.detail || `DELETE ${endpoint} failed`);
+        }
+        return response.json();
+    },
+    put: async (endpoint: string, data?: any) => {
+        const token = useAuthStore.getState().token;
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: data ? JSON.stringify(data) : undefined,
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.detail || `PUT ${endpoint} failed`);
         }
         return response.json();
     }

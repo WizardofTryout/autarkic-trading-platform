@@ -1,17 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowUpRight, ArrowDownRight, XCircle, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, XCircle, RefreshCw, Pencil } from 'lucide-react';
 import { useTradingStore } from '../../store/tradingStore';
 import { useBinanceWebSocket } from '../../hooks/useBinanceWebSocket';
 
 // Lazy load the modal to avoid circular dependencies if any
 const StrategyActivationModal = React.lazy(() => import('../StrategyBuilder/StrategyActivationModal'));
 const ConfirmationModal = React.lazy(() => import('../Common/ConfirmationModal'));
+const EditOrderModal = React.lazy(() => import('./EditOrderModal'));
+const TradeResultModal = React.lazy(() => import('../Common/TradeResultModal'));
 
 export const TradingDashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'positions' | 'orders' | 'history' | 'strategies'>('positions');
     const [editingStrategy, setEditingStrategy] = useState<any | null>(null);
+    const [editingOrder, setEditingOrder] = useState<any | null>(null);
     const [deletingStrategyId, setDeletingStrategyId] = useState<string | null>(null);
-    const { portfolio, fetchPortfolio, resetAccount, setSymbol, activeStrategies, fetchActiveStrategies } = useTradingStore();
+    const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
+    const [tradeResult, setTradeResult] = useState<{
+        symbol: string;
+        side: string;
+        entryPrice: number;
+        closePrice: number;
+        size: number;
+        pnl: number;
+        pnlPercent: number;
+    } | null>(null);
+    const { portfolio, fetchPortfolio, resetAccount, setSymbol, activeStrategies, fetchActiveStrategies, cancelOrder, updateOrder } = useTradingStore();
 
     // Get unique symbols from positions to subscribe to
     const symbols = React.useMemo(() => {
@@ -167,6 +180,13 @@ export const TradingDashboard: React.FC = () => {
                                                         // Adding 1% buffer to ensure full closure if price moves slightly or rounding
                                                         const closeAmount = ((pos.size * currentPrice) / pos.leverage) * 1.01;
 
+                                                        // Calculate PnL for display
+                                                        const isLongPos = normalizedSide === 'LONG' || normalizedSide === 'BUY';
+                                                        const unrealizedPnl = isLongPos
+                                                            ? (currentPrice - pos.entry_price) * pos.size
+                                                            : (pos.entry_price - currentPrice) * pos.size;
+                                                        const pnlPct = (unrealizedPnl / pos.margin) * 100;
+
                                                         // Use the store's placeOrder
                                                         const { placeOrder } = useTradingStore.getState();
                                                         await placeOrder(
@@ -175,6 +195,17 @@ export const TradingDashboard: React.FC = () => {
                                                             closeAmount,
                                                             pos.leverage
                                                         );
+
+                                                        // Show trade result modal
+                                                        setTradeResult({
+                                                            symbol: pos.symbol,
+                                                            side: normalizedSide,
+                                                            entryPrice: pos.entry_price,
+                                                            closePrice: currentPrice,
+                                                            size: pos.size,
+                                                            pnl: unrealizedPnl,
+                                                            pnlPercent: pnlPct
+                                                        });
                                                     } catch (error) {
                                                         console.error('Failed to close position:', error);
                                                     }
@@ -217,12 +248,23 @@ export const TradingDashboard: React.FC = () => {
                                         {order.symbol}
                                     </td>
                                     <td className="p-3 text-gray-300">{order.type}</td>
-                                    <td className={`p-3 ${order.side === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>{order.side}</td>
+                                    <td className={`p-3 ${order.side === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>{order.side === 'BUY' ? 'LONG' : 'SHORT'}</td>
                                     <td className="p-3 text-gray-300">{order.price?.toFixed(2) || 'Market'}</td>
                                     <td className="p-3 text-gray-300">{order.amount}</td>
                                     <td className="p-3 text-gray-300">{order.filled_quantity}</td>
-                                    <td className="p-3 text-right">
-                                        <button className="text-gray-400 hover:text-red-400 transition-colors">
+                                    <td className="p-3 text-right flex justify-end gap-2">
+                                        <button
+                                            onClick={() => setEditingOrder(order)}
+                                            className="text-gray-400 hover:text-blue-400 transition-colors"
+                                            title="Edit Order"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => setCancelingOrderId(order.id)}
+                                            className="text-gray-400 hover:text-red-400 transition-colors"
+                                            title="Cancel Order"
+                                        >
                                             <XCircle className="w-4 h-4" />
                                         </button>
                                     </td>
@@ -257,7 +299,7 @@ export const TradingDashboard: React.FC = () => {
                                         {order.symbol}
                                     </td>
                                     <td className="p-3 text-gray-300">{order.type}</td>
-                                    <td className={`p-3 ${order.side === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>{order.side}</td>
+                                    <td className={`p-3 ${order.side === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>{order.side === 'BUY' ? 'LONG' : 'SHORT'}</td>
                                     <td className="p-3 text-gray-300">{order.price?.toFixed(2) || 'Market'}</td>
                                     <td className="p-3 text-gray-300">{order.amount}</td>
                                     <td className="p-3 text-gray-300">{order.filled_quantity}</td>
@@ -341,51 +383,100 @@ export const TradingDashboard: React.FC = () => {
                 )}
             </div>
 
-            {
-                editingStrategy && (
-                    <React.Suspense fallback={null}>
-                        <StrategyActivationModal
-                            strategyId={editingStrategy.strategy_id}
-                            strategyName={editingStrategy.strategy_name}
-                            initialData={{
-                                symbol: editingStrategy.symbol,
-                                timeframe: editingStrategy.timeframe,
-                                amount: editingStrategy.amount
-                            }}
-                            onClose={() => setEditingStrategy(null)}
-                            onSuccess={() => {
-                                setEditingStrategy(null);
-                                fetchActiveStrategies();
-                                fetchPortfolio();
-                            }}
-                        />
-                    </React.Suspense>
-                )
-            }
+            {/* Modals */}
+            {editingStrategy && (
+                <React.Suspense fallback={null}>
+                    <StrategyActivationModal
+                        strategyId={editingStrategy.strategy_id}
+                        strategyName={editingStrategy.strategy_name}
+                        initialData={{
+                            symbol: editingStrategy.symbol,
+                            timeframe: editingStrategy.timeframe,
+                            amount: editingStrategy.amount
+                        }}
+                        onClose={() => setEditingStrategy(null)}
+                        onSuccess={() => {
+                            setEditingStrategy(null);
+                            fetchActiveStrategies();
+                            fetchPortfolio();
+                        }}
+                    />
+                </React.Suspense>
+            )}
 
-            <React.Suspense fallback={null}>
-                <ConfirmationModal
-                    isOpen={!!deletingStrategyId}
-                    title="Delete Strategy"
-                    message="Are you sure you want to delete this strategy run? This action cannot be undone."
-                    confirmText="Delete"
-                    isDangerous={true}
-                    onConfirm={async () => {
-                        if (deletingStrategyId) {
-                            try {
-                                const { deleteActiveStrategy } = await import('../../services/api');
-                                await deleteActiveStrategy(deletingStrategyId);
-                                fetchActiveStrategies();
-                            } catch (e) {
-                                console.error(e);
-                            } finally {
-                                setDeletingStrategyId(null);
+            {editingOrder && (
+                <React.Suspense fallback={null}>
+                    <EditOrderModal
+                        isOpen={!!editingOrder}
+                        onClose={() => setEditingOrder(null)}
+                        order={editingOrder}
+                        onSave={async (orderId, updates) => {
+                            await updateOrder(orderId, updates);
+                        }}
+                    />
+                </React.Suspense>
+            )}
+
+            {deletingStrategyId && (
+                <React.Suspense fallback={null}>
+                    <ConfirmationModal
+                        isOpen={!!deletingStrategyId}
+                        title="Stop Strategy"
+                        message="Are you sure you want to stop this strategy? This will close all open positions."
+                        confirmText="Stop Strategy"
+                        isDangerous={true}
+                        onConfirm={async () => {
+                            if (deletingStrategyId) {
+                                try {
+                                    const { deleteActiveStrategy } = await import('../../services/api');
+                                    await deleteActiveStrategy(deletingStrategyId);
+                                    fetchActiveStrategies();
+                                } catch (e) {
+                                    console.error(e);
+                                } finally {
+                                    setDeletingStrategyId(null);
+                                }
                             }
-                        }
-                    }}
-                    onCancel={() => setDeletingStrategyId(null)}
-                />
-            </React.Suspense>
-        </div >
+                        }}
+                        onCancel={() => setDeletingStrategyId(null)}
+                    />
+                </React.Suspense>
+            )}
+
+            {cancelingOrderId && (
+                <React.Suspense fallback={null}>
+                    <ConfirmationModal
+                        isOpen={!!cancelingOrderId}
+                        title="Cancel Order"
+                        message="Are you sure you want to cancel this order? The reserved margin will be released."
+                        confirmText="Yes, Cancel Order"
+                        cancelText="No, Keep Order"
+                        isDangerous={true}
+                        onConfirm={async () => {
+                            if (cancelingOrderId) {
+                                try {
+                                    await cancelOrder(cancelingOrderId);
+                                } catch (e) {
+                                    console.error(e);
+                                } finally {
+                                    setCancelingOrderId(null);
+                                }
+                            }
+                        }}
+                        onCancel={() => setCancelingOrderId(null)}
+                    />
+                </React.Suspense>
+            )}
+
+            {tradeResult && (
+                <React.Suspense fallback={null}>
+                    <TradeResultModal
+                        isOpen={!!tradeResult}
+                        result={tradeResult}
+                        onClose={() => setTradeResult(null)}
+                    />
+                </React.Suspense>
+            )}
+        </div>
     );
 };

@@ -27,6 +27,8 @@ interface Order {
     filled_quantity: number;
     status: string;
     created_at: string;
+    stop_loss?: number | null;
+    take_profit?: number | null;
 }
 
 interface Portfolio {
@@ -58,6 +60,8 @@ interface TradingState {
     fetchPortfolio: () => Promise<void>;
     fetchActiveStrategies: () => Promise<void>;
     placeOrder: (symbol: string, side: 'buy' | 'sell', amount: number, leverage: number, type?: 'MARKET' | 'LIMIT', price?: number, stopLoss?: number, takeProfit?: number, isTrailingStop?: boolean, trailingPercent?: number) => Promise<void>;
+    cancelOrder: (orderId: string) => Promise<void>;
+    updateOrder: (orderId: string, updates: any) => Promise<void>;
     resetAccount: () => Promise<void>;
 }
 
@@ -150,6 +154,26 @@ export const useTradingStore = create<TradingState>((set, get) => ({
             await get().fetchPortfolio();
         } catch (error) {
             console.error('Failed to reset account:', error);
+        }
+    },
+
+    cancelOrder: async (orderId: string) => {
+        try {
+            await api.delete(`/paper/order/${orderId}`);
+            await get().fetchPortfolio();
+        } catch (error) {
+            console.error('Failed to cancel order:', error);
+            throw error;
+        }
+    },
+
+    updateOrder: async (orderId: string, updates: any) => {
+        try {
+            await api.put(`/paper/order/${orderId}`, updates);
+            await get().fetchPortfolio();
+        } catch (error) {
+            console.error('Failed to update order:', error);
+            throw error;
         }
     }
 }));
