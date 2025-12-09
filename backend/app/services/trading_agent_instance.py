@@ -299,11 +299,30 @@ class TradingAgentInstance:
             "timestamp": datetime.utcnow().isoformat(),
         }
         
-        # Generate visual snapshot for chart
+        # Generate visual snapshot for chart (Ghost Lines)
+        # Format: matches frontend VisualOverlay interface
         visuals = [
-            {"shape": "line", "price": float(entry), "color": "green", "label": "Entry", "style": "dashed"},
-            {"shape": "line", "price": float(stop_loss), "color": "red", "label": "Stop Loss", "style": "dashed"},
-            {"shape": "line", "price": float(take_profit), "color": "blue", "label": "Take Profit", "style": "dashed"},
+            {
+                "shape": "line", 
+                "price": float(entry), 
+                "color": "#3b82f6",  # Blue for entry
+                "label": f"Entry: ${float(entry):,.2f}", 
+                "style": "solid"
+            },
+            {
+                "shape": "line", 
+                "price": float(stop_loss), 
+                "color": "#ef4444",  # Red for stop loss
+                "label": f"Stop Loss: ${float(stop_loss):,.2f}", 
+                "style": "dashed"
+            },
+            {
+                "shape": "line", 
+                "price": float(take_profit), 
+                "color": "#10b981",  # Green for take profit
+                "label": f"Take Profit: ${float(take_profit):,.2f}", 
+                "style": "dashed"
+            },
         ]
         
         self.status = AgentStatus.PROPOSING

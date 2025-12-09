@@ -27,9 +27,26 @@ registerLocale('en-US', {
     turnover: 'Turnover',
 });
 
+/**
+ * Visual overlay for Ghost Lines (Entry, SL, TP visualization)
+ */
+export interface VisualOverlay {
+    shape: 'line' | 'rect' | 'zone';
+    price?: number;
+    x1?: number;
+    y1?: number;
+    x2?: number;
+    y2?: number;
+    color: string;
+    label?: string;
+    style?: 'solid' | 'dashed' | 'dotted';
+}
+
 interface KlineChartCoreProps {
     symbol?: string;
     timeframe?: string;
+    overlays?: VisualOverlay[];  // Ghost Lines from Agent proposals
+    showToolbar?: boolean;       // Show/hide toolbar (default: true)
 }
 
 // Timeframe mapping for backend and Binance
@@ -123,7 +140,12 @@ const darkThemeStyles = {
     separator: { color: 'rgba(255, 255, 255, 0.1)' },
 };
 
-const KlineChartCoreComponent: React.FC<KlineChartCoreProps> = ({ symbol, timeframe }) => {
+const KlineChartCoreComponent: React.FC<KlineChartCoreProps> = ({
+    symbol,
+    timeframe,
+    overlays = [],
+    showToolbar = true
+}) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<Chart | null>(null);
     const wsRef = useRef<WebSocket | null>(null);
@@ -397,6 +419,69 @@ const KlineChartCoreComponent: React.FC<KlineChartCoreProps> = ({ symbol, timefr
         updatePositionOverlays();
     }, [updatePositionOverlays]);
 
+    // ==================== GHOST LINES: Render Agent Overlays ====================
+    useEffect(() => {
+        if (!chartRef.current) return;
+
+        // Remove existing ghost line overlays
+        chartRef.current.removeOverlay({ groupId: 'ghost-lines' });
+
+        // If no overlays, nothing to render
+        if (!overlays || overlays.length === 0) return;
+
+        // Render each overlay as a ghost line
+        overlays.forEach((overlay, index) => {
+            if (!chartRef.current) return;
+
+            if (overlay.shape === 'line' && overlay.price !== undefined) {
+                // Horizontal price line (Entry, SL, TP)
+                chartRef.current.createOverlay({
+                    name: 'priceLine',
+                    groupId: 'ghost-lines',
+                    lock: true,
+                    points: [{ value: overlay.price }],
+                    styles: {
+                        line: {
+                            color: overlay.color || '#3B82F6',
+                            style: overlay.style || 'dashed',
+                            size: 2,
+                            dashedValue: overlay.style === 'solid' ? undefined : [6, 4]
+                        },
+                        text: {
+                            color: '#ffffff',
+                            backgroundColor: overlay.color || '#3B82F6',
+                            paddingLeft: 4,
+                            paddingRight: 4,
+                            paddingTop: 2,
+                            paddingBottom: 2,
+                        },
+                    },
+                    extendData: overlay.label || `Line ${index + 1}`,
+                });
+            } else if (overlay.shape === 'rect' || overlay.shape === 'zone') {
+                // Rectangle/Zone (for FVG, Order Blocks, etc.)
+                if (overlay.y1 !== undefined && overlay.y2 !== undefined) {
+                    chartRef.current.createOverlay({
+                        name: 'rect',
+                        groupId: 'ghost-lines',
+                        lock: true,
+                        points: [
+                            { timestamp: overlay.x1 || Date.now() - 10000, value: overlay.y1 },
+                            { timestamp: overlay.x2 || Date.now(), value: overlay.y2 }
+                        ],
+                        styles: {
+                            rect: {
+                                color: overlay.color || 'rgba(59, 130, 246, 0.2)',
+                                borderColor: overlay.color || '#3B82F6',
+                                borderSize: 1,
+                            },
+                        },
+                    });
+                }
+            }
+        });
+    }, [overlays]);
+
     // Update background color
     useEffect(() => {
         if (containerRef.current) {
@@ -454,39 +539,47 @@ const KlineChartCoreComponent: React.FC<KlineChartCoreProps> = ({ symbol, timefr
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'visible' }}>
-            <KlineToolbar
-                onAddIndicator={(name: string, isStack: boolean) => addIndicator(name, isStack)}
-                onRemoveIndicator={(name: string, isMain: boolean) => removeIndicator(name, isMain)}
-                onOpenStrategiesModal={() => setIsIndicatorModalOpen(true)}
-            />
+            {showToolbar && (
+                <KlineToolbar
+                    onAddIndicator={(name: string, isStack: boolean) => addIndicator(name, isStack)}
+                    onRemoveIndicator={(name: string, isMain: boolean) => removeIndicator(name, isMain)}
+                    onOpenStrategiesModal={() => setIsIndicatorModalOpen(true)}
+                />
+            )}
             <div style={{ flex: 1, position: 'relative', overflow: 'visible' }}>
                 {/* DrawingToolbar uses position:fixed, overlays viewport */}
-                <DrawingToolbar
-                    onSelectTool={startDrawing}
-                    onClearOverlays={clearOverlays}
-                    onToggleVisibility={toggleOverlayVisibility}
-                    onToggleLock={toggleOverlayLock}
-                    activeTool={activeTool}
-                />
+                {showToolbar && (
+                    <DrawingToolbar
+                        onSelectTool={startDrawing}
+                        onClearOverlays={clearOverlays}
+                        onToggleVisibility={toggleOverlayVisibility}
+                        onToggleLock={toggleOverlayLock}
+                        activeTool={activeTool}
+                    />
+                )}
                 <div
                     ref={containerRef}
                     className="klinechart-core-container"
                     style={{
                         position: 'absolute',
                         top: 0,
-                        left: 44, // Space for fixed collapsed toolbar
+                        left: showToolbar ? 44 : 0, // Space for fixed collapsed toolbar only when visible
                         right: 0,
                         bottom: 0,
                         backgroundColor: chartBackgroundColor,
                     }}
                 />
             </div>
-            <ChartSettingsComponent />
-            <IndicatorModal
-                isOpen={isIndicatorModalOpen}
-                onClose={() => setIsIndicatorModalOpen(false)}
-                onAddIndicator={(name, isStack) => addIndicator(name, isStack)}
-            />
+            {showToolbar && (
+                <>
+                    <ChartSettingsComponent />
+                    <IndicatorModal
+                        isOpen={isIndicatorModalOpen}
+                        onClose={() => setIsIndicatorModalOpen(false)}
+                        onAddIndicator={(name, isStack) => addIndicator(name, isStack)}
+                    />
+                </>
+            )}
         </div>
     );
 };

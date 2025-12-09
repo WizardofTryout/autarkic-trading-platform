@@ -8,13 +8,15 @@
  * - Agent configuration summary
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { useFleetStore } from '../../store/fleetStore';
-import type { TradingAgent, AgentLog } from '../../store/fleetStore';
+import type { TradingAgent, AgentLog, VisualOverlay } from '../../store/fleetStore';
 import {
     ArrowLeft, Play, Pause, StopCircle, Check, X,
     RefreshCw, Terminal
 } from 'lucide-react';
+import KlineChartCore from '../Chart/KlineChartCore';
+import LivePriceTicker from './LivePriceTicker';
 import './AgentCockpit.css';
 
 interface AgentCockpitProps {
@@ -35,6 +37,43 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
 
     const logContainerRef = useRef<HTMLDivElement>(null);
     const logs = agentLogs[agent.id] || [];
+
+    // Extract Ghost Lines from logs or current proposal
+    const ghostLines: VisualOverlay[] = useMemo(() => {
+        // First, check if we have a current proposal to visualize
+        if (agent.current_proposal) {
+            return [
+                {
+                    shape: 'line' as const,
+                    price: agent.current_proposal.entry,
+                    color: '#3b82f6',  // Blue for entry
+                    label: `Entry: $${agent.current_proposal.entry.toFixed(2)}`,
+                    style: 'solid' as const,
+                },
+                {
+                    shape: 'line' as const,
+                    price: agent.current_proposal.stop_loss,
+                    color: '#ef4444',  // Red for stop loss
+                    label: `SL: $${agent.current_proposal.stop_loss.toFixed(2)}`,
+                    style: 'dashed' as const,
+                },
+                {
+                    shape: 'line' as const,
+                    price: agent.current_proposal.take_profit,
+                    color: '#10b981',  // Green for take profit
+                    label: `TP: $${agent.current_proposal.take_profit.toFixed(2)}`,
+                    style: 'dashed' as const,
+                },
+            ];
+        }
+
+        // Fallback: Check logs for visual_snapshot
+        const latestWithVisuals = logs.find(log =>
+            log.visual_snapshot && log.visual_snapshot.length > 0
+        );
+
+        return latestWithVisuals?.visual_snapshot || [];
+    }, [agent.current_proposal, logs]);
 
     // Fetch logs on mount and periodically
     useEffect(() => {
@@ -125,33 +164,32 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
 
             {/* Main Content */}
             <div className="cockpit-content">
-                {/* Left: Chart Area (Placeholder for KlineCharts integration) */}
+                {/* Left: Chart Area with KlineCharts + Ghost Lines */}
                 <div className="cockpit-chart">
-                    <div className="chart-placeholder">
+                    <div className="cockpit-chart-container">
+                        {/* Chart Header */}
                         <div className="chart-header">
                             <span>{agent.symbol} - Agent View</span>
-                            <span className="timeframes">
-                                {agent.macro_timeframe} / {agent.micro_timeframe}
-                            </span>
+                            <div className="chart-header-right">
+                                <span className="timeframes">
+                                    {agent.macro_timeframe} / {agent.micro_timeframe}
+                                </span>
+                                {ghostLines.length > 0 && (
+                                    <span className="ghost-lines-indicator">
+                                        🎯 Ghost Lines Active
+                                    </span>
+                                )}
+                            </div>
                         </div>
-                        <div className="chart-body">
-                            <p>📊 KlineCharts Integration</p>
-                            <p className="hint">Ghost Lines will appear here when agent proposes trades</p>
 
-                            {/* Show proposal visuals if available */}
-                            {agent.current_proposal && (
-                                <div className="proposal-preview">
-                                    <h4>Current Proposal</h4>
-                                    <div className="proposal-details">
-                                        <span className={`side ${agent.current_proposal.side.toLowerCase()}`}>
-                                            {agent.current_proposal.side}
-                                        </span>
-                                        <span>Entry: ${agent.current_proposal.entry.toFixed(2)}</span>
-                                        <span className="sl">SL: ${agent.current_proposal.stop_loss.toFixed(2)}</span>
-                                        <span className="tp">TP: ${agent.current_proposal.take_profit.toFixed(2)}</span>
-                                    </div>
-                                </div>
-                            )}
+                        {/* Live Chart with Ghost Lines */}
+                        <div className="chart-wrapper">
+                            <KlineChartCore
+                                symbol={agent.symbol}
+                                timeframe={agent.macro_timeframe}
+                                overlays={ghostLines}
+                                showToolbar={false}
+                            />
                         </div>
                     </div>
                 </div>
@@ -203,6 +241,9 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
                             </div>
                         </div>
                     )}
+
+                    {/* Live Price Ticker */}
+                    <LivePriceTicker symbol={agent.symbol} />
 
                     {/* Stats Panel */}
                     <div className="stats-panel">
