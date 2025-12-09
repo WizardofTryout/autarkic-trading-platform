@@ -8,7 +8,7 @@
  * - Agent configuration summary
  */
 
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback } from 'react';
 import { useFleetStore } from '../../store/fleetStore';
 import type { TradingAgent, AgentLog, VisualOverlay } from '../../store/fleetStore';
 import {
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import KlineChartCore from '../Chart/KlineChartCore';
 import LivePriceTicker from './LivePriceTicker';
+import StrategySelector from './StrategySelector';
 import './AgentCockpit.css';
 
 interface AgentCockpitProps {
@@ -32,11 +33,32 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
         pauseAgent,
         stopAgent,
         approveProposal,
-        fetchAgentLogs
+        fetchAgentLogs,
+        updateAgent,
     } = useFleetStore();
 
     const logContainerRef = useRef<HTMLDivElement>(null);
     const logs = agentLogs[agent.id] || [];
+
+    // Check if agent is paused (allow strategy changes)
+    const isPaused = agent.status === 'PAUSED' || agent.status === 'STOPPED';
+
+    // Strategy change handlers
+    const handleMacroStrategyChange = useCallback(async (strategyId: string | null) => {
+        try {
+            await updateAgent(agent.id, { macro_strategy_id: strategyId });
+        } catch (err) {
+            console.error('Failed to update macro strategy:', err);
+        }
+    }, [agent.id, updateAgent]);
+
+    const handleMicroStrategyChange = useCallback(async (strategyId: string | null) => {
+        try {
+            await updateAgent(agent.id, { micro_strategy_id: strategyId });
+        } catch (err) {
+            console.error('Failed to update micro strategy:', err);
+        }
+    }, [agent.id, updateAgent]);
 
     // Extract Ghost Lines from logs or current proposal
     const ghostLines: VisualOverlay[] = useMemo(() => {
@@ -173,7 +195,15 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
                                 <span className="timeframe-badge macro">MACRO</span>
                                 <span>{agent.symbol} - {agent.macro_timeframe}</span>
                             </div>
-                            <span className="chart-description">Übergeordneter Trend</span>
+                            <div className="chart-header-right">
+                                <span className="chart-description">Übergeordneter Trend</span>
+                                <StrategySelector
+                                    label="MACRO"
+                                    currentStrategyId={agent.macro_strategy_id}
+                                    onStrategyChange={handleMacroStrategyChange}
+                                    isPaused={isPaused}
+                                />
+                            </div>
                         </div>
                         <div className="chart-wrapper">
                             <KlineChartCore
@@ -194,6 +224,12 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
                             </div>
                             <div className="chart-header-right">
                                 <span className="chart-description">Trade-Ausführung</span>
+                                <StrategySelector
+                                    label="MICRO"
+                                    currentStrategyId={agent.micro_strategy_id}
+                                    onStrategyChange={handleMicroStrategyChange}
+                                    isPaused={isPaused}
+                                />
                                 {ghostLines.length > 0 && (
                                     <span className="ghost-lines-indicator">
                                         🎯 Ghost Lines

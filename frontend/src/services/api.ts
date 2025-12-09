@@ -519,6 +519,22 @@ export const api = {
             throw new Error(error.detail || `PUT ${endpoint} failed`);
         }
         return response.json();
+    },
+    patch: async (endpoint: string, data?: any) => {
+        const token = useAuthStore.getState().token;
+        const response = await fetch(`${getApiBase()}${endpoint}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: data ? JSON.stringify(data) : undefined,
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.detail || `PATCH ${endpoint} failed`);
+        }
+        return response.json();
     }
 };
 
