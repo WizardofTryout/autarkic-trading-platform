@@ -30,6 +30,7 @@ const StrategySelector: React.FC<StrategySelectorProps> = ({
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isOpen, setIsOpen] = useState(false);
+    const [showPauseWarning, setShowPauseWarning] = useState(false);
 
     // Fetch available strategies
     useEffect(() => {
@@ -59,7 +60,8 @@ const StrategySelector: React.FC<StrategySelectorProps> = ({
 
     const handleSelect = (strategyId: string | null) => {
         if (!isPaused) {
-            alert('Please pause the agent before changing the strategy.');
+            setShowPauseWarning(true);
+            setTimeout(() => setShowPauseWarning(false), 3000);
             return;
         }
         onStrategyChange(strategyId);
@@ -132,6 +134,14 @@ const StrategySelector: React.FC<StrategySelectorProps> = ({
                         </div>
                     </div>
                 </>
+            )}
+
+            {/* Custom Toast Notification */}
+            {showPauseWarning && (
+                <div className="strategy-toast">
+                    <AlertTriangle size={16} />
+                    <span>Bitte pausiere den Agent zuerst, um die Strategie zu wechseln.</span>
+                </div>
             )}
         </div>
     );
