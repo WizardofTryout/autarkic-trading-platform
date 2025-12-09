@@ -10,12 +10,13 @@
 
 | # | Task | Status | Zeit | Prio |
 |---|------|--------|------|------|
-| **0** | **BUG: Strategien nicht ladbar im Deploy Modal** | 🔴 TODO | 15min | 🔥 HIGH |
-| **1** | Frontend: Chart in AgentCockpit einbinden | ⚪ TODO | 15min | HIGH |
-| **2** | Backend: visual_snapshot Generierung | ⚪ TODO | 20min | HIGH |
-| **3** | Frontend: Ghost Lines Rendering | ⚪ TODO | 20min | HIGH |
-| **4** | Testing & Polish | ⚪ TODO | 15min | MED |
-| **5** | Documentation & Commit | ⚪ TODO | 10min | LOW |
+| **0** | **BUG: Strategien nicht ladbar im Deploy Modal** | 🟡 REVIEW | 15min | 🔥 HIGH |
+| **1** | Frontend: Chart in AgentCockpit einbinden | 🟢 DONE | 15min | HIGH |
+| **2** | Backend: visual_snapshot Generierung | 🟢 DONE | 20min | HIGH |
+| **3** | Frontend: Ghost Lines Rendering | 🟢 DONE | 20min | HIGH |
+| **3.5** | **BONUS: Live Price Ticker** | 🟢 DONE | 20min | MED |
+| **4** | Testing & Polish | 🔵 TESTING | 15min | MED |
+| **5** | Documentation & Commit | 🟡 IN PROGRESS | 10min | LOW |
 
 **Status-Legende:**
 - ⚪ TODO - Noch nicht begonnen

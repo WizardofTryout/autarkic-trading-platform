@@ -178,8 +178,77 @@
     padding: 1rem;
     display: flex;
     flex-direction: column;
+    min-height: 400px;
 }
 
+.cockpit-chart-container {
+    flex: 1;
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.875rem;
+    color: #94a3b8;
+    background: rgba(15, 23, 42, 0.5);
+}
+
+.chart-header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.chart-header .timeframes {
+    color: #64748b;
+}
+
+.ghost-lines-indicator {
+    padding: 0.25rem 0.5rem;
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    color: #60a5fa;
+    animation: ghost-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ghost-pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.chart-wrapper {
+    flex: 1;
+    position: relative;
+    min-height: 350px;
+}
+
+.chart-wrapper>div {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+/* Legacy placeholder styles (for fallback) */
 .chart-placeholder {
     flex: 1;
     background: rgba(30, 41, 59, 0.5);
@@ -187,19 +256,6 @@
     border-radius: 0.75rem;
     display: flex;
     flex-direction: column;
-}
-
-.chart-header {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    font-size: 0.875rem;
-    color: #94a3b8;
-}
-
-.chart-header .timeframes {
-    color: #64748b;
 }
 
 .chart-body {
