@@ -122,6 +122,7 @@ interface FleetState {
     // Actions
     fetchAgents: () => Promise<void>;
     deployAgent: (params: DeployAgentParams) => Promise<TradingAgent>;
+    updateAgent: (agentId: string, updates: Partial<TradingAgent>) => Promise<void>;
     startAgent: (agentId: string) => Promise<void>;
     pauseAgent: (agentId: string) => Promise<void>;
     stopAgent: (agentId: string) => Promise<void>;
@@ -193,6 +194,22 @@ export const useFleetStore = create<FleetState>((set, get) => ({
         } catch (error: any) {
             console.error('Failed to deploy agent:', error);
             set({ error: error.message || 'Failed to deploy agent', isLoading: false });
+            throw error;
+        }
+    },
+
+    updateAgent: async (agentId: string, updates: Partial<TradingAgent>) => {
+        try {
+            const updatedAgent = await api.patch(`/fleet/agents/${agentId}`, updates);
+            // Update local state
+            set(state => ({
+                agents: state.agents.map(a =>
+                    a.id === agentId ? { ...a, ...updatedAgent } : a
+                )
+            }));
+        } catch (error: any) {
+            console.error('Failed to update agent:', error);
+            set({ error: error.message || 'Failed to update agent' });
             throw error;
         }
     },
