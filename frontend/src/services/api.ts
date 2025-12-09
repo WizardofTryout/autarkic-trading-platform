@@ -1,39 +1,27 @@
 import { useAuthStore } from '../store/authStore';
 
-// VERSION: 2025-12-09-v2 - Force cache bust
-// Resolve API base URL for browser + Docker compose (frontend:5173, backend:8000)
-// Priority: Vite dev proxy -> same-origin -> fallback
-const resolveApiBase = () => {
-    if (typeof window !== 'undefined') {
-        const { protocol, hostname, port } = window.location;
-        const isDevPort = port === '5173' || port === '4173';
-
-        // CRITICAL: On dev ports, ALWAYS use Vite proxy to avoid CORS
-        // This prevents issues when VITE_BACKEND_URL is set to Docker hostnames like "backend:8000"
-        if (isDevPort) {
-            console.log('[API] Using Vite proxy on dev port:', port);
-            return '/api/v1';
-        }
-
-        // Check env override ONLY if not on dev port
-        const envBase = import.meta.env.VITE_BACKEND_URL as string | undefined;
-        if (envBase && envBase.trim() && !envBase.includes('backend:')) {
-            // Ignore Docker-internal hostnames like "backend:8000" in browser context
-            console.log('[API] Using env override:', envBase);
-            return envBase.replace(/\/$/, '') + '/api/v1';
-        }
-
-        // Same-origin default (production)
-        const origin = `${protocol}//${hostname}${port ? `:${port}` : ''}`;
-        console.log('[API] Using same-origin:', origin);
-        return `${origin}/api/v1`;
+// VERSION: 2025-12-09-v3 - Runtime resolution (not build-time)
+// CRITICAL: Must be a FUNCTION that runs at runtime, not a constant!
+// Vite would otherwise inline the value at build time with wrong hostname
+const getApiBase = (): string => {
+    if (typeof window === 'undefined') {
+        return '/api/v1';
     }
 
-    // Fallback for SSR/build contexts
-    return '/api/v1';
-};
+    const { protocol, hostname, port } = window.location;
+    const isDevPort = port === '5173' || port === '4173';
 
-const API_BASE = resolveApiBase();
+    // On dev ports, ALWAYS use Vite proxy
+    if (isDevPort) {
+        console.log('[API Runtime] Using Vite proxy on port:', port);
+        return '/api/v1';
+    }
+
+    // Production: same-origin
+    const origin = `${protocol}//${hostname}${port ? `:${port}` : ''}`;
+    console.log('[API Runtime] Using same-origin:', origin);
+    return `${origin}/api/v1`;
+};
 
 export interface Settings {
     bitgetApiKey: string;
@@ -68,7 +56,7 @@ export interface ActiveStrategy {
 
 export const getSettings = async (): Promise<Settings> => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/settings`, {
+    const response = await fetch(`${getApiBase()}/settings`, {
         headers: {
             'Authorization': `Bearer ${token}`
         }
@@ -81,7 +69,7 @@ export const getSettings = async (): Promise<Settings> => {
 
 export const saveSettings = async (settings: Settings) => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/settings`, {
+    const response = await fetch(`${getApiBase()}/settings`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -97,7 +85,7 @@ export const saveSettings = async (settings: Settings) => {
 
 export const saveStrategy = async (strategy: { name: string; script_code: string; python_code?: string }) => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/strategies/save`, {
+    const response = await fetch(`${getApiBase()}/strategies/save`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -115,7 +103,7 @@ export const saveStrategy = async (strategy: { name: string; script_code: string
 
 export const executeStrategy = async (script: string, symbol: string = "BTC/USDT", timeframe: string = "1h") => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/strategies/execute`, {
+    const response = await fetch(`${getApiBase()}/strategies/execute`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -129,7 +117,7 @@ export const executeStrategy = async (script: string, symbol: string = "BTC/USDT
 
 export const getMarketData = async (symbol: string, timeframe: string, limit?: number) => {
     try {
-        let url = `${API_BASE}/market/ohlcv?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`;
+        let url = `${getApiBase()}/market/ohlcv?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`;
         if (limit !== undefined) {
             url += `&limit=${limit}`;
         }
@@ -145,7 +133,7 @@ export const getMarketData = async (symbol: string, timeframe: string, limit?: n
 };
 export const getStrategies = async () => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/strategies/`, {
+    const response = await fetch(`${getApiBase()}/strategies/`, {
         headers: {
             'Authorization': `Bearer ${token}`
         }
@@ -160,7 +148,7 @@ export const login = async (email: string, password: string) => {
     formData.append('username', email); // OAuth2 expects 'username'
     formData.append('password', password);
 
-    const response = await fetch(`${API_BASE}/auth/login`, {
+    const response = await fetch(`${getApiBase()}/auth/login`, {
         method: 'POST',
         body: formData,
     });
@@ -169,7 +157,7 @@ export const login = async (email: string, password: string) => {
 };
 
 export const register = async (email: string, password: string, username: string) => {
-    const response = await fetch(`${API_BASE}/auth/register`, {
+    const response = await fetch(`${getApiBase()}/auth/register`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -185,7 +173,7 @@ export const register = async (email: string, password: string, username: string
 
 export const changePassword = async (oldPassword: string, newPassword: string) => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/auth/password-change`, {
+    const response = await fetch(`${getApiBase()}/auth/password-change`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -221,7 +209,7 @@ export interface APIKeyCreate {
 
 export const getAPIKeys = async (): Promise<APIKey[]> => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/settings/keys`, {
+    const response = await fetch(`${getApiBase()}/settings/keys`, {
         headers: {
             'Authorization': `Bearer ${token}`
         }
@@ -232,7 +220,7 @@ export const getAPIKeys = async (): Promise<APIKey[]> => {
 
 export const addAPIKey = async (data: APIKeyCreate): Promise<APIKey> => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/settings/keys`, {
+    const response = await fetch(`${getApiBase()}/settings/keys`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -249,7 +237,7 @@ export const addAPIKey = async (data: APIKeyCreate): Promise<APIKey> => {
 
 export const deleteAPIKey = async (id: string): Promise<void> => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/settings/keys/${id}`, {
+    const response = await fetch(`${getApiBase()}/settings/keys/${id}`, {
         method: 'DELETE',
         headers: {
             'Authorization': `Bearer ${token}`
@@ -260,7 +248,7 @@ export const deleteAPIKey = async (id: string): Promise<void> => {
 
 export const validateAPIKey = async (provider: string, api_key: string, model?: string, ollama_url?: string): Promise<boolean> => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/settings/keys/validate`, {
+    const response = await fetch(`${getApiBase()}/settings/keys/validate`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -274,14 +262,14 @@ export const validateAPIKey = async (provider: string, api_key: string, model?: 
 };
 
 export const getSymbols = async (): Promise<string[]> => {
-    const response = await fetch(`${API_BASE}/market/symbols`);
+    const response = await fetch(`${getApiBase()}/market/symbols`);
     if (!response.ok) throw new Error('Failed to fetch symbols');
     return response.json();
 };
 
 export const chatWithAI = async (message: string, context?: any, signal?: AbortSignal) => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/ai/chat`, {
+    const response = await fetch(`${getApiBase()}/ai/chat`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -304,7 +292,7 @@ export const generateStrategy = async (
     mode: 'pinescript' | 'python' = 'pinescript'
 ) => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/ai-strategy/generate_strategy`, {
+    const response = await fetch(`${getApiBase()}/ai-strategy/generate_strategy`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -334,7 +322,7 @@ export const generateStrategy = async (
 
 export const createStrategy = async (strategy: { name: string; source_code: string; category?: string; is_favorite?: boolean }) => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/strategies/`, {
+    const response = await fetch(`${getApiBase()}/strategies/`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -348,7 +336,7 @@ export const createStrategy = async (strategy: { name: string; source_code: stri
 
 export const updateStrategy = async (id: string, updates: Partial<Strategy>) => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/strategies/${id}`, {
+    const response = await fetch(`${getApiBase()}/strategies/${id}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -362,7 +350,7 @@ export const updateStrategy = async (id: string, updates: Partial<Strategy>) => 
 
 export const deleteStrategy = async (id: string) => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/strategies/${id}`, {
+    const response = await fetch(`${getApiBase()}/strategies/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -382,7 +370,7 @@ export const activateStrategy = async (data: {
     trailing_stop_percent?: number;
 }) => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/strategies/activate`, {
+    const response = await fetch(`${getApiBase()}/strategies/activate`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -396,7 +384,7 @@ export const activateStrategy = async (data: {
 
 export const getActiveStrategies = async (): Promise<ActiveStrategy[]> => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/strategies/active`, {
+    const response = await fetch(`${getApiBase()}/strategies/active`, {
         headers: { 'Authorization': `Bearer ${token}` }
     });
     if (!response.ok) throw new Error('Failed to fetch active strategies');
@@ -422,7 +410,7 @@ export const compileStrategy = async (script: string) => {
 
 export const transpilePineScript = async (pineScript: string): Promise<{ python_code: string; status: string }> => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/strategies/transpile`, {
+    const response = await fetch(`${getApiBase()}/strategies/transpile`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -438,7 +426,7 @@ export const transpilePineScript = async (pineScript: string): Promise<{ python_
 };
 
 export const requestPasswordReset = async (email: string) => {
-    const response = await fetch(`${API_BASE}/auth/password-reset-request`, {
+    const response = await fetch(`${getApiBase()}/auth/password-reset-request`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -452,7 +440,7 @@ export const requestPasswordReset = async (email: string) => {
 };
 
 export const confirmPasswordReset = async (token: string, newPassword: string) => {
-    const response = await fetch(`${API_BASE}/auth/password-reset-confirm`, {
+    const response = await fetch(`${getApiBase()}/auth/password-reset-confirm`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -469,7 +457,7 @@ export const confirmPasswordReset = async (token: string, newPassword: string) =
 export const api = {
     get: async (endpoint: string) => {
         const token = useAuthStore.getState().token;
-        const url = `${API_BASE}${endpoint}`;
+        const url = `${getApiBase()}${endpoint}`;
         console.log('[api.get] Fetching URL:', url);
         const response = await fetch(url, {
             headers: {
@@ -484,7 +472,7 @@ export const api = {
     },
     post: async (endpoint: string, data?: any) => {
         const token = useAuthStore.getState().token;
-        const response = await fetch(`${API_BASE}${endpoint}`, {
+        const response = await fetch(`${getApiBase()}${endpoint}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -500,7 +488,7 @@ export const api = {
     },
     delete: async (endpoint: string) => {
         const token = useAuthStore.getState().token;
-        const response = await fetch(`${API_BASE}${endpoint}`, {
+        const response = await fetch(`${getApiBase()}${endpoint}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -518,7 +506,7 @@ export const api = {
     },
     put: async (endpoint: string, data?: any) => {
         const token = useAuthStore.getState().token;
-        const response = await fetch(`${API_BASE}${endpoint}`, {
+        const response = await fetch(`${getApiBase()}${endpoint}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -536,7 +524,7 @@ export const api = {
 
 export const getUserPreferences = async () => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/users/me/preferences`, {
+    const response = await fetch(`${getApiBase()}/users/me/preferences`, {
         headers: {
             'Authorization': `Bearer ${token}`
         }
@@ -547,7 +535,7 @@ export const getUserPreferences = async () => {
 
 export const updateUserPreferences = async (preferences: any) => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/users/me/preferences`, {
+    const response = await fetch(`${getApiBase()}/users/me/preferences`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -570,7 +558,7 @@ export const runBacktest = async (params: {
     stop_loss?: number;
 }) => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/strategies/backtest`, {
+    const response = await fetch(`${getApiBase()}/strategies/backtest`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -587,7 +575,7 @@ export const runBacktest = async (params: {
 
 export const analyzeMarket = async (symbol: string, timeframe: string, promptType: 'trend' | 'news' | 'custom', customPrompt?: string, signal?: AbortSignal) => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/research/analyze`, {
+    const response = await fetch(`${getApiBase()}/research/analyze`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -630,7 +618,7 @@ export interface DocumentResponse {
 
 export const saveDocument = async (doc: DocumentCreate): Promise<DocumentResponse> => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/research/documents`, {
+    const response = await fetch(`${getApiBase()}/research/documents`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -647,7 +635,7 @@ export const saveDocument = async (doc: DocumentCreate): Promise<DocumentRespons
 
 export const getDocuments = async (): Promise<DocumentResponse[]> => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/research/documents`, {
+    const response = await fetch(`${getApiBase()}/research/documents`, {
         headers: {
             'Authorization': `Bearer ${token}`
         }
@@ -660,7 +648,7 @@ export const getDocuments = async (): Promise<DocumentResponse[]> => {
 
 export const deleteDocument = async (id: string): Promise<void> => {
     const token = useAuthStore.getState().token;
-    const response = await fetch(`${API_BASE}/research/documents/${id}`, {
+    const response = await fetch(`${getApiBase()}/research/documents/${id}`, {
         method: 'DELETE',
         headers: {
             'Authorization': `Bearer ${token}`
