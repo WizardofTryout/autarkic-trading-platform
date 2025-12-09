@@ -173,12 +173,13 @@
     overflow: hidden;
 }
 
-/* Chart Area */
+/* Chart Area - Dual Chart Layout */
 .cockpit-chart {
-    padding: 1rem;
+    padding: 0.75rem;
     display: flex;
     flex-direction: column;
-    min-height: 400px;
+    gap: 0.75rem;
+    min-height: 500px;
 }
 
 .cockpit-chart-container {
@@ -189,15 +190,25 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    min-height: 200px;
+}
+
+/* Macro chart gets slightly more height for trend analysis */
+.cockpit-chart-container.macro-chart {
+    flex: 1.2;
+}
+
+.cockpit-chart-container.micro-chart {
+    flex: 1;
 }
 
 .chart-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.75rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     color: #94a3b8;
     background: rgba(15, 23, 42, 0.5);
 }
@@ -205,7 +216,40 @@
 .chart-header-right {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
+}
+
+.chart-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.timeframe-badge {
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.timeframe-badge.macro {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.timeframe-badge.micro {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.chart-description {
+    font-size: 0.6875rem;
+    color: #64748b;
+    font-style: italic;
 }
 
 .chart-header .timeframes {
