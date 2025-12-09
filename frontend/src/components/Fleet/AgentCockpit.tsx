@@ -8,7 +8,7 @@
  * - Agent configuration summary
  */
 
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { useFleetStore } from '../../store/fleetStore';
 import type { TradingAgent, AgentLog, VisualOverlay } from '../../store/fleetStore';
 import {
@@ -22,6 +22,9 @@ import './AgentCockpit.css';
 interface AgentCockpitProps {
     agent: TradingAgent;
 }
+
+// Available timeframes for the chart
+const TIMEFRAME_OPTIONS = ['1s', '1m', '5m', '15m', '30m', '1h', '4h', '1d'];
 
 const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
     const {
@@ -37,6 +40,9 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
 
     const logContainerRef = useRef<HTMLDivElement>(null);
     const logs = agentLogs[agent.id] || [];
+
+    // Chart timeframe state - defaults to agent's macro timeframe
+    const [selectedTimeframe, setSelectedTimeframe] = useState(agent.macro_timeframe);
 
     // Extract Ghost Lines from logs or current proposal
     const ghostLines: VisualOverlay[] = useMemo(() => {
@@ -167,13 +173,10 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
                 {/* Left: Chart Area with KlineCharts + Ghost Lines */}
                 <div className="cockpit-chart">
                     <div className="cockpit-chart-container">
-                        {/* Chart Header */}
+                        {/* Chart Header with Symbol */}
                         <div className="chart-header">
                             <span>{agent.symbol} - Agent View</span>
                             <div className="chart-header-right">
-                                <span className="timeframes">
-                                    {agent.macro_timeframe} / {agent.micro_timeframe}
-                                </span>
                                 {ghostLines.length > 0 && (
                                     <span className="ghost-lines-indicator">
                                         🎯 Ghost Lines Active
@@ -182,11 +185,24 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
                             </div>
                         </div>
 
+                        {/* Timeframe Selector Bar */}
+                        <div className="timeframe-selector">
+                            {TIMEFRAME_OPTIONS.map((tf) => (
+                                <button
+                                    key={tf}
+                                    className={`timeframe-btn ${selectedTimeframe === tf ? 'active' : ''}`}
+                                    onClick={() => setSelectedTimeframe(tf)}
+                                >
+                                    {tf}
+                                </button>
+                            ))}
+                        </div>
+
                         {/* Live Chart with Ghost Lines */}
                         <div className="chart-wrapper">
                             <KlineChartCore
                                 symbol={agent.symbol}
-                                timeframe={agent.macro_timeframe}
+                                timeframe={selectedTimeframe}
                                 overlays={ghostLines}
                                 showToolbar={false}
                             />
