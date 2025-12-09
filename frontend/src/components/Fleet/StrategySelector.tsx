@@ -6,8 +6,8 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { ChevronDown, AlertTriangle } from 'lucide-react';
-import { getStrategies } from '../../services/api';
+import { ChevronDown, AlertTriangle, Star } from 'lucide-react';
+import { getStrategies, updateStrategy } from '../../services/api';
 import type { Strategy } from '../../services/api';
 import './StrategySelector.css';
 
@@ -58,6 +58,13 @@ const StrategySelector: React.FC<StrategySelectorProps> = ({
     const currentStrategy = strategies.find(s => s.id === currentStrategyId);
     const displayName = currentStrategy?.name || 'No Strategy';
 
+    // Sort strategies: favorites first
+    const sortedStrategies = [...strategies].sort((a, b) => {
+        if (a.is_favorite && !b.is_favorite) return -1;
+        if (!a.is_favorite && b.is_favorite) return 1;
+        return a.name.localeCompare(b.name);
+    });
+
     const handleSelect = (strategyId: string | null) => {
         if (!isPaused) {
             setShowPauseWarning(true);
@@ -66,6 +73,23 @@ const StrategySelector: React.FC<StrategySelectorProps> = ({
         }
         onStrategyChange(strategyId);
         setIsOpen(false);
+    };
+
+    const toggleFavorite = async (e: React.MouseEvent, strategyId: string, currentFavorite: boolean) => {
+        e.stopPropagation();
+        try {
+            // Optimistic update
+            setStrategies(prev => prev.map(s =>
+                s.id === strategyId ? { ...s, is_favorite: !currentFavorite } : s
+            ));
+            await updateStrategy(strategyId, { is_favorite: !currentFavorite });
+        } catch (err) {
+            console.error('Failed to update favorite:', err);
+            // Revert on error
+            setStrategies(prev => prev.map(s =>
+                s.id === strategyId ? { ...s, is_favorite: currentFavorite } : s
+            ));
+        }
     };
 
     if (isLoading) {
@@ -111,17 +135,28 @@ const StrategySelector: React.FC<StrategySelectorProps> = ({
                                 className={`dropdown-option ${!currentStrategyId ? 'selected' : ''}`}
                                 onClick={() => handleSelect(null)}
                             >
-                                <span className="option-name">No Strategy</span>
-                                <span className="option-desc">Manual mode</span>
+                                <div className="option-left">
+                                    <span className="option-star empty" />
+                                    <span className="option-name">No Strategy</span>
+                                </div>
+                                <span className="option-desc">MANUAL</span>
                             </button>
-                            {strategies.map(strategy => (
+                            {sortedStrategies.map(strategy => (
                                 <button
                                     key={strategy.id}
                                     className={`dropdown-option ${currentStrategyId === strategy.id ? 'selected' : ''}`}
                                     onClick={() => handleSelect(strategy.id)}
                                 >
-                                    <span className="option-name">{strategy.name}</span>
-                                    <span className="option-type">{strategy.type || 'strategy'}</span>
+                                    <div className="option-left">
+                                        <span
+                                            className={`option-star ${strategy.is_favorite ? 'favorite' : ''}`}
+                                            onClick={(e) => toggleFavorite(e, strategy.id, strategy.is_favorite || false)}
+                                        >
+                                            <Star size={14} fill={strategy.is_favorite ? '#fbbf24' : 'none'} />
+                                        </span>
+                                        <span className="option-name">{strategy.name}</span>
+                                    </div>
+                                    <span className="option-type">{strategy.type?.toUpperCase() || 'STRAT'}</span>
                                 </button>
                             ))}
                             {strategies.length === 0 && (

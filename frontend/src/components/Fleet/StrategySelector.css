@@ -139,9 +139,46 @@
     color: #60a5fa;
 }
 
+.dropdown-option .option-left {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.dropdown-option .option-star {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    color: #4b5563;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border-radius: 0.25rem;
+}
+
+.dropdown-option .option-star:hover {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.1);
+}
+
+.dropdown-option .option-star.favorite {
+    color: #fbbf24;
+}
+
+.dropdown-option .option-star.empty {
+    width: 18px;
+}
+
 .dropdown-option .option-name {
     font-weight: 500;
     flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .dropdown-option .option-desc,
