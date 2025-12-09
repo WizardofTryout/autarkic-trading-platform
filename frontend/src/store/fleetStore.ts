@@ -199,16 +199,20 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     },
 
     updateAgent: async (agentId: string, updates: Partial<TradingAgent>) => {
+        console.log('[fleetStore] updateAgent called:', { agentId, updates });
         try {
             const updatedAgent = await api.patch(`/fleet/agents/${agentId}`, updates);
+            console.log('[fleetStore] updateAgent response:', updatedAgent);
             // Update local state
-            set(state => ({
-                agents: state.agents.map(a =>
+            set(state => {
+                const newAgents = state.agents.map(a =>
                     a.id === agentId ? { ...a, ...updatedAgent } : a
-                )
-            }));
+                );
+                console.log('[fleetStore] Updated agents list:', newAgents.find(a => a.id === agentId));
+                return { agents: newAgents };
+            });
         } catch (error: any) {
-            console.error('Failed to update agent:', error);
+            console.error('[fleetStore] Failed to update agent:', error);
             set({ error: error.message || 'Failed to update agent' });
             throw error;
         }

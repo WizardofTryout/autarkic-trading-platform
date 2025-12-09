@@ -45,16 +45,20 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
 
     // Strategy change handlers
     const handleMacroStrategyChange = useCallback(async (strategyId: string | null) => {
+        console.log('[AgentCockpit] Updating macro strategy:', strategyId, 'for agent:', agent.id);
         try {
-            await updateAgent(agent.id, { macro_strategy_id: strategyId });
+            await updateAgent(agent.id, { macro_strategy_id: strategyId } as any);
+            console.log('[AgentCockpit] Macro strategy updated successfully');
         } catch (err) {
             console.error('Failed to update macro strategy:', err);
         }
     }, [agent.id, updateAgent]);
 
     const handleMicroStrategyChange = useCallback(async (strategyId: string | null) => {
+        console.log('[AgentCockpit] Updating micro strategy:', strategyId, 'for agent:', agent.id);
         try {
-            await updateAgent(agent.id, { micro_strategy_id: strategyId });
+            await updateAgent(agent.id, { micro_strategy_id: strategyId } as any);
+            console.log('[AgentCockpit] Micro strategy updated successfully');
         } catch (err) {
             console.error('Failed to update micro strategy:', err);
         }

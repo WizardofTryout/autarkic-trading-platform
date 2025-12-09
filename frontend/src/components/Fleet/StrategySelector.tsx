@@ -31,6 +31,7 @@ const StrategySelector: React.FC<StrategySelectorProps> = ({
     const [error, setError] = useState<string | null>(null);
     const [isOpen, setIsOpen] = useState(false);
     const [showPauseWarning, setShowPauseWarning] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
 
     // Fetch available strategies
     useEffect(() => {
@@ -71,8 +72,12 @@ const StrategySelector: React.FC<StrategySelectorProps> = ({
             setTimeout(() => setShowPauseWarning(false), 3000);
             return;
         }
+        console.log('[StrategySelector] Selecting strategy:', strategyId);
         onStrategyChange(strategyId);
         setIsOpen(false);
+        // Show success toast
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 2000);
     };
 
     const toggleFavorite = async (e: React.MouseEvent, strategyId: string, currentFavorite: boolean) => {
@@ -171,11 +176,18 @@ const StrategySelector: React.FC<StrategySelectorProps> = ({
                 </>
             )}
 
-            {/* Custom Toast Notification */}
+            {/* Custom Toast Notification - Warning */}
             {showPauseWarning && (
-                <div className="strategy-toast">
+                <div className="strategy-toast warning">
                     <AlertTriangle size={16} />
                     <span>Bitte pausiere den Agent zuerst, um die Strategie zu wechseln.</span>
+                </div>
+            )}
+
+            {/* Custom Toast Notification - Success */}
+            {showSuccess && (
+                <div className="strategy-toast success">
+                    <span>✓ Strategie gespeichert!</span>
                 </div>
             )}
         </div>

@@ -233,6 +233,16 @@
     animation: toastSlideIn 0.3s ease-out;
 }
 
+.strategy-toast.warning {
+    border-color: rgba(251, 191, 36, 0.3);
+    color: #fbbf24;
+}
+
+.strategy-toast.success {
+    border-color: rgba(34, 197, 94, 0.3);
+    color: #22c55e;
+}
+
 .strategy-toast svg {
     flex-shrink: 0;
 }
