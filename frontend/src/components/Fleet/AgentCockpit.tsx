@@ -8,7 +8,7 @@
  * - Agent configuration summary
  */
 
-import React, { useEffect, useRef, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { useFleetStore } from '../../store/fleetStore';
 import type { TradingAgent, AgentLog, VisualOverlay } from '../../store/fleetStore';
 import {
@@ -22,9 +22,6 @@ import './AgentCockpit.css';
 interface AgentCockpitProps {
     agent: TradingAgent;
 }
-
-// Available timeframes for the chart
-const TIMEFRAME_OPTIONS = ['1s', '1m', '5m', '15m', '30m', '1h', '4h', '1d'];
 
 const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
     const {
@@ -40,9 +37,6 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
 
     const logContainerRef = useRef<HTMLDivElement>(null);
     const logs = agentLogs[agent.id] || [];
-
-    // Chart timeframe state - defaults to agent's macro timeframe
-    const [selectedTimeframe, setSelectedTimeframe] = useState(agent.macro_timeframe);
 
     // Extract Ghost Lines from logs or current proposal
     const ghostLines: VisualOverlay[] = useMemo(() => {
@@ -170,39 +164,47 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
 
             {/* Main Content */}
             <div className="cockpit-content">
-                {/* Left: Chart Area with KlineCharts + Ghost Lines */}
+                {/* Left: Dual Chart Area - Macro (top) + Micro (bottom) */}
                 <div className="cockpit-chart">
-                    <div className="cockpit-chart-container">
-                        {/* Chart Header with Symbol */}
+                    {/* Macro Timeframe Chart - Higher timeframe for trend analysis */}
+                    <div className="cockpit-chart-container macro-chart">
                         <div className="chart-header">
-                            <span>{agent.symbol} - Agent View</span>
+                            <div className="chart-label">
+                                <span className="timeframe-badge macro">MACRO</span>
+                                <span>{agent.symbol} - {agent.macro_timeframe}</span>
+                            </div>
+                            <span className="chart-description">Übergeordneter Trend</span>
+                        </div>
+                        <div className="chart-wrapper">
+                            <KlineChartCore
+                                symbol={agent.symbol}
+                                timeframe={agent.macro_timeframe}
+                                overlays={ghostLines}
+                                showToolbar={false}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Micro Timeframe Chart - Lower timeframe for trade execution */}
+                    <div className="cockpit-chart-container micro-chart">
+                        <div className="chart-header">
+                            <div className="chart-label">
+                                <span className="timeframe-badge micro">MICRO</span>
+                                <span>{agent.symbol} - {agent.micro_timeframe}</span>
+                            </div>
                             <div className="chart-header-right">
+                                <span className="chart-description">Trade-Ausführung</span>
                                 {ghostLines.length > 0 && (
                                     <span className="ghost-lines-indicator">
-                                        🎯 Ghost Lines Active
+                                        🎯 Ghost Lines
                                     </span>
                                 )}
                             </div>
                         </div>
-
-                        {/* Timeframe Selector Bar */}
-                        <div className="timeframe-selector">
-                            {TIMEFRAME_OPTIONS.map((tf) => (
-                                <button
-                                    key={tf}
-                                    className={`timeframe-btn ${selectedTimeframe === tf ? 'active' : ''}`}
-                                    onClick={() => setSelectedTimeframe(tf)}
-                                >
-                                    {tf}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Live Chart with Ghost Lines */}
                         <div className="chart-wrapper">
                             <KlineChartCore
                                 symbol={agent.symbol}
-                                timeframe={selectedTimeframe}
+                                timeframe={agent.micro_timeframe}
                                 overlays={ghostLines}
                                 showToolbar={false}
                             />
