@@ -27,8 +27,9 @@
 .strategy-selector-trigger {
     display: flex;
     align-items: center;
-    gap: 0.375rem;
-    padding: 0.25rem 0.5rem;
+    gap: 0.5rem;
+    padding: 0.375rem 0.625rem;
+    min-width: 160px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 0.375rem;
@@ -49,13 +50,15 @@
 }
 
 .strategy-selector-trigger .strategy-name {
-    max-width: 120px;
+    flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: left;
 }
 
 .strategy-selector-trigger .chevron {
+    flex-shrink: 0;
     transition: transform 0.15s ease;
 }
 
@@ -73,13 +76,13 @@
     z-index: 999;
 }
 
-/* Dropdown Menu */
+/* Dropdown Menu - positioned to the right to prevent overflow */
 .strategy-dropdown {
     position: absolute;
     top: 100%;
-    left: 0;
+    right: 0;
     margin-top: 0.25rem;
-    min-width: 220px;
+    min-width: 280px;
     background: #1e293b;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 0.5rem;
@@ -107,7 +110,7 @@
 }
 
 .dropdown-options {
-    max-height: 240px;
+    max-height: 300px;
     overflow-y: auto;
 }
 
@@ -116,11 +119,11 @@
     justify-content: space-between;
     align-items: center;
     width: 100%;
-    padding: 0.625rem 0.75rem;
+    padding: 0.75rem 1rem;
     background: transparent;
     border: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     color: #e2e8f0;
     cursor: pointer;
     text-align: left;
@@ -138,13 +141,16 @@
 
 .dropdown-option .option-name {
     font-weight: 500;
+    flex: 1;
 }
 
 .dropdown-option .option-desc,
 .dropdown-option .option-type {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     color: #64748b;
     text-transform: uppercase;
+    flex-shrink: 0;
+    margin-left: 0.5rem;
 }
 
 .no-strategies {
@@ -167,4 +173,41 @@
 .dropdown-options::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.1);
     border-radius: 2px;
+}
+
+/* Custom Toast Notification */
+.strategy-toast {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1.5rem;
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 0.75rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    z-index: 10000;
+    color: #fbbf24;
+    font-size: 0.875rem;
+    font-weight: 500;
+    animation: toastSlideIn 0.3s ease-out;
+}
+
+.strategy-toast svg {
+    flex-shrink: 0;
+}
+
+@keyframes toastSlideIn {
+    0% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-20px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
 }
