@@ -8,7 +8,7 @@
  * - Agent configuration summary
  */
 
-import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import { useFleetStore } from '../../store/fleetStore';
 import type { TradingAgent, AgentLog, VisualOverlay } from '../../store/fleetStore';
 import {
@@ -38,7 +38,8 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
     } = useFleetStore();
 
     const logContainerRef = useRef<HTMLDivElement>(null);
-    const logs = agentLogs[agent.id] || [];
+    const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
+    const logs: AgentLog[] = agentLogs[agent.id] || [];
 
     // Check if agent is paused (allow strategy changes)
     const isPaused = agent.status === 'PAUSED' || agent.status === 'STOPPED';
@@ -139,12 +140,29 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
     const renderLogEntry = (log: AgentLog) => {
         const time = new Date(log.timestamp).toLocaleTimeString();
         const statusClass = log.status.toLowerCase().replace('_', '-');
+        const isExpanded = expandedLogs.has(log.id);
+
+        const toggleExpand = () => {
+            setExpandedLogs(prev => {
+                const newSet = new Set(prev);
+                if (newSet.has(log.id)) {
+                    newSet.delete(log.id);
+                } else {
+                    newSet.add(log.id);
+                }
+                return newSet;
+            });
+        };
 
         return (
-            <div key={log.id} className={`log-entry status-${statusClass}`}>
+            <div
+                key={log.id}
+                className={`log-entry status-${statusClass} ${isExpanded ? 'expanded' : ''}`}
+                onClick={toggleExpand}
+            >
                 <span className="log-time">{time}</span>
                 <span className={`log-status ${statusClass}`}>{log.status}</span>
-                <span className="log-text">{log.log_text || '-'}</span>
+                <span className="log-text" title={log.log_text || '-'}>{log.log_text || '-'}</span>
             </div>
         );
     };

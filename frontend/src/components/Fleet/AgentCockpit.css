@@ -659,6 +659,26 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 0;
+}
+
+.log-text:hover {
+    color: #e2e8f0;
+}
+
+/* Expanded log entry shows full text */
+.log-entry.expanded .log-text {
+    white-space: normal;
+    word-break: break-word;
+    overflow: visible;
+}
+
+/* Make log-entry row expandable */
+.log-entry.expanded {
+    grid-template-columns: 70px 100px 1fr;
+    align-items: start;
 }
 
 /* Responsive */
