@@ -207,9 +207,31 @@ class TradingAgentInstance:
         """Fetch OHLCV data for both timeframes."""
         from app.services.market_service import MarketService
         
-        # This will be implemented to fetch actual data
-        # For now, placeholder
-        await self._log(f"Fetching data: {self.macro_timeframe} + {self.micro_timeframe}")
+        market_service = MarketService()
+        try:
+            # Fetch macro timeframe data (for trend analysis - need more history)
+            await self._log(f"Fetching data: {self.macro_timeframe} + {self.micro_timeframe}")
+            
+            self._macro_data = await market_service.get_ohlcv(
+                self.symbol, 
+                self.macro_timeframe, 
+                limit=200  # 200 candles for pattern recognition
+            )
+            
+            # Fetch micro timeframe data (for entry signals)
+            self._micro_data = await market_service.get_ohlcv(
+                self.symbol, 
+                self.micro_timeframe, 
+                limit=200
+            )
+            
+            logger.info(f"Agent {self.agent_id}: Fetched {len(self._macro_data or [])} macro candles, {len(self._micro_data or [])} micro candles")
+            
+        except Exception as e:
+            logger.error(f"Agent {self.agent_id}: Error fetching market data: {e}")
+            raise
+        finally:
+            await market_service.close()
     
     async def _analyze_macro(self) -> SignalType:
         """
@@ -218,13 +240,19 @@ class TradingAgentInstance:
         Returns: LONG, SHORT, or NEUTRAL
         """
         if not self.macro_strategy_code:
+            await self._log(f"No macro strategy assigned. Skipping macro analysis.")
             return SignalType.NEUTRAL
         
-        # Execute strategy code on macro data
-        # TODO: Implement strategy execution
-        await self._log(f"Analyzing {self.macro_timeframe} trend...")
+        if not self._macro_data:
+            return SignalType.NEUTRAL
         
-        return SignalType.NEUTRAL
+        await self._log(f"Analyzing {self.macro_timeframe} trend...")
+        signal = await self._execute_strategy_code(self.macro_strategy_code, self._macro_data)
+        
+        if signal:
+            await self._log(f"Macro signal: {signal.value}")
+        
+        return signal
     
     async def _analyze_micro(self) -> SignalType:
         """
@@ -233,13 +261,108 @@ class TradingAgentInstance:
         Returns: LONG, SHORT, or NEUTRAL
         """
         if not self.micro_strategy_code:
+            await self._log(f"No micro strategy assigned. Skipping micro analysis.")
             return SignalType.NEUTRAL
         
-        # Execute strategy code on micro data
-        # TODO: Implement strategy execution
-        await self._log(f"Analyzing {self.micro_timeframe} entry...")
+        if not self._micro_data:
+            return SignalType.NEUTRAL
         
-        return SignalType.NEUTRAL
+        await self._log(f"Analyzing {self.micro_timeframe} entry...")
+        signal = await self._execute_strategy_code(self.micro_strategy_code, self._micro_data)
+        
+        if signal:
+            await self._log(f"Micro signal: {signal.value}")
+        
+        return signal
+    
+    async def _execute_strategy_code(self, python_code: str, ohlcv_data: list) -> SignalType:
+        """
+        Execute strategy code via the strategy-engine microservice.
+        
+        Args:
+            python_code: Python strategy code to execute
+            ohlcv_data: List of OHLCV dictionaries
+            
+        Returns:
+            SignalType based on the latest signal from strategy execution
+        """
+        import httpx
+        
+        if not ohlcv_data or len(ohlcv_data) < 10:
+            logger.warning(f"Agent {self.agent_id}: Insufficient data for analysis ({len(ohlcv_data or [])} candles)")
+            return SignalType.NEUTRAL
+        
+        try:
+            # Convert OHLCV data to dict format for strategy-engine
+            data_dict = {
+                'timestamp': [candle['timestamp'].isoformat() if hasattr(candle['timestamp'], 'isoformat') else str(candle['timestamp']) for candle in ohlcv_data],
+                'open': [float(candle['open']) for candle in ohlcv_data],
+                'high': [float(candle['high']) for candle in ohlcv_data],
+                'low': [float(candle['low']) for candle in ohlcv_data],
+                'close': [float(candle['close']) for candle in ohlcv_data],
+                'volume': [float(candle['volume']) for candle in ohlcv_data],
+            }
+            
+            # Call strategy-engine microservice
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    "http://strategy-engine:8001/execute",
+                    json={
+                        "python_code": python_code,
+                        "data": data_dict,
+                        "timeout": 5
+                    }
+                )
+                
+                if response.status_code != 200:
+                    logger.error(f"Agent {self.agent_id}: Strategy engine error: {response.text}")
+                    return SignalType.NEUTRAL
+                
+                result = response.json()
+                
+                if not result.get("success"):
+                    logger.error(f"Agent {self.agent_id}: Strategy execution failed: {result.get('error')}")
+                    return SignalType.NEUTRAL
+                
+                # Parse signals from result
+                # The strategy code should output a 'signal' column with values like 'BUY', 'SELL', 'LONG', 'SHORT'
+                data = result.get("data", [])
+                
+                if not data:
+                    return SignalType.NEUTRAL
+                
+                # Get the most recent signal
+                last_row = data[-1] if data else {}
+                
+                # Check for signal column (various naming conventions)
+                signal_value = (
+                    last_row.get('signal') or 
+                    last_row.get('Signal') or 
+                    last_row.get('action') or 
+                    last_row.get('Action') or
+                    last_row.get('entry') or
+                    last_row.get('Entry')
+                )
+                
+                if signal_value:
+                    signal_str = str(signal_value).upper()
+                    
+                    if signal_str in ['BUY', 'LONG', '1', '1.0', 'TRUE']:
+                        logger.info(f"Agent {self.agent_id}: Detected LONG signal from strategy")
+                        return SignalType.LONG
+                    elif signal_str in ['SELL', 'SHORT', '-1', '-1.0']:
+                        logger.info(f"Agent {self.agent_id}: Detected SHORT signal from strategy")
+                        return SignalType.SHORT
+                
+                return SignalType.NEUTRAL
+                
+        except httpx.ConnectError:
+            logger.error(f"Agent {self.agent_id}: Cannot connect to strategy-engine service")
+            await self._log("Error: Cannot connect to strategy-engine")
+            return SignalType.NEUTRAL
+        except Exception as e:
+            logger.error(f"Agent {self.agent_id}: Strategy execution error: {e}")
+            return SignalType.NEUTRAL
     
     async def _synthesize_signals(self, macro: SignalType, micro: SignalType):
         """
