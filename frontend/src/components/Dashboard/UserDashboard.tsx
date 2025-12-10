@@ -11,8 +11,7 @@ import {
     ArrowLeft,
     ChevronRight,
     LineChart,
-    Bot,
-    LogOut
+    Bot
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import APIKeyManager from '../Settings/APIKeyManager';
@@ -26,12 +25,12 @@ interface DashboardTab {
 
 const UserDashboard: React.FC = () => {
     const navigate = useNavigate();
-    const { user, logout } = useAuthStore();
+    const { user } = useAuthStore();
     const [activeTab, setActiveTab] = useState('overview');
     const [tradingMode, setTradingMode] = useState<'paper' | 'live'>('paper');
 
     // Mock data for now - will be replaced with API calls
-    const [stats, setStats] = useState({
+    const stats = {
         paperBalance: 19912.72,
         totalStrategies: 5,
         activeStrategies: 2,
@@ -40,7 +39,7 @@ const UserDashboard: React.FC = () => {
         sessionPnL: 1245.50,
         winRate: 68.5,
         totalTrades: 47
-    });
+    };
 
     const tabs: DashboardTab[] = [
         { id: 'overview', label: 'Übersicht', icon: <TrendingUp className="w-5 h-5" /> },
@@ -64,11 +63,6 @@ const UserDashboard: React.FC = () => {
         } else {
             setTradingMode('paper');
         }
-    };
-
-    const handleLogout = () => {
-        logout();
-        navigate('/login');
     };
 
     const renderOverview = () => (
@@ -263,7 +257,7 @@ const UserDashboard: React.FC = () => {
                         </div>
                     </div>
                     <button
-                        onClick={() => navigate('/')}
+                        onClick={() => { window.location.href = '/?tab=strategy'; }}
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                     >
                         <span>Strategy Builder</span>
@@ -282,7 +276,7 @@ const UserDashboard: React.FC = () => {
                         </div>
                     </div>
                     <button
-                        onClick={() => navigate('/')}
+                        onClick={() => { window.location.href = '/?tab=strategy'; }}
                         className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
                     >
                         <span>Verwalten</span>
@@ -301,7 +295,7 @@ const UserDashboard: React.FC = () => {
                         </div>
                     </div>
                     <button
-                        onClick={() => navigate('/')}
+                        onClick={() => { window.location.href = '/?tab=fleet'; }}
                         className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
                     >
                         <span>Fleet Dashboard</span>
@@ -338,31 +332,14 @@ const UserDashboard: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-950 text-gray-100">
             {/* Header */}
-            <header className="bg-gray-900 border-b border-gray-800 h-14 flex items-center justify-between px-6">
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={() => navigate('/')}
-                        className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-                    >
-                        <ArrowLeft className="w-5 h-5" />
-                        <span>Zurück zum Trading</span>
-                    </button>
-                </div>
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-800/50 rounded-full border border-gray-700/50">
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-sm font-bold">
-                            {user?.username?.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-sm font-medium text-gray-300">{user?.username}</span>
-                    </div>
-                    <button
-                        onClick={handleLogout}
-                        className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-800 rounded-lg transition-colors"
-                        title="Logout"
-                    >
-                        <LogOut className="w-5 h-5" />
-                    </button>
-                </div>
+            <header className="bg-gray-900 border-b border-gray-800 h-14 flex items-center px-6">
+                <button
+                    onClick={() => navigate('/')}
+                    className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+                >
+                    <ArrowLeft className="w-5 h-5" />
+                    <span>Zurück zum Trading</span>
+                </button>
             </header>
 
             {/* Main Content */}
