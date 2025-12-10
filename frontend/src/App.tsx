@@ -8,6 +8,8 @@ import { BottomPanel } from './components/Layout/BottomPanel';
 import ChatPanel from './components/AIAssistant/ChatPanel';
 import LoginPage from './components/Auth/LoginPage';
 import RegisterPage from './components/Auth/RegisterPage';
+import ForgotPassword from './components/Auth/ForgotPassword';
+import ResetPassword from './components/Auth/ResetPassword';
 import SettingsPage from './components/SettingsPage';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import { useAuthStore } from './store/authStore';
@@ -167,6 +169,8 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/settings" element={
           <ProtectedRoute>
             <SettingsPage />
