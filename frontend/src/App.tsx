@@ -11,6 +11,7 @@ import RegisterPage from './components/Auth/RegisterPage';
 import ForgotPassword from './components/Auth/ForgotPassword';
 import ResetPassword from './components/Auth/ResetPassword';
 import SettingsPage from './components/SettingsPage';
+import UserDashboard from './components/Dashboard/UserDashboard';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import { useAuthStore } from './store/authStore';
 import { useTradingStore } from './store/tradingStore';
@@ -127,12 +128,16 @@ function App() {
                   🤖 Fleet
                 </button>
               </nav>
-              <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-800/50 rounded-full border border-gray-700/50">
+              <a
+                href="/dashboard"
+                className="flex items-center gap-3 px-3 py-1.5 bg-gray-800/50 rounded-full border border-gray-700/50 hover:bg-gray-700/50 hover:border-gray-600 transition-all cursor-pointer"
+                title="User Dashboard"
+              >
                 <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
                   {user?.username?.charAt(0).toUpperCase()}
                 </div>
                 <span className="text-sm font-medium text-gray-300">{user?.username}</span>
-              </div>
+              </a>
 
               <button
                 onClick={() => setIsChatOpen(!isChatOpen)}
@@ -174,6 +179,11 @@ function App() {
         <Route path="/settings" element={
           <ProtectedRoute>
             <SettingsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <UserDashboard />
           </ProtectedRoute>
         } />
         <Route path="/" element={
