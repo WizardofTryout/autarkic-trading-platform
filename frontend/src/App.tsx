@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Activity, Settings, LogOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { Activity, LogOut } from 'lucide-react';
 import KlineChartCore from './components/Chart/KlineChartCore';
 import { OrderEntry } from './components/OrderEntry';
 import DocumentViewer from './components/Analysis/DocumentViewer';
@@ -59,6 +59,15 @@ function App() {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  // Handle ?tab= URL parameter
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['chart', 'analysis', 'strategy', 'fleet'].includes(tabParam)) {
+      setActiveTab(tabParam as 'chart' | 'analysis' | 'strategy' | 'fleet');
+    }
+  }, [searchParams]);
 
   const handleTabChange = (tab: 'chart' | 'analysis' | 'strategy' | 'fleet') => {
     setActiveTab(tab);
@@ -137,21 +146,6 @@ function App() {
                   {user?.username?.charAt(0).toUpperCase()}
                 </div>
                 <span className="text-sm font-medium text-gray-300">{user?.username}</span>
-              </a>
-
-              <button
-                onClick={() => setIsChatOpen(!isChatOpen)}
-                className={`p-2 rounded-lg transition-all duration-200 ${isChatOpen
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                  }`}
-                title="AI Assistant"
-              >
-                <div className="w-5 h-5">🤖</div>
-              </button>
-
-              <a href="/settings" className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors">
-                <Settings className="w-5 h-5" />
               </a>
 
               <button
