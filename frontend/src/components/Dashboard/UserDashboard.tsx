@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     User,
@@ -11,9 +11,12 @@ import {
     ArrowLeft,
     ChevronRight,
     LineChart,
-    Bot
+    Bot,
+    RefreshCw
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { useTradingStore } from '../../store/tradingStore';
+import { getStrategies, api } from '../../services/api';
 import APIKeyManager from '../Settings/APIKeyManager';
 import UserProfile from '../Auth/UserProfile';
 
@@ -23,23 +26,88 @@ interface DashboardTab {
     icon: React.ReactNode;
 }
 
+interface DashboardStats {
+    paperBalance: number;
+    totalStrategies: number;
+    activeStrategies: number;
+    tradingAgents: number;
+    openPositions: number;
+    sessionPnL: number;
+}
+
 const UserDashboard: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuthStore();
+    const { portfolio, fetchPortfolio, activeStrategies, fetchActiveStrategies } = useTradingStore();
     const [activeTab, setActiveTab] = useState('overview');
     const [tradingMode, setTradingMode] = useState<'paper' | 'live'>('paper');
+    const [isLoading, setIsLoading] = useState(true);
+    const [stats, setStats] = useState<DashboardStats>({
+        paperBalance: 0,
+        totalStrategies: 0,
+        activeStrategies: 0,
+        tradingAgents: 0,
+        openPositions: 0,
+        sessionPnL: 0
+    });
 
-    // Mock data for now - will be replaced with API calls
-    const stats = {
-        paperBalance: 19912.72,
-        totalStrategies: 5,
-        activeStrategies: 2,
-        tradingAgents: 3,
-        recentDocuments: 12,
-        sessionPnL: 1245.50,
-        winRate: 68.5,
-        totalTrades: 47
-    };
+    // Fetch dashboard data on mount and periodically
+    useEffect(() => {
+        const loadDashboardData = async () => {
+            setIsLoading(true);
+            try {
+                // Fetch portfolio data
+                await fetchPortfolio();
+                await fetchActiveStrategies();
+
+                // Fetch strategies count
+                const strategies = await getStrategies();
+
+                // Fetch trading agents
+                let agents: any[] = [];
+                try {
+                    agents = await api.get('/fleet/agents');
+                } catch (e) {
+                    console.log('No fleet agents found');
+                }
+
+                setStats(prev => ({
+                    ...prev,
+                    totalStrategies: strategies?.length || 0,
+                    tradingAgents: agents?.length || 0
+                }));
+            } catch (error) {
+                console.error('Failed to load dashboard data:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadDashboardData();
+
+        // Refresh every 10 seconds
+        const interval = setInterval(loadDashboardData, 10000);
+        return () => clearInterval(interval);
+    }, [fetchPortfolio, fetchActiveStrategies]);
+
+    // Update stats when portfolio changes
+    useEffect(() => {
+        if (portfolio) {
+            setStats(prev => ({
+                ...prev,
+                paperBalance: portfolio.balance || 0,
+                openPositions: portfolio.positions?.length || 0
+            }));
+        }
+    }, [portfolio]);
+
+    // Update stats when activeStrategies changes
+    useEffect(() => {
+        setStats(prev => ({
+            ...prev,
+            activeStrategies: activeStrategies?.length || 0
+        }));
+    }, [activeStrategies]);
 
     const tabs: DashboardTab[] = [
         { id: 'overview', label: 'Übersicht', icon: <TrendingUp className="w-5 h-5" /> },
@@ -140,10 +208,11 @@ const UserDashboard: React.FC = () => {
                         <div className="p-2 bg-yellow-600/20 rounded-lg">
                             <TrendingUp className="w-5 h-5 text-yellow-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">Win Rate</span>
+                        <span className="text-gray-400 text-sm">Offene Positionen</span>
+                        {isLoading && <RefreshCw className="w-4 h-4 text-gray-500 animate-spin" />}
                     </div>
-                    <p className="text-2xl font-bold text-white">{stats.winRate}%</p>
-                    <p className="text-gray-400 text-sm mt-1">{stats.totalTrades} Trades</p>
+                    <p className="text-2xl font-bold text-white">{stats.openPositions}</p>
+                    <p className="text-gray-400 text-sm mt-1">{stats.activeStrategies} aktive Strategien</p>
                 </div>
             </div>
 
