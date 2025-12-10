@@ -32,7 +32,7 @@ interface DashboardStats {
     activeStrategies: number;
     tradingAgents: number;
     openPositions: number;
-    sessionPnL: number;
+    unrealizedPnL: number;
 }
 
 const UserDashboard: React.FC = () => {
@@ -48,7 +48,7 @@ const UserDashboard: React.FC = () => {
         activeStrategies: 0,
         tradingAgents: 0,
         openPositions: 0,
-        sessionPnL: 0
+        unrealizedPnL: 0
     });
 
     // Fetch dashboard data on mount and periodically
@@ -93,10 +93,31 @@ const UserDashboard: React.FC = () => {
     // Update stats when portfolio changes
     useEffect(() => {
         if (portfolio) {
+            // Calculate unrealized PnL from open positions
+            let unrealizedPnL = 0;
+            if (portfolio.positions && portfolio.positions.length > 0) {
+                unrealizedPnL = portfolio.positions.reduce((total, pos) => {
+                    const entryPrice = pos.entry_price || 0;
+                    const markPrice = pos.mark_price || entryPrice; // fallback to entry if no mark price
+                    const size = pos.size || 0;
+                    const side = pos.side?.toUpperCase();
+
+                    // Calculate PnL based on position direction
+                    let positionPnL = 0;
+                    if (side === 'LONG' || side === 'BUY') {
+                        positionPnL = (markPrice - entryPrice) * size;
+                    } else if (side === 'SHORT' || side === 'SELL') {
+                        positionPnL = (entryPrice - markPrice) * size;
+                    }
+                    return total + positionPnL;
+                }, 0);
+            }
+
             setStats(prev => ({
                 ...prev,
                 paperBalance: portfolio.balance || 0,
-                openPositions: portfolio.positions?.length || 0
+                openPositions: portfolio.positions?.length || 0,
+                unrealizedPnL: unrealizedPnL
             }));
         }
     }, [portfolio]);
@@ -170,7 +191,7 @@ const UserDashboard: React.FC = () => {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+                <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 min-h-[140px]">
                     <div className="flex items-center gap-3 mb-3">
                         <div className="p-2 bg-green-600/20 rounded-lg">
                             <Wallet className="w-5 h-5 text-green-400" />
@@ -178,10 +199,12 @@ const UserDashboard: React.FC = () => {
                         <span className="text-gray-400 text-sm">Balance</span>
                     </div>
                     <p className="text-2xl font-bold text-white">${stats.paperBalance.toLocaleString()}</p>
-                    <p className="text-green-400 text-sm mt-1">+${stats.sessionPnL.toLocaleString()} Session PnL</p>
+                    <p className={`text-sm mt-1 ${stats.unrealizedPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {stats.unrealizedPnL >= 0 ? '+' : ''}{stats.unrealizedPnL.toFixed(2)} USDT Unrealized
+                    </p>
                 </div>
 
-                <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+                <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 min-h-[140px]">
                     <div className="flex items-center gap-3 mb-3">
                         <div className="p-2 bg-blue-600/20 rounded-lg">
                             <LineChart className="w-5 h-5 text-blue-400" />
@@ -192,7 +215,7 @@ const UserDashboard: React.FC = () => {
                     <p className="text-blue-400 text-sm mt-1">{stats.activeStrategies} aktiv</p>
                 </div>
 
-                <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+                <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 min-h-[140px]">
                     <div className="flex items-center gap-3 mb-3">
                         <div className="p-2 bg-purple-600/20 rounded-lg">
                             <Bot className="w-5 h-5 text-purple-400" />
@@ -203,13 +226,13 @@ const UserDashboard: React.FC = () => {
                     <p className="text-purple-400 text-sm mt-1">Aktive Bots</p>
                 </div>
 
-                <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+                <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 min-h-[140px]">
                     <div className="flex items-center gap-3 mb-3">
                         <div className="p-2 bg-yellow-600/20 rounded-lg">
                             <TrendingUp className="w-5 h-5 text-yellow-400" />
                         </div>
                         <span className="text-gray-400 text-sm">Offene Positionen</span>
-                        {isLoading && <RefreshCw className="w-4 h-4 text-gray-500 animate-spin" />}
+                        {isLoading && <RefreshCw className="w-4 h-4 text-gray-500 animate-spin ml-auto" />}
                     </div>
                     <p className="text-2xl font-bold text-white">{stats.openPositions}</p>
                     <p className="text-gray-400 text-sm mt-1">{stats.activeStrategies} aktive Strategien</p>
