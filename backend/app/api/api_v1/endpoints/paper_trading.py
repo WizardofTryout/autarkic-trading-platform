@@ -60,26 +60,49 @@ async def get_dashboard(
     reserved_margin = sum(float(order.amount) for order in portfolio["orders"])
     available_balance = float(portfolio["balance"]) - reserved_margin
     
+    # Fetch current prices for all position symbols
+    positions_with_prices = []
+    for pos in portfolio["positions"]:
+        # Get current market price
+        mark_price = None
+        unrealized_pnl = 0.0
+        try:
+            current_price = await service.market_service.get_current_price(pos.symbol)
+            if current_price:
+                mark_price = float(current_price)
+                entry_price = float(pos.entry_price)
+                size = float(pos.size)
+                side = pos.side.upper() if pos.side else ""
+                
+                # Calculate unrealized PnL based on position direction
+                if side in ("LONG", "BUY"):
+                    unrealized_pnl = (mark_price - entry_price) * size
+                elif side in ("SHORT", "SELL"):
+                    unrealized_pnl = (entry_price - mark_price) * size
+        except Exception as e:
+            print(f"Error fetching price for {pos.symbol}: {e}")
+        
+        positions_with_prices.append({
+            "id": str(pos.id),
+            "symbol": pos.symbol,
+            "side": pos.side,
+            "size": float(pos.size),
+            "entry_price": float(pos.entry_price),
+            "mark_price": mark_price,  # Current market price
+            "unrealized_pnl": round(unrealized_pnl, 2),  # Calculated PnL
+            "leverage": pos.leverage,
+            "margin": float(pos.margin),
+            "stop_loss": float(pos.stop_loss) if pos.stop_loss else None,
+            "take_profit": float(pos.take_profit) if pos.take_profit else None,
+            "is_trailing_stop": pos.is_trailing_stop,
+            "trailing_percent": float(pos.trailing_percent) if pos.trailing_percent else None,
+            "liquidation_price": float(pos.liquidation_price) if pos.liquidation_price else None,
+        })
+    
     # Convert SQLAlchemy objects to dicts for JSON serialization
     return {
         "balance": available_balance,  # Show available balance (total - reserved)
-        "positions": [
-            {
-                "id": str(pos.id),
-                "symbol": pos.symbol,
-                "side": pos.side,
-                "size": float(pos.size),
-                "entry_price": float(pos.entry_price),
-                "leverage": pos.leverage,
-                "margin": float(pos.margin),
-                "stop_loss": float(pos.stop_loss) if pos.stop_loss else None,
-                "take_profit": float(pos.take_profit) if pos.take_profit else None,
-                "is_trailing_stop": pos.is_trailing_stop,
-                "trailing_percent": float(pos.trailing_percent) if pos.trailing_percent else None,
-                "liquidation_price": float(pos.liquidation_price) if pos.liquidation_price else None,
-            }
-            for pos in portfolio["positions"]
-        ],
+        "positions": positions_with_prices,
         "orders": [
             {
                 "id": str(order.id),
