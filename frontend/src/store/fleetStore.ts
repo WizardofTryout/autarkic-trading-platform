@@ -116,8 +116,13 @@ interface FleetState {
     // UI State
     isLoading: boolean;
     error: string | null;
-    showDeployModal: boolean;
     showAgentCockpit: boolean;
+
+    deployWizardState: {
+        step: number;
+        isOpen: boolean;
+        data: DeployAgentParams;
+    };
 
     // Actions
     fetchAgents: () => Promise<void>;
@@ -133,6 +138,9 @@ interface FleetState {
     // Setters
     selectAgent: (agentId: string | null) => void;
     setShowDeployModal: (show: boolean) => void;
+    setDeployWizardStep: (step: number) => void;
+    updateDeployWizardData: (data: Partial<DeployAgentParams>) => void;
+    resetDeployWizard: () => void;
     setShowAgentCockpit: (show: boolean) => void;
 
     // WebSocket
@@ -154,8 +162,25 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     wsError: null,
     isLoading: false,
     error: null,
-    showDeployModal: false,
     showAgentCockpit: false,
+
+    deployWizardState: {
+        step: 1,
+        isOpen: false,
+        data: {
+            name: '',
+            symbol: 'BTC/USDT',
+            mode: 'PAPER',
+            budget: 1000,
+            max_drawdown_percent: 10,
+            risk_per_trade: 0.01,
+            min_rr_ratio: 2,
+            macro_strategy_id: undefined,
+            micro_strategy_id: undefined,
+            macro_timeframe: '4h',
+            micro_timeframe: '15m',
+        }
+    },
 
     // ==================== API Actions ====================
 
@@ -188,7 +213,25 @@ export const useFleetStore = create<FleetState>((set, get) => ({
             set(state => ({
                 agents: [...state.agents, agent],
                 isLoading: false,
-                showDeployModal: false
+                // Reset wizard on success
+                deployWizardState: {
+                    ...state.deployWizardState,
+                    step: 1,
+                    isOpen: false,
+                    data: {
+                        name: '',
+                        symbol: 'BTC/USDT',
+                        mode: 'PAPER',
+                        budget: 1000,
+                        max_drawdown_percent: 10,
+                        risk_per_trade: 0.01,
+                        min_rr_ratio: 2,
+                        macro_strategy_id: undefined,
+                        micro_strategy_id: undefined,
+                        macro_timeframe: '4h',
+                        micro_timeframe: '15m',
+                    }
+                }
             }));
             return agent;
         } catch (error: any) {
@@ -314,7 +357,41 @@ export const useFleetStore = create<FleetState>((set, get) => ({
         }
     },
 
-    setShowDeployModal: (show: boolean) => set({ showDeployModal: show }),
+    setShowDeployModal: (show: boolean) => set(state => ({
+        deployWizardState: { ...state.deployWizardState, isOpen: show }
+    })),
+
+    setDeployWizardStep: (step: number) => set(state => ({
+        deployWizardState: { ...state.deployWizardState, step }
+    })),
+
+    updateDeployWizardData: (data: Partial<DeployAgentParams>) => set(state => ({
+        deployWizardState: {
+            ...state.deployWizardState,
+            data: { ...state.deployWizardState.data, ...data }
+        }
+    })),
+
+    resetDeployWizard: () => set(state => ({
+        deployWizardState: {
+            step: 1,
+            isOpen: false,
+            data: {
+                name: '',
+                symbol: 'BTC/USDT',
+                mode: 'PAPER',
+                budget: 1000,
+                max_drawdown_percent: 10,
+                risk_per_trade: 0.01,
+                min_rr_ratio: 2,
+                macro_strategy_id: undefined,
+                micro_strategy_id: undefined,
+                macro_timeframe: '4h',
+                micro_timeframe: '15m',
+            }
+        }
+    })),
+
     setShowAgentCockpit: (show: boolean) => set({ showAgentCockpit: show }),
 
     // ==================== WebSocket ====================

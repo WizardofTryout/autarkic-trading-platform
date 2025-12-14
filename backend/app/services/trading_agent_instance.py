@@ -192,8 +192,21 @@ class TradingAgentInstance:
                 # Step 4: Synthesize signals
                 await self._synthesize_signals(macro_signal, micro_signal)
                 
+                # Calculate sleep time based on micro timeframe
+                # default to 30s if not specified or unrecognized
+                sleep_seconds = 30
+                
+                if self.micro_timeframe == '1s':
+                    sleep_seconds = 1
+                elif self.micro_timeframe == '1m':
+                    sleep_seconds = 5
+                elif self.micro_timeframe == '5m':
+                    sleep_seconds = 30
+                elif self.micro_timeframe == '15m':
+                    sleep_seconds = 60
+                
                 # Wait before next iteration
-                await asyncio.sleep(30)
+                await asyncio.sleep(sleep_seconds)
                 
             except asyncio.CancelledError:
                 break

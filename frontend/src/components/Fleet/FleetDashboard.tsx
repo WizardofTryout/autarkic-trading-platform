@@ -32,7 +32,7 @@ const FleetDashboard: React.FC = () => {
         selectedAgentId,
         isLoading,
         error,
-        showDeployModal,
+        deployWizardState,
         showAgentCockpit,
         wsConnected,
         fetchAgents,
@@ -270,7 +270,7 @@ const FleetDashboard: React.FC = () => {
             </div>
 
             {/* Deploy Modal */}
-            {showDeployModal && <DeployAgentModal />}
+            {deployWizardState.isOpen && <DeployAgentModal />}
 
             {/* Delete Confirmation Modal */}
             {deleteConfirm.show && (
