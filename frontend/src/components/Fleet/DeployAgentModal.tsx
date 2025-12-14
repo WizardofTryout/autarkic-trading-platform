@@ -13,7 +13,7 @@ import { useFleetStore } from '../../store/fleetStore';
 import type { DeployAgentParams } from '../../store/fleetStore';
 import { X, Bot, ChevronRight, ChevronLeft, Check, AlertTriangle, Search } from 'lucide-react';
 import { api, getSymbols } from '../../services/api';
-import { useAuthStore } from '../../store/authStore';
+// import { useAuthStore } from '../../store/authStore'; // Removed unused import
 import './DeployAgentModal.css';
 
 interface Strategy {
@@ -24,12 +24,21 @@ interface Strategy {
 }
 
 const POPULAR_SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT', 'ADA/USDT', 'DOGE/USDT', 'AVAX/USDT'];
-const TIMEFRAMES = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
+const TIMEFRAMES = ['1s', '1m', '5m', '15m', '30m', '1h', '4h', '1d'];
 
 const DeployAgentModal: React.FC = () => {
-    const { setShowDeployModal, deployAgent, isLoading } = useFleetStore();
+    const {
+        deployWizardState,
+        setShowDeployModal,
+        deployAgent,
+        isLoading,
+        setDeployWizardStep,
+        updateDeployWizardData
+    } = useFleetStore();
 
-    const [step, setStep] = useState(1);
+    // Destructure state from store
+    const { step, data: formData } = deployWizardState;
+
     const [strategies, setStrategies] = useState<Strategy[]>([]);
     const [strategiesError, setStrategiesError] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -41,31 +50,15 @@ const DeployAgentModal: React.FC = () => {
     const [loadingSymbols, setLoadingSymbols] = useState(false);
     const symbolInputRef = useRef<HTMLInputElement>(null);
 
-    // Form state
-    const [formData, setFormData] = useState<DeployAgentParams>({
-        name: '',
-        symbol: 'BTC/USDT',
-        mode: 'PAPER',
-        budget: 1000,
-        max_drawdown_percent: 10,
-        risk_per_trade: 0.01,
-        min_rr_ratio: 2,
-        macro_strategy_id: undefined,
-        micro_strategy_id: undefined,
-        macro_timeframe: '4h',
-        micro_timeframe: '15m',
-    });
-
     // Fetch strategies on mount
     useEffect(() => {
         const fetchStrategies = async () => {
             try {
                 console.log('[DeployModal] Fetching strategies...');
-                console.log('[DeployModal] Has token:', !!useAuthStore.getState().token);
-                
-                const data = await api.get('/strategies');
+
+                const data = await api.get('/strategies/');
                 console.log('[DeployModal] Strategies response:', data);
-                
+
                 // Show all strategies (not just compiled ones)
                 if (Array.isArray(data)) {
                     setStrategies(data);
@@ -78,7 +71,6 @@ const DeployAgentModal: React.FC = () => {
                 }
             } catch (e: any) {
                 console.error('[DeployModal] Failed to fetch strategies:', e);
-                console.error('[DeployModal] Error details:', e.message);
                 setStrategiesError(`Strategien konnten nicht geladen werden: ${e.message || 'Backend-Fehler'}`);
             }
         };
@@ -109,14 +101,14 @@ const DeployAgentModal: React.FC = () => {
         : POPULAR_SYMBOLS; // Show popular symbols when no search
 
     const handleChange = (field: keyof DeployAgentParams, value: any) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
+        updateDeployWizardData({ [field]: value });
     };
 
     const handleSubmit = async () => {
         setError(null);
         try {
             await deployAgent(formData);
-            setShowDeployModal(false);
+            // Modal close is handled in store action
         } catch (e: any) {
             setError(e.message || 'Failed to deploy agent');
         }
@@ -297,7 +289,7 @@ const DeployAgentModal: React.FC = () => {
                                     onChange={(e) => handleChange('micro_timeframe', e.target.value)}
                                     className="timeframe-select"
                                 >
-                                    {TIMEFRAMES.slice(0, 4).map(tf => (
+                                    {TIMEFRAMES.slice(0, 5).map(tf => ( // Include 30m
                                         <option key={tf} value={tf}>{tf}</option>
                                     ))}
                                 </select>
@@ -429,7 +421,7 @@ const DeployAgentModal: React.FC = () => {
                 {/* Footer */}
                 <div className="modal-footer">
                     {step > 1 && (
-                        <button className="btn-secondary" onClick={() => setStep(step - 1)}>
+                        <button className="btn-secondary" onClick={() => setDeployWizardStep(step - 1)}>
                             <ChevronLeft size={16} />
                             Back
                         </button>
@@ -440,7 +432,7 @@ const DeployAgentModal: React.FC = () => {
                     {step < 4 ? (
                         <button
                             className="btn-primary"
-                            onClick={() => setStep(step + 1)}
+                            onClick={() => setDeployWizardStep(step + 1)}
                             disabled={!canGoNext()}
                         >
                             Next
