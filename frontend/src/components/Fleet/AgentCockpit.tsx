@@ -18,6 +18,7 @@ import {
 import KlineChartCore from '../Chart/KlineChartCore';
 import LivePriceTicker from './LivePriceTicker';
 import StrategySelector from './StrategySelector';
+import { ConfirmationModal } from '../Common/ConfirmationModal';
 import './AgentCockpit.css';
 
 interface AgentCockpitProps {
@@ -39,31 +40,53 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
 
     const logContainerRef = useRef<HTMLDivElement>(null);
     const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
+
+    // Strategy Confirmation State
+    const [pendingStrategy, setPendingStrategy] = useState<{
+        type: 'MACRO' | 'MICRO';
+        strategyId: string | null;
+    } | null>(null);
+
     const logs: AgentLog[] = agentLogs[agent.id] || [];
 
     // Check if agent is paused (allow strategy changes)
     const isPaused = agent.status === 'PAUSED' || agent.status === 'STOPPED';
 
-    // Strategy change handlers
-    const handleMacroStrategyChange = useCallback(async (strategyId: string | null) => {
-        console.log('[AgentCockpit] Updating macro strategy:', strategyId, 'for agent:', agent.id);
-        try {
-            await updateAgent(agent.id, { macro_strategy_id: strategyId } as any);
-            console.log('[AgentCockpit] Macro strategy updated successfully');
-        } catch (err) {
-            console.error('Failed to update macro strategy:', err);
-        }
-    }, [agent.id, updateAgent]);
+    // Strategy change handlers (Intercepted by Confirmation)
+    const handleMacroStrategyChange = useCallback((strategyId: string | null) => {
+        setPendingStrategy({ type: 'MACRO', strategyId });
+    }, []);
 
-    const handleMicroStrategyChange = useCallback(async (strategyId: string | null) => {
-        console.log('[AgentCockpit] Updating micro strategy:', strategyId, 'for agent:', agent.id);
+    const handleMicroStrategyChange = useCallback((strategyId: string | null) => {
+        setPendingStrategy({ type: 'MICRO', strategyId });
+    }, []);
+
+    const confirmStrategyChange = async () => {
+        if (!pendingStrategy) return;
+
         try {
-            await updateAgent(agent.id, { micro_strategy_id: strategyId } as any);
-            console.log('[AgentCockpit] Micro strategy updated successfully');
+            console.log(`[AgentCockpit] Confirming ${pendingStrategy.type} strategy update to:`, pendingStrategy.strategyId);
+
+            if (pendingStrategy.type === 'MACRO') {
+                await updateAgent(agent.id, { macro_strategy_id: pendingStrategy.strategyId } as any);
+            } else {
+                await updateAgent(agent.id, { micro_strategy_id: pendingStrategy.strategyId } as any);
+            }
+
+            // Note: Agent status is NOT automatically changed to RUNNING. 
+            // It remains PAUSED/STOPPED as required by the update logic.
+            // The user must manually click Start.
+
         } catch (err) {
-            console.error('Failed to update micro strategy:', err);
+            console.error('Failed to update strategy:', err);
+        } finally {
+            setPendingStrategy(null);
         }
-    }, [agent.id, updateAgent]);
+    };
+
+    const cancelStrategyChange = () => {
+        setPendingStrategy(null);
+    };
 
     // Extract Ghost Lines from logs or current proposal
     const ghostLines: VisualOverlay[] = useMemo(() => {
@@ -378,6 +401,16 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
                     </div>
                 </div>
             </div>
+            {/* Confirmation Modal for Strategy Change */}
+            <ConfirmationModal
+                isOpen={!!pendingStrategy}
+                title="Strategie ändern?"
+                message={`Bist du sicher, dass du die ${pendingStrategy?.type}-Strategie ändern möchtest? Der Agent muss danach manuell wieder gestartet werden.`}
+                confirmLabel="Strategie ändern"
+                type="warning"
+                onConfirm={confirmStrategyChange}
+                onCancel={cancelStrategyChange}
+            />
         </div>
     );
 };
