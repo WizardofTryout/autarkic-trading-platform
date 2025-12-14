@@ -39,11 +39,7 @@ const StrategySelector: React.FC<StrategySelectorProps> = ({
             try {
                 setIsLoading(true);
                 const data = await getStrategies();
-                // Filter only compiled strategies
-                const compiledStrategies = (data || []).filter(
-                    (s: Strategy) => s.status === 'compiled' || s.python_code
-                );
-                setStrategies(compiledStrategies);
+                setStrategies(data || []);
                 setError(null);
             } catch (err: any) {
                 console.error('Failed to fetch strategies:', err);
@@ -59,8 +55,13 @@ const StrategySelector: React.FC<StrategySelectorProps> = ({
     const currentStrategy = strategies.find(s => s.id === currentStrategyId);
     const displayName = currentStrategy?.name || 'No Strategy';
 
+    // Filter for dropdown: Only show compiled strategies OR the current one (even if draft)
+    const availableStrategies = strategies.filter(
+        s => s.status === 'compiled' || s.python_code || s.id === currentStrategyId
+    );
+
     // Sort strategies: favorites first
-    const sortedStrategies = [...strategies].sort((a, b) => {
+    const sortedStrategies = [...availableStrategies].sort((a, b) => {
         if (a.is_favorite && !b.is_favorite) return -1;
         if (!a.is_favorite && b.is_favorite) return 1;
         return a.name.localeCompare(b.name);
