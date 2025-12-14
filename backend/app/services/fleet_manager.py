@@ -269,6 +269,8 @@ class AgentFleetManager:
                 "max_drawdown_percent": float(agent.max_drawdown_percent),
                 "macro_timeframe": agent.macro_timeframe,
                 "micro_timeframe": agent.micro_timeframe,
+                "macro_strategy_id": str(agent.macro_strategy_id) if agent.macro_strategy_id else None,
+                "micro_strategy_id": str(agent.micro_strategy_id) if agent.micro_strategy_id else None,
                 "created_at": agent.created_at.isoformat() if agent.created_at else None,
             }
             

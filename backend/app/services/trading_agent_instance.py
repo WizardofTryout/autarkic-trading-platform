@@ -393,7 +393,8 @@ class TradingAgentInstance:
             await self._create_proposal("SHORT")
         else:
             # No action - signals don't align
-            pass
+            if macro != SignalType.NEUTRAL or micro != SignalType.NEUTRAL:
+                await self._log(f"Signal mismatch. Macro: {macro.value}, Micro: {micro.value}")
     
     async def _create_proposal(self, side: str):
         """
@@ -402,7 +403,14 @@ class TradingAgentInstance:
         Generates visual "Ghost Lines" for the chart.
         """
         # TODO: Calculate actual entry, SL, TP from strategy
-        current_price = Decimal("95000")  # Placeholder
+        # Use the latest close price from micro data as current price
+        last_candle = self._micro_data[-1] if self._micro_data else {}
+        price_val = last_candle.get('close', 0)
+        current_price = Decimal(str(price_val))
+        
+        if current_price <= 0:
+            await self._log("Error: Invalid price data for proposal")
+            return
         
         # Calculate SL/TP based on risk parameters
         sl_distance = current_price * self.risk_per_trade
