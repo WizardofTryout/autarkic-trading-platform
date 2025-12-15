@@ -44,11 +44,18 @@ const FleetDashboard: React.FC = () => {
         setShowDeployModal,
         connectWebSocket,
         disconnectWebSocket,
-        closePosition
+        closePosition,
+        approveProposal
     } = useFleetStore();
 
     // State for expanded trade details
     const [expandedAgentId, setExpandedAgentId] = useState<string | null>(null);
+    
+    // State for approval modal
+    const [approvalModal, setApprovalModal] = useState<{ show: boolean; agent: TradingAgent | null }>({ 
+        show: false, 
+        agent: null 
+    });
 
     // Connect WebSocket on mount
     useEffect(() => {
@@ -88,15 +95,24 @@ const FleetDashboard: React.FC = () => {
         setDeleteConfirm({ show: false, agentId: '', agentName: '' });
     };
 
-    const renderStatusBadge = (status: AgentStatus) => {
+    const renderStatusBadge = (status: AgentStatus, agent?: TradingAgent) => {
         const colors = STATUS_COLORS[status] || STATUS_COLORS.PAUSED;
+        const isClickable = status === 'AWAITING_APPROVAL' && agent;
+        
         return (
             <div
-                className="status-badge"
+                className={`status-badge ${isClickable ? 'clickable' : ''}`}
                 style={{
                     backgroundColor: colors.bg,
                     color: colors.text,
+                    cursor: isClickable ? 'pointer' : 'default',
                 }}
+                onClick={() => {
+                    if (isClickable && agent) {
+                        setApprovalModal({ show: true, agent });
+                    }
+                }}
+                title={isClickable ? 'Click to review proposal' : ''}
             >
                 <span className="status-dot" style={{ backgroundColor: colors.dot }} />
                 {status}
@@ -255,7 +271,7 @@ const FleetDashboard: React.FC = () => {
                                                 {agent.mode}
                                             </span>
                                         </td>
-                                        <td>{renderStatusBadge(agent.status)}</td>
+                                        <td>{renderStatusBadge(agent.status, agent)}</td>
                                         <td className="agent-budget">${Number(agent.budget || 0).toLocaleString()}</td>
                                         <td className={`agent-pnl ${Number(agent.session_pnl) >= 0 ? 'profit' : 'loss'}`}>
                                             {Number(agent.session_pnl) >= 0 ? '+' : ''}{Number(agent.session_pnl || 0).toFixed(2)}
@@ -327,6 +343,72 @@ const FleetDashboard: React.FC = () => {
 
             {/* Deploy Modal */}
             {deployWizardState.isOpen && <DeployAgentModal />}
+
+            {/* Approval Modal */}
+            {approvalModal.show && approvalModal.agent && approvalModal.agent.current_proposal && (
+                <div className="modal-overlay" onClick={() => setApprovalModal({ show: false, agent: null })}>
+                    <div className="approval-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="approval-header">
+                            <h3>Trade Proposal</h3>
+                            <p className="approval-subtitle">Agent is awaiting your approval to execute trade.</p>
+                        </div>
+                        
+                        <div className="proposal-details">
+                            <div className="proposal-row">
+                                <span className="proposal-label">Side:</span>
+                                <span className={`proposal-value ${approvalModal.agent.current_proposal.side === 'LONG' ? 'long' : 'short'}`}>
+                                    {approvalModal.agent.current_proposal.side}
+                                </span>
+                            </div>
+                            <div className="proposal-row">
+                                <span className="proposal-label">Entry:</span>
+                                <span className="proposal-value">${approvalModal.agent.current_proposal.entry?.toFixed(2)}</span>
+                            </div>
+                            <div className="proposal-row">
+                                <span className="proposal-label">Stop Loss:</span>
+                                <span className="proposal-value loss">${approvalModal.agent.current_proposal.stop_loss?.toFixed(2)}</span>
+                            </div>
+                            <div className="proposal-row">
+                                <span className="proposal-label">Take Profit:</span>
+                                <span className="proposal-value profit">${approvalModal.agent.current_proposal.take_profit?.toFixed(2)}</span>
+                            </div>
+                            <div className="proposal-row">
+                                <span className="proposal-label">Size:</span>
+                                <span className="proposal-value">{approvalModal.agent.current_proposal.position_size?.toFixed(6)}</span>
+                            </div>
+                        </div>
+                        
+                        <div className="approval-actions">
+                            <button 
+                                className="btn-approve"
+                                onClick={async () => {
+                                    try {
+                                        await approveProposal(approvalModal.agent!.id, true);
+                                        setApprovalModal({ show: false, agent: null });
+                                    } catch (err) {
+                                        console.error('Failed to approve:', err);
+                                    }
+                                }}
+                            >
+                                ✓ Approve
+                            </button>
+                            <button 
+                                className="btn-reject"
+                                onClick={async () => {
+                                    try {
+                                        await approveProposal(approvalModal.agent!.id, false, 'Rejected by user');
+                                        setApprovalModal({ show: false, agent: null });
+                                    } catch (err) {
+                                        console.error('Failed to reject:', err);
+                                    }
+                                }}
+                            >
+                                ✗ Reject
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Delete Confirmation Modal */}
             {
