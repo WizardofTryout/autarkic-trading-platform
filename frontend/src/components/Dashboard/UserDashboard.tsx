@@ -64,9 +64,16 @@ const UserDashboard: React.FC = () => {
                 const strategies = await getStrategies();
 
                 // Fetch trading agents
-                let agents: any[] = [];
+                let agentsCount = 0;
                 try {
-                    agents = await api.get('/fleet/agents');
+                    const response = await api.get('/fleet/agents');
+                    // Check if response has agents array (Pydantic ListResponse)
+                    if (response && Array.isArray(response.agents)) {
+                        agentsCount = response.agents.length;
+                    } else if (Array.isArray(response)) {
+                        // Fallback if it returns list directly
+                        agentsCount = response.length;
+                    }
                 } catch (e) {
                     console.log('No fleet agents found');
                 }
@@ -74,7 +81,7 @@ const UserDashboard: React.FC = () => {
                 setStats(prev => ({
                     ...prev,
                     totalStrategies: strategies?.length || 0,
-                    tradingAgents: agents?.length || 0
+                    tradingAgents: agentsCount
                 }));
             } catch (error) {
                 console.error('Failed to load dashboard data:', error);

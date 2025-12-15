@@ -43,8 +43,12 @@ const FleetDashboard: React.FC = () => {
         selectAgent,
         setShowDeployModal,
         connectWebSocket,
-        disconnectWebSocket
+        disconnectWebSocket,
+        closePosition
     } = useFleetStore();
+
+    // State for expanded trade details
+    const [expandedAgentId, setExpandedAgentId] = useState<string | null>(null);
 
     // Connect WebSocket on mount
     useEffect(() => {
@@ -242,27 +246,74 @@ const FleetDashboard: React.FC = () => {
                         </thead>
                         <tbody>
                             {agents.map(agent => (
-                                <tr key={agent.id} className={selectedAgentId === agent.id ? 'selected' : ''}>
-                                    <td className="agent-name">{agent.name}</td>
-                                    <td className="agent-symbol">{agent.symbol}</td>
-                                    <td>
-                                        <span className={`mode-badge ${agent.mode.toLowerCase()}`}>
-                                            {agent.mode}
-                                        </span>
-                                    </td>
-                                    <td>{renderStatusBadge(agent.status)}</td>
-                                    <td className="agent-budget">${Number(agent.budget || 0).toLocaleString()}</td>
-                                    <td className={`agent-pnl ${Number(agent.session_pnl) >= 0 ? 'profit' : 'loss'}`}>
-                                        {Number(agent.session_pnl) >= 0 ? '+' : ''}{Number(agent.session_pnl || 0).toFixed(2)}
-                                    </td>
-                                    <td className="agent-trades">
-                                        {agent.winning_trades}/{agent.total_trades}
-                                    </td>
-                                    <td className="agent-killswitch">
-                                        {Number(agent.max_drawdown_percent || 0)}%
-                                    </td>
-                                    <td>{renderAgentActions(agent)}</td>
-                                </tr>
+                                <React.Fragment key={agent.id}>
+                                    <tr className={selectedAgentId === agent.id ? 'selected' : ''}>
+                                        <td className="agent-name">{agent.name}</td>
+                                        <td className="agent-symbol">{agent.symbol}</td>
+                                        <td>
+                                            <span className={`mode-badge ${agent.mode.toLowerCase()}`}>
+                                                {agent.mode}
+                                            </span>
+                                        </td>
+                                        <td>{renderStatusBadge(agent.status)}</td>
+                                        <td className="agent-budget">${Number(agent.budget || 0).toLocaleString()}</td>
+                                        <td className={`agent-pnl ${Number(agent.session_pnl) >= 0 ? 'profit' : 'loss'}`}>
+                                            {Number(agent.session_pnl) >= 0 ? '+' : ''}{Number(agent.session_pnl || 0).toFixed(2)}
+                                        </td>
+                                        <td
+                                            className="agent-trades clickable"
+                                            onClick={() => setExpandedAgentId(expandedAgentId === agent.id ? null : agent.id)}
+                                            style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                                        >
+                                            {agent.winning_trades}/{agent.total_trades}
+                                            {agent.active_position && (expandedAgentId === agent.id ? ' ▲' : ' ▼')}
+                                        </td>
+                                        <td className="agent-killswitch">
+                                            {Number(agent.max_drawdown_percent || 0)}%
+                                        </td>
+                                        <td>{renderAgentActions(agent)}</td>
+                                    </tr>
+                                    {expandedAgentId === agent.id && agent.active_position && (
+                                        <tr className="expanded-details-row">
+                                            <td colSpan={9}>
+                                                <div className="trade-details-panel">
+                                                    <div className="detail-group">
+                                                        <span className="detail-label">Entry</span>
+                                                        <span className="detail-value">${agent.active_position.entry_price.toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="detail-group">
+                                                        <span className="detail-label">Current P&L</span>
+                                                        <span className={`detail-value ${agent.active_position.unrealized_pnl >= 0 ? 'profit' : 'loss'}`}>
+                                                            {agent.active_position.unrealized_pnl >= 0 ? '+' : ''}
+                                                            {agent.active_position.unrealized_pnl?.toFixed(2) || '0.00'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="detail-group">
+                                                        <span className="detail-label">Stop Loss</span>
+                                                        <span className="detail-value loss">${agent.active_position.stop_loss?.toFixed(2) || '-'}</span>
+                                                    </div>
+                                                    <div className="detail-group">
+                                                        <span className="detail-label">Take Profit</span>
+                                                        <span className="detail-value profit">${agent.active_position.take_profit?.toFixed(2) || '-'}</span>
+                                                    </div>
+                                                    <div className="detail-actions">
+                                                        <button
+                                                            className="btn-close-position"
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                if (window.confirm('Close this position immediately?')) {
+                                                                    await closePosition(agent.active_position!.id);
+                                                                }
+                                                            }}
+                                                        >
+                                                            Close Trade
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </React.Fragment>
                             ))}
                         </tbody>
                     </table>

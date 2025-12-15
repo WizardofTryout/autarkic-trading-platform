@@ -14,7 +14,17 @@ class MarketService:
             # Map common timeframe strings if necessary
             # ccxt uses '1m', '5m', '1h', '1d' etc.
             # Ensure timeframe is valid for Binance
-            valid_timeframes = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1M']
+            valid_timeframes = ['1s', '1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1M']
+            
+            target_timeframe = timeframe
+            is_resampled = False
+            
+            # Special handling for 15s if not natively supported (Binance usually supports 1s)
+            if timeframe == '15s':
+                timeframe = '1s'
+                limit = limit * 15  # Fetch more 1s candles to resample
+                is_resampled = True
+            
             if timeframe not in valid_timeframes:
                 print(f"Warning: Invalid timeframe {timeframe}, defaulting to 1d")
                 timeframe = '1d'
@@ -32,6 +42,35 @@ class MarketService:
                     'close': close,
                     'volume': volume
                 })
+            
+            # Resample if needed (e.g. 15s from 1s)
+            if is_resampled and target_timeframe == '15s' and data:
+                df = pd.DataFrame(data)
+                df.set_index('timestamp', inplace=True)
+                
+                # Resample to 15s
+                resampled = df.resample('15s').agg({
+                    'open': 'first',
+                    'high': 'max',
+                    'low': 'min',
+                    'close': 'last',
+                    'volume': 'sum'
+                }).dropna()
+                
+                # Convert back to list of dicts
+                data = []
+                for timestamp, row in resampled.iterrows():
+                    data.append({
+                        'timestamp': timestamp,
+                        'open': row['open'],
+                        'high': row['high'],
+                        'low': row['low'],
+                        'close': row['close'],
+                        'volume': row['volume']
+                    })
+                
+                # Limit to original requested limit
+                data = data[-int(limit/15):]
             
             return data
         except Exception as e:
