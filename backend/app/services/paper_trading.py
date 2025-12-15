@@ -39,6 +39,13 @@ class PaperTradingService:
             
         return await self.get_or_create_account(user_id)
 
+    async def get_strategy_position(self, strategy_id: uuid.UUID) -> PaperPosition:
+        """Get the active position for a specific strategy."""
+        result = await self.db.execute(select(PaperPosition).where(
+            PaperPosition.strategy_id == strategy_id
+        ))
+        return result.scalars().first()
+
     async def place_order(self, user_id: uuid.UUID, symbol: str, side: str, amount_usdt: float, leverage: int = 1, order_type: str = "MARKET", price: float = None, stop_loss: float = None, take_profit: float = None, is_trailing_stop: bool = False, trailing_percent: float = None, strategy_id: uuid.UUID = None):
         account = await self.get_or_create_account(user_id)
         
@@ -266,6 +273,76 @@ class PaperTradingService:
         await self.db.commit()
         await self.db.refresh(order)
         return order
+
+    async def close_position(self, position_id: uuid.UUID) -> PaperTrade:
+        """Close an active position at market price."""
+        # 1. Fetch Position
+        result = await self.db.execute(select(PaperPosition).where(PaperPosition.id == position_id))
+        position = result.scalars().first()
+        
+        if not position:
+            raise Exception("Position not found")
+            
+        # 2. Get Current Price
+        try:
+            ohlcv = await self.market_service.get_ohlcv(position.symbol, timeframe="1m", limit=1)
+            if not ohlcv:
+                raise Exception(f"Could not fetch price for {position.symbol}")
+            exit_price = Decimal(str(ohlcv[-1]['close']))
+        finally:
+             await self.market_service.close()
+             
+        # 3. Calculate PnL
+        # Long: (Exit - Entry) * Size
+        # Short: (Entry - Exit) * Size
+        if position.side == "LONG":
+            pnl = (exit_price - position.entry_price) * position.size
+        else:
+            pnl = (position.entry_price - exit_price) * position.size
+            
+        # 4. Create Closing Order & Trade
+        account = await self.get_or_create_account(position.account_id)
+        
+        closing_side = "SELL" if position.side == "LONG" else "BUY"
+        
+        order = PaperOrder(
+            account_id=account.id,
+            strategy_id=position.strategy_id,
+            symbol=position.symbol,
+            side=closing_side,
+            type="MARKET",
+            amount=0, # closing order
+            quantity=position.size,
+            filled_quantity=position.size,
+            status="FILLED",
+            price=exit_price
+        )
+        self.db.add(order)
+        await self.db.flush()
+        
+        trade = PaperTrade(
+            account_id=account.id,
+            order_id=order.id,
+            symbol=position.symbol,
+            side=closing_side,
+            price=exit_price,
+            quantity=position.size,
+            realized_pnl=pnl,
+            fee=0 # Simplified for close
+        )
+        self.db.add(trade)
+        
+        # 5. Update Balance (Margin + PnL returned to balance)
+        if not position.strategy_id:
+            account.balance += position.margin + pnl
+        else:
+            account.locked_balance += position.margin + pnl
+        
+        # 6. Remove Position
+        await self.db.delete(position)
+        await self.db.commit()
+        
+        return trade
 
     async def check_fills(self, account_id: uuid.UUID):
         """
