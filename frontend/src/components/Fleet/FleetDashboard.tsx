@@ -273,36 +273,40 @@ const FleetDashboard: React.FC = () => {
                                         </td>
                                         <td>{renderAgentActions(agent)}</td>
                                     </tr>
-                                    {expandedAgentId === agent.id && agent.active_position && (
-                                        <tr className="expanded-details-row">
+                                    {expandedAgentId === agent.id && (agent.active_positions && agent.active_positions.length > 0 ? agent.active_positions : (agent.active_position ? [agent.active_position] : [])).map((position) => (
+                                        <tr key={position.id} className="expanded-details-row">
                                             <td colSpan={9}>
                                                 <div className="trade-details-panel">
                                                     <div className="detail-group">
+                                                        <span className="detail-label">Symbol</span>
+                                                        <span className="detail-value">{position.symbol} ({position.side})</span>
+                                                    </div>
+                                                    <div className="detail-group">
                                                         <span className="detail-label">Entry</span>
-                                                        <span className="detail-value">${agent.active_position.entry_price.toFixed(2)}</span>
+                                                        <span className="detail-value">${position.entry_price.toFixed(2)}</span>
                                                     </div>
                                                     <div className="detail-group">
                                                         <span className="detail-label">Current P&L</span>
-                                                        <span className={`detail-value ${agent.active_position.unrealized_pnl >= 0 ? 'profit' : 'loss'}`}>
-                                                            {agent.active_position.unrealized_pnl >= 0 ? '+' : ''}
-                                                            {agent.active_position.unrealized_pnl?.toFixed(2) || '0.00'}
+                                                        <span className={`detail-value ${position.unrealized_pnl >= 0 ? 'profit' : 'loss'}`}>
+                                                            {position.unrealized_pnl >= 0 ? '+' : ''}
+                                                            {position.unrealized_pnl?.toFixed(2) || '0.00'}
                                                         </span>
                                                     </div>
                                                     <div className="detail-group">
                                                         <span className="detail-label">Stop Loss</span>
-                                                        <span className="detail-value loss">${agent.active_position.stop_loss?.toFixed(2) || '-'}</span>
+                                                        <span className="detail-value loss">${position.stop_loss?.toFixed(2) || '-'}</span>
                                                     </div>
                                                     <div className="detail-group">
                                                         <span className="detail-label">Take Profit</span>
-                                                        <span className="detail-value profit">${agent.active_position.take_profit?.toFixed(2) || '-'}</span>
+                                                        <span className="detail-value profit">${position.take_profit?.toFixed(2) || '-'}</span>
                                                     </div>
                                                     <div className="detail-actions">
                                                         <button
                                                             className="btn-close-position"
                                                             onClick={async (e) => {
                                                                 e.stopPropagation();
-                                                                if (window.confirm('Close this position immediately?')) {
-                                                                    await closePosition(agent.active_position!.id);
+                                                                if (window.confirm('Are you sure you want to close this position?')) {
+                                                                    await closePosition(position.id);
                                                                 }
                                                             }}
                                                         >
@@ -312,44 +316,47 @@ const FleetDashboard: React.FC = () => {
                                                 </div>
                                             </td>
                                         </tr>
-                                    )}
+                                    ))}
                                 </React.Fragment>
+
                             ))}
-                        </tbody>
-                    </table>
+                        </tbody >
+                    </table >
                 )}
-            </div>
+            </div >
 
             {/* Deploy Modal */}
             {deployWizardState.isOpen && <DeployAgentModal />}
 
             {/* Delete Confirmation Modal */}
-            {deleteConfirm.show && (
-                <div className="modal-overlay" onClick={handleDeleteCancel}>
-                    <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
-                        <div className="confirm-header">
-                            <Trash2 size={24} className="confirm-icon" />
-                            <h3>Delete Agent</h3>
-                        </div>
-                        <p className="confirm-message">
-                            Are you sure you want to delete <strong>"{deleteConfirm.agentName}"</strong>?
-                        </p>
-                        <p className="confirm-warning">
-                            This will release the agent's locked budget back to your account.
-                        </p>
-                        <div className="confirm-actions">
-                            <button className="btn-cancel" onClick={handleDeleteCancel}>
-                                Cancel
-                            </button>
-                            <button className="btn-delete" onClick={handleDeleteConfirm}>
-                                <Trash2 size={16} />
-                                Delete Agent
-                            </button>
+            {
+                deleteConfirm.show && (
+                    <div className="modal-overlay" onClick={handleDeleteCancel}>
+                        <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+                            <div className="confirm-header">
+                                <Trash2 size={24} className="confirm-icon" />
+                                <h3>Delete Agent</h3>
+                            </div>
+                            <p className="confirm-message">
+                                Are you sure you want to delete <strong>"{deleteConfirm.agentName}"</strong>?
+                            </p>
+                            <p className="confirm-warning">
+                                This will release the agent's locked budget back to your account.
+                            </p>
+                            <div className="confirm-actions">
+                                <button className="btn-cancel" onClick={handleDeleteCancel}>
+                                    Cancel
+                                </button>
+                                <button className="btn-delete" onClick={handleDeleteConfirm}>
+                                    <Trash2 size={16} />
+                                    Delete Agent
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

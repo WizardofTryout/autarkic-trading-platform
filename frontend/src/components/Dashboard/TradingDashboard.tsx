@@ -175,26 +175,15 @@ export const TradingDashboard: React.FC = () => {
                                                 onClick={async () => {
                                                     try {
                                                         const normalizedSide = String(pos.side).trim().toUpperCase();
-                                                        const side = (normalizedSide === 'LONG' || normalizedSide === 'BUY') ? 'sell' : 'buy';
-                                                        // Calculate approximate margin needed to close full size
-                                                        // Adding 1% buffer to ensure full closure if price moves slightly or rounding
-                                                        const closeAmount = ((pos.size * currentPrice) / pos.leverage) * 1.01;
-
-                                                        // Calculate PnL for display
                                                         const isLongPos = normalizedSide === 'LONG' || normalizedSide === 'BUY';
                                                         const unrealizedPnl = isLongPos
                                                             ? (currentPrice - pos.entry_price) * pos.size
                                                             : (pos.entry_price - currentPrice) * pos.size;
                                                         const pnlPct = (unrealizedPnl / pos.margin) * 100;
 
-                                                        // Use the store's placeOrder
-                                                        const { placeOrder } = useTradingStore.getState();
-                                                        await placeOrder(
-                                                            pos.symbol,
-                                                            side,
-                                                            closeAmount,
-                                                            pos.leverage
-                                                        );
+                                                        // Use the store's closePosition
+                                                        const { closePosition } = useTradingStore.getState();
+                                                        await closePosition(pos.id);
 
                                                         // Show trade result modal
                                                         setTradeResult({

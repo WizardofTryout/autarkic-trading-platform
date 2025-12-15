@@ -59,8 +59,7 @@ interface TradingState {
 
     fetchPortfolio: () => Promise<void>;
     fetchActiveStrategies: () => Promise<void>;
-    placeOrder: (symbol: string, side: 'buy' | 'sell', amount: number, leverage: number, type?: 'MARKET' | 'LIMIT', price?: number, stopLoss?: number, takeProfit?: number, isTrailingStop?: boolean, trailingPercent?: number) => Promise<void>;
-    cancelOrder: (orderId: string) => Promise<void>;
+    placeOrder: (symbol: string, side: 'buy' | 'sell', amount: number, leverage: number, type?: 'MARKET' | 'LIMIT', price?: number, stopLoss?: number, takeProfit?: number, isTrailingStop?: boolean, trailingPercent?: number) => Promise<void>;    closePosition: (positionId: string) => Promise<void>;    cancelOrder: (orderId: string) => Promise<void>;
     updateOrder: (orderId: string, updates: any) => Promise<void>;
     resetAccount: () => Promise<void>;
 }
@@ -144,6 +143,16 @@ export const useTradingStore = create<TradingState>((set, get) => ({
             await get().fetchPortfolio(); // Refresh after order
         } catch (error) {
             console.error('Failed to place order:', error);
+            throw error;
+        }
+    },
+
+    closePosition: async (positionId: string) => {
+        try {
+            await api.post(`/paper/positions/${positionId}/close`);
+            await get().fetchPortfolio(); // Refresh after closing
+        } catch (error) {
+            console.error('Failed to close position:', error);
             throw error;
         }
     },

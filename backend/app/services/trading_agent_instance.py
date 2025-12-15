@@ -560,22 +560,29 @@ class TradingAgentInstance:
                 async with AsyncSessionLocal() as session:
                     service = PaperTradingService(session)
                     
-                    # Calculate amount_usdt
+                    # Calculate amount_usdt (MARGIN, not full position value)
                     # proposal position_size is in Base Asset (e.g. BTC)
-                    # We need USDT amount for place_order
+                    # Formula: Margin = (position_size * entry_price) / leverage
+                    # But we want to use risk_per_trade % of budget as margin
                     entry_price = Decimal(str(proposal['entry']))
                     position_size = Decimal(str(proposal['position_size']))
-                    amount_usdt = float(position_size * entry_price)
+                    
+                    # Calculate margin based on risk_per_trade (e.g. 10% of budget)
+                    margin = float(self.budget * self.risk_per_trade)
+                    
+                    # Assume default leverage of 10x for calculation
+                    leverage = 10
                     
                     # Execute via paper trading
                     # strategy_id is tracked if available
-                    strategy_id = self.micro_strategy_id if hasattr(self, 'micro_strategy_id') else None
+                    strategy_id = self.agent_id
                     
                     order = await service.place_order(
                         user_id=self.user_id,
                         symbol=self.symbol,
                         side=proposal['side'],
-                        amount_usdt=amount_usdt,
+                        amount_usdt=margin,
+                        leverage=leverage,
                         order_type="MARKET",
                         price=proposal['entry'],
                         stop_loss=proposal['stop_loss'],
@@ -594,9 +601,9 @@ class TradingAgentInstance:
             self._total_trades += 1
             self._current_proposal = None
             
-            # Update budget (deduct used margin)
-            if self.mode == "PAPER":
-                self.budget = Decimal(str(self.budget)) - Decimal(str(amount_usdt))
+            # Budget is NOT deducted here - it's managed by the database
+            # The locked_balance in paper_account handles the budget allocation
+            # The agent's budget field represents the initial allocation, not current available
             
             # Enter short cooldown after trade
             self._cooldown_until = datetime.utcnow() + timedelta(seconds=30)
@@ -672,50 +679,63 @@ class TradingAgentInstance:
         # If in position (or active), try to fetch active position details
         if self.status in [AgentStatus.IN_POSITION, AgentStatus.ACTIVE]:
             try:
-                if self.mode == "PAPER" and self.micro_strategy_id:
+                if self.mode == "PAPER":
                     from app.services.paper_trading import PaperTradingService
                     from app.db.session import AsyncSessionLocal
                     from app.services.market_service import MarketService
                     
                     async with AsyncSessionLocal() as session:
                         service = PaperTradingService(session)
-                        position = await service.get_strategy_position(self.micro_strategy_id)
+                        # Fetch active positions for THIS AGENT ONLY (filtered by strategy_id = agent_id)
+                        positions = await service.get_strategy_positions(self.agent_id)
                         
-                        if position:
-                            # Calculate Unrealized PnL
+                        active_positions_data = []
+                        if positions:
+
                             market_service = MarketService()
-                            current_price = position.entry_price # Default
                             try:
                                 ohlc = await market_service.get_ohlcv(self.symbol, "1m", 1)
-                                if ohlc:
-                                    current_price = Decimal(str(ohlc[-1]['close']))
+                                current_price = Decimal(str(ohlc[-1]['close'])) if ohlc else None
                             except Exception as e:
                                 logger.error(f"Failed to fetch price for PnL: {e}")
+                                current_price = None
                             finally:
                                 await market_service.close()
+
+                            for position in positions:
+                                # Calculate Unrealized PnL
+                                pos_current_price = current_price if current_price else position.entry_price
                                 
-                            # Ensure all operands are Decimal
-                            pos_entry = Decimal(str(position.entry_price))
-                            pos_size = Decimal(str(position.size))
+                                # Ensure all operands are Decimal
+                                pos_entry = Decimal(str(position.entry_price))
+                                pos_size = Decimal(str(position.size))
+                                pos_current_price_dec = Decimal(str(pos_current_price))
+                                
+                                if position.side == "LONG":
+                                    pnl = (pos_current_price_dec - pos_entry) * pos_size
+                                else:
+                                    pnl = (pos_entry - pos_current_price_dec) * pos_size
+                                    
+                                active_positions_data.append({
+                                    "id": str(position.id),
+                                    "symbol": position.symbol,
+                                    "side": position.side,
+                                    "size": float(position.size),
+                                    "entry_price": float(position.entry_price),
+                                    "current_price": float(pos_current_price_dec),
+                                    "unrealized_pnl": float(pnl),
+                                    "stop_loss": float(position.stop_loss) if position.stop_loss else None,
+                                    "take_profit": float(position.take_profit) if position.take_profit else None,
+                                    "is_trailing_stop": position.is_trailing_stop,
+                                    "trailing_percent": float(position.trailing_percent) if position.trailing_percent else None,
+                                })
                             
-                            if position.side == "LONG":
-                                pnl = (current_price - pos_entry) * pos_size
-                            else:
-                                pnl = (pos_entry - current_price) * pos_size
+                            # Sum up P&L from ALL active positions for this agent
+                            total_pnl = sum(Decimal(str(pos["unrealized_pnl"])) for pos in active_positions_data)
+                            self._session_pnl = total_pnl
                                 
-                            state["active_position"] = {
-                                "id": str(position.id),
-                                "symbol": position.symbol,
-                                "side": position.side,
-                                "size": float(position.size),
-                                "entry_price": float(position.entry_price),
-                                "current_price": float(current_price),
-                                "unrealized_pnl": float(pnl),
-                                "stop_loss": float(position.stop_loss) if position.stop_loss else None,
-                                "take_profit": float(position.take_profit) if position.take_profit else None,
-                                "is_trailing_stop": position.is_trailing_stop,
-                                "trailing_percent": float(position.trailing_percent) if position.trailing_percent else None,
-                            }
+                        state["active_positions"] = active_positions_data
+                        state["active_position"] = active_positions_data[0] if active_positions_data else None
             except Exception as e:
                 logger.error(f"Error fetching active position for agent {self.agent_id}: {e}")
                 
