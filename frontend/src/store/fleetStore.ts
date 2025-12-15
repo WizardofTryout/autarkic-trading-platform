@@ -34,6 +34,7 @@ export interface TradingAgent {
     last_signal_at: string | null;
     current_proposal?: TradeProposal | null;
     active_position?: ActivePosition | null;
+    active_positions?: ActivePosition[];
 }
 
 export interface ActivePosition {

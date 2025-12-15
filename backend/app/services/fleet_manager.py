@@ -80,6 +80,22 @@ class AgentFleetManager:
                 try:
                     # Create instance if not exists
                     if agent.id not in self._active_agents:
+                        # Fetch strategy code
+                        macro_code = None
+                        micro_code = None
+                        
+                        if agent.macro_strategy_id:
+                            macro_stmt = select(Strategy).where(Strategy.id == agent.macro_strategy_id)
+                            res = await session.execute(macro_stmt)
+                            macro_strategy = res.scalars().first()
+                            macro_code = macro_strategy.python_code if macro_strategy else None
+                        
+                        if agent.micro_strategy_id:
+                            micro_stmt = select(Strategy).where(Strategy.id == agent.micro_strategy_id)
+                            res = await session.execute(micro_stmt)
+                            micro_strategy = res.scalars().first()
+                            micro_code = micro_strategy.python_code if micro_strategy else None
+
                         instance = TradingAgentInstance(
                             agent_id=agent.id,
                             user_id=agent.user_id,
@@ -89,10 +105,15 @@ class AgentFleetManager:
                             max_drawdown_percent=agent.max_drawdown_percent,
                             risk_per_trade=agent.risk_per_trade,
                             min_rr_ratio=agent.min_rr_ratio,
+                            macro_strategy_code=macro_code,
+                            micro_strategy_code=micro_code,
                             macro_strategy_id=agent.macro_strategy_id,
                             micro_strategy_id=agent.micro_strategy_id,
                             macro_timeframe=agent.macro_timeframe,
                             micro_timeframe=agent.micro_timeframe,
+                            on_status_change=self._on_agent_status_change,
+                            on_log_entry=self._on_agent_log,
+                            on_update=self._on_agent_update
                         )
                         
                         # Load previous state
@@ -328,20 +349,28 @@ class AgentFleetManager:
                 "total_trades": agent.total_trades,
                 "winning_trades": agent.winning_trades,
                 "max_drawdown_percent": float(agent.max_drawdown_percent),
-                "macro_timeframe": agent.macro_timeframe,
-                "micro_timeframe": agent.micro_timeframe,
+                "risk_per_trade": float(agent.risk_per_trade),
+                "min_rr_ratio": float(agent.min_rr_ratio),
                 "macro_strategy_id": str(agent.macro_strategy_id) if agent.macro_strategy_id else None,
                 "micro_strategy_id": str(agent.micro_strategy_id) if agent.micro_strategy_id else None,
-                "created_at": agent.created_at.isoformat() if agent.created_at else None,
+                "macro_timeframe": agent.macro_timeframe,
+                "micro_timeframe": agent.micro_timeframe,
+                "created_at": agent.created_at.isoformat(),
+                "updated_at": agent.updated_at.isoformat() if agent.updated_at else None,
+                "last_signal_at": agent.last_signal_at.isoformat() if agent.last_signal_at else None,
             }
             
-            # Add live state if running
+            # Enrich with live state if running
             if agent.id in self._active_agents:
-                instance = self._active_agents[agent.id]
-                agent_data.update(await instance.get_state())
+                try:
+                    instance = self._active_agents[agent.id]
+                    live_state = await instance.get_state()
+                    agent_data.update(live_state)
+                except Exception as e:
+                    logger.error(f"Error getting live state for agent {agent.id}: {e}", exc_info=True)
             
             status_list.append(agent_data)
-        
+            
         return status_list
     
     async def get_agent(self, agent_id: UUID) -> Optional[TradingAgent]:
@@ -430,6 +459,19 @@ class AgentFleetManager:
         agent_data = {}
         if agent_id in self._active_agents:
             agent_data = await self._active_agents[agent_id].get_state()
+            
+            # Update database with latest P&L and stats
+            try:
+                stmt = update(TradingAgent).where(TradingAgent.id == agent_id).values(
+                    session_pnl=agent_data.get("session_pnl", 0),
+                    total_trades=agent_data.get("total_trades", 0),
+                    winning_trades=agent_data.get("winning_trades", 0),
+                    updated_at=datetime.utcnow()
+                )
+                await self.db.execute(stmt)
+                await self.db.commit()
+            except Exception as e:
+                logger.error(f"Failed to update agent {agent_id} in database: {e}")
             
         await self._broadcast_update({
             "type": "agent_update",

@@ -46,6 +46,13 @@ class PaperTradingService:
         ))
         return result.scalars().first()
 
+    async def get_strategy_positions(self, strategy_id: uuid.UUID) -> list[PaperPosition]:
+        """Get all active positions for a specific strategy."""
+        result = await self.db.execute(select(PaperPosition).where(
+            PaperPosition.strategy_id == strategy_id
+        ))
+        return result.scalars().all()
+
     async def place_order(self, user_id: uuid.UUID, symbol: str, side: str, amount_usdt: float, leverage: int = 1, order_type: str = "MARKET", price: float = None, stop_loss: float = None, take_profit: float = None, is_trailing_stop: bool = False, trailing_percent: float = None, strategy_id: uuid.UUID = None):
         account = await self.get_or_create_account(user_id)
         
@@ -189,20 +196,20 @@ class PaperTradingService:
                 account.locked_balance -= fee
         
         # Update/Create Position
-        # Fix: Use proper NULL comparison for strategy_id
+        # For Agent trades (strategy_id set), always create NEW position (no aggregation)
+        # For manual trades (strategy_id None), aggregate positions
+        position = None
+        
         if strategy_id is None:
+            # Manual trade - check for existing position to aggregate
             result = await self.db.execute(select(PaperPosition).where(
                 PaperPosition.account_id == account.id,
                 PaperPosition.symbol == symbol,
                 PaperPosition.strategy_id.is_(None)  # Correct NULL comparison
             ))
-        else:
-            result = await self.db.execute(select(PaperPosition).where(
-                PaperPosition.account_id == account.id,
-                PaperPosition.symbol == symbol,
-                PaperPosition.strategy_id == strategy_id
-            ))
-        position = result.scalars().first()
+            position = result.scalars().first()
+        # For strategy_id != None: Don't search for existing position
+        # This creates a new position for each agent trade
         
         if position:
             if position.side == side.upper():
@@ -301,7 +308,15 @@ class PaperTradingService:
             pnl = (position.entry_price - exit_price) * position.size
             
         # 4. Create Closing Order & Trade
-        account = await self.get_or_create_account(position.account_id)
+        # Fix: Fetch account by account_id, do NOT call get_or_create_account(position.account_id)
+        # as that treats account_id as user_id (causing FK error and duplicate account creation attempt)
+        account_res = await self.db.execute(select(PaperAccount).where(PaperAccount.id == position.account_id))
+        account = account_res.scalars().first()
+        
+        if not account:
+            # Should not happen due to FK constraints, but good to handle
+            raise Exception(f"Account {position.account_id} not found for position {position_id}")
+
         
         closing_side = "SELL" if position.side == "LONG" else "BUY"
         
@@ -738,3 +753,13 @@ class PaperTradingService:
             "orders": orders,
             "history": history
         }
+
+    async def get_active_positions_for_user(self, user_id: uuid.UUID, symbol: str = None) -> list[PaperPosition]:
+        """Get all active positions for a user, optionally filtered by symbol."""
+        account = await self.get_or_create_account(user_id)
+        query = select(PaperPosition).where(PaperPosition.account_id == account.id)
+        if symbol:
+            query = query.where(PaperPosition.symbol == symbol)
+        
+        result = await self.db.execute(query)
+        return result.scalars().all()
