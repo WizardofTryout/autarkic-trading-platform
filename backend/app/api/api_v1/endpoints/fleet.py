@@ -393,3 +393,141 @@ async def chat_with_agent(
         agent_response=response_text,
         context=context
     )
+
+# --- Backtest Snapshot Endpoint ---
+
+@router.post("/agents/{agent_id}/backtest_snapshot")
+async def backtest_snapshot(
+    agent_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Run a quick backtest (snapshot) for the agent's active strategies.
+    Returns historical signals for visualization on the cockpit charts.
+    """
+    manager = AgentFleetManager(db)
+    agent = await manager.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    from app.services.market_service import MarketService
+    from app.models.base import Strategy
+    from sqlalchemy.future import select
+    import httpx
+    import pandas as pd
+    from datetime import datetime, timedelta
+
+    results = {
+        "macro_signals": [],
+        "micro_signals": []
+    }
+
+    # Helper to run backtest for a specific strategy/timeframe
+    async def run_single_backtest(strategy_id: UUID, timeframe: str, symbol: str) -> List[dict]:
+        if not strategy_id:
+            return []
+            
+        # 1. Fetch Strategy Code
+        stmt = select(Strategy).where(Strategy.id == strategy_id)
+        res = await db.execute(stmt)
+        strategy = res.scalars().first()
+        if not strategy or not strategy.python_code:
+            return []
+
+        # 2. Fetch Data (last 300 candles)
+        market_service = MarketService()
+        try:
+            # Approx lookback based on timeframe
+            # simplified: just get last 300 items
+            # The strategy execution endpoint handles limit? 
+            # We'll use fetch_historical_data_range or similar if available, 
+            # but market_service.get_ohlcv(symbol, timeframe, limit=300) is standard.
+            ohlcv = await market_service.get_ohlcv(symbol, timeframe, limit=300)
+        finally:
+            await market_service.close()
+            
+        if not ohlcv:
+            return []
+
+        # 3. Format for Engine
+        df = pd.DataFrame(ohlcv)
+        # Ensure timestamp is string for JSON
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        
+        data_for_engine = {
+            'timestamp': [t.isoformat() for t in df['timestamp']],
+            'open': df['open'].tolist(),
+            'high': df['high'].tolist(),
+            'low': df['low'].tolist(),
+            'close': df['close'].tolist(),
+            'volume': df['volume'].tolist()
+        }
+
+        # 4. Call Engine
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "http://strategy-engine:8001/execute",
+                    json={
+                        "python_code": strategy.python_code,
+                        "data": data_for_engine,
+                        "timeout": 10
+                    },
+                    timeout=15.0
+                )
+                if response.status_code != 200:
+                    print(f"Engine failed: {response.text}")
+                    return []
+                exec_result = response.json()
+        except Exception as e:
+            print(f"Backtest snapshot RPC error: {e}")
+            return []
+
+        if not exec_result.get('success'):
+            return []
+
+        # 5. Extract Signals
+        # The engine returns a DataFrame-like dictionary in 'data'
+        # We look for 'signal' column (1, -1, 0)
+        exec_data = exec_result.get('data', [])
+        if not exec_data:
+            return []
+            
+        result_df = pd.DataFrame(exec_data)
+        if 'signal' not in result_df.columns:
+            return []
+            
+        signals = []
+        # result_df should match length of data_for_engine
+        # We assume indices align. result_df usually has 'timestamp' col too.
+        
+        for i, row in result_df.iterrows():
+            sig = row.get('signal', 0)
+            if sig != 0:
+                signals.append({
+                    "time": row.get('timestamp'), # ISO string
+                    "type": "buy" if sig > 0 else "sell",
+                    "price": row.get('close'),
+                    "color": "#00ff00" if sig > 0 else "#ff0000",
+                    "label": "B" if sig > 0 else "S"
+                })
+        return signals
+
+    # Run for Macro
+    if agent.macro_strategy_id:
+        results["macro_signals"] = await run_single_backtest(
+            agent.macro_strategy_id, 
+            agent.macro_timeframe, 
+            agent.symbol
+        )
+
+    # Run for Micro
+    if agent.micro_strategy_id:
+        results["micro_signals"] = await run_single_backtest(
+            agent.micro_strategy_id, 
+            agent.micro_timeframe, 
+            agent.symbol
+        )
+
+    return results

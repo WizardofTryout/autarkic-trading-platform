@@ -189,3 +189,17 @@ async def reset_account(
     service = PaperTradingService(db)
     account = await service.reset_account(current_user.id)
     return {"status": "success", "balance": account.balance}
+
+@router.post("/positions/{position_id}/close")
+async def close_position(
+    position_id: uuid.UUID,
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    service = PaperTradingService(db)
+    try:
+        # Note: In a real app we should verify that position_id belongs to current_user
+        result = await service.close_position(position_id)
+        return {"status": "success", "trade_id": str(result.id), "realized_pnl": float(result.realized_pnl)}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

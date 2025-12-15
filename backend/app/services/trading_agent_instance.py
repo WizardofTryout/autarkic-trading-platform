@@ -60,10 +60,13 @@ class TradingAgentInstance:
         min_rr_ratio: Decimal = Decimal("2.0"),
         macro_strategy_code: Optional[str] = None,
         micro_strategy_code: Optional[str] = None,
+        macro_strategy_id: Optional[UUID] = None,
+        micro_strategy_id: Optional[UUID] = None,
         macro_timeframe: str = "4h",
         micro_timeframe: str = "15m",
         on_status_change: Optional[callable] = None,
         on_log_entry: Optional[callable] = None,
+        on_update: Optional[callable] = None,
     ):
         self.agent_id = agent_id
         self.user_id = user_id
@@ -75,12 +78,15 @@ class TradingAgentInstance:
         self.min_rr_ratio = min_rr_ratio
         self.macro_strategy_code = macro_strategy_code
         self.micro_strategy_code = micro_strategy_code
+        self.macro_strategy_id = macro_strategy_id
+        self.micro_strategy_id = micro_strategy_id
         self.macro_timeframe = macro_timeframe
         self.micro_timeframe = micro_timeframe
         
         # Callbacks for external communication
         self._on_status_change = on_status_change
         self._on_log_entry = on_log_entry
+        self._on_update = on_update
         
         # Runtime state
         self._status = AgentStatus.PAUSED
@@ -134,6 +140,24 @@ class TradingAgentInstance:
         if self._task:
             self._task.cancel()
         await self._log("Agent stopped")
+
+    async def resume(self):
+        """Resume or restore the agent loop without resetting status."""
+        if self._running:
+            logger.warning(f"Agent {self.agent_id} already running")
+            return
+        
+        self._running = True
+        logger.info(f"Resuming agent {self.agent_id} with status {self.status}")
+        
+        # If AWAITING_APPROVAL but proposal missing (restart case), reset to SCANNING
+        if self.status == AgentStatus.AWAITING_APPROVAL and not self._current_proposal:
+            logger.warning(f"Agent {self.agent_id} resumed in AWAITING_APPROVAL but no proposal found. Resetting to SCANNING.")
+            self.status = AgentStatus.SCANNING
+            await self._log("Agent state restored. Pending proposal lost on restart.")
+            
+        self._task = asyncio.create_task(self._run_loop())
+        await self._log(f"Agent resumed: {self.status.value}")
     
     async def approve_proposal(self, approved: bool = True, notes: Optional[str] = None):
         """
@@ -170,18 +194,24 @@ class TradingAgentInstance:
                     continue
                 
                 # Check kill switch
-                if await self._check_kill_switch():
-                    self.status = AgentStatus.STOPPED
                     await self._log("Kill switch activated - max drawdown exceeded")
                     break
                 
-                # Skip if not in scanning mode
-                if self.status not in [AgentStatus.SCANNING, AgentStatus.ACTIVE]:
+                # Update agent state including PnL (always do this if active/in_position)
+                if self.status in [AgentStatus.ACTIVE, AgentStatus.IN_POSITION]:
+                    if self._on_update:
+                        await self._on_update(self.agent_id)
+
+                # Skip if not in scanning mode or active/in_position mode
+                if self.status not in [AgentStatus.SCANNING, AgentStatus.ACTIVE, AgentStatus.IN_POSITION]:
                     await asyncio.sleep(5)
                     continue
                 
-                # Step 1: Fetch multi-timeframe data
+                # Step 1: Fetch multi-timeframe data (Always fetch)
                 await self._fetch_market_data()
+
+                # Proceed to analysis regardless of position status
+                # This allows searching for pyramiding opportunities or monitoring
                 
                 # Step 2: Analyze macro trend
                 macro_signal = await self._analyze_macro()
@@ -386,6 +416,9 @@ class TradingAgentInstance:
         - Macro SHORT + Micro SHORT = Propose Short
         - Counter-trend entries are ignored
         """
+        # Log input signals for debugging
+        await self._log(f"Signal Synthesis - Macro: {macro.value}, Micro: {micro.value}")
+        
         # Only proceed if signals align
         if macro == SignalType.LONG and micro == SignalType.LONG:
             await self._create_proposal("LONG")
@@ -518,20 +551,60 @@ class TradingAgentInstance:
         """
         await self._log(f"Executing {proposal['side']} trade...")
         
-        # TODO: Implement actual trade execution
-        # if self.mode == "PAPER":
-        #     from app.services.paper_trading import PaperTradingService
-        #     # Execute via paper trading
-        # else:
-        #     from app.services.ccxt_live_service import CCXTLiveService
-        #     # Execute via live trading
-        
-        self.status = AgentStatus.IN_POSITION
-        self._total_trades += 1
-        self._current_proposal = None
-        
-        # Enter cooldown after trade
-        self._cooldown_until = datetime.utcnow() + timedelta(minutes=5)
+        try:
+            if self.mode == "PAPER":
+                from app.services.paper_trading import PaperTradingService
+                from app.db.session import AsyncSessionLocal
+                
+                async with AsyncSessionLocal() as session:
+                    service = PaperTradingService(session)
+                    
+                    # Calculate amount_usdt
+                    # proposal position_size is in Base Asset (e.g. BTC)
+                    # We need USDT amount for place_order
+                    entry_price = Decimal(str(proposal['entry']))
+                    position_size = Decimal(str(proposal['position_size']))
+                    amount_usdt = float(position_size * entry_price)
+                    
+                    # Execute via paper trading
+                    # strategy_id is tracked if available
+                    strategy_id = self.micro_strategy_id if hasattr(self, 'micro_strategy_id') else None
+                    
+                    order = await service.place_order(
+                        user_id=self.user_id,
+                        symbol=self.symbol,
+                        side=proposal['side'],
+                        amount_usdt=amount_usdt,
+                        order_type="MARKET",
+                        price=proposal['entry'],
+                        stop_loss=proposal['stop_loss'],
+                        take_profit=proposal['take_profit'],
+                        strategy_id=strategy_id
+                    )
+                    
+                    await self._log(f"Trade executed: Order {order.id}")
+            
+            else:
+                # LIVE TRADING (TODO)
+                # from app.services.ccxt_live_service import CCXTLiveService
+                pass
+            
+            self.status = AgentStatus.IN_POSITION
+            self._total_trades += 1
+            self._current_proposal = None
+            
+            # Update budget (deduct used margin)
+            if self.mode == "PAPER":
+                self.budget = float(Decimal(str(self.budget)) - Decimal(str(amount_usdt)))
+            
+            # Enter short cooldown after trade
+            self._cooldown_until = datetime.utcnow() + timedelta(seconds=30)
+
+        except Exception as e:
+            logger.error(f"Trade execution failed: {e}")
+            await self._log(f"Execution Error: {str(e)}")
+            self.status = AgentStatus.ERROR
+            self._running = False
     
     async def _check_kill_switch(self) -> bool:
         """
@@ -568,9 +641,9 @@ class TradingAgentInstance:
         if self._on_log_entry:
             await self._on_log_entry(log_entry)
     
-    def get_state(self) -> Dict:
+    async def get_state(self) -> Dict:
         """Get current agent state for API responses."""
-        return {
+        state = {
             "agent_id": str(self.agent_id),
             "symbol": self.symbol,
             "mode": self.mode,
@@ -581,4 +654,68 @@ class TradingAgentInstance:
             "winning_trades": self._winning_trades,
             "current_proposal": self._current_proposal,
             "last_signal_at": self._last_signal_at.isoformat() if self._last_signal_at else None,
+            "active_position": None
         }
+        
+        # Format budget to 2 decimal places to avoid -0.0
+        # If very close to zero, show 0.0
+        if abs(state["budget"]) < 0.000001:
+            state["budget"] = 0.0
+            
+        # If in position, clear ghost lines from proposal if they exist
+        if self.status in [AgentStatus.IN_POSITION, AgentStatus.ACTIVE]:
+             if self._current_proposal:
+                 # Ensure we don't show stale proposal lines
+                 state["current_proposal"] = None
+        
+        # If in position (or active), try to fetch active position details
+        if self.status in [AgentStatus.IN_POSITION, AgentStatus.ACTIVE]:
+            try:
+                if self.mode == "PAPER" and self.micro_strategy_id:
+                    from app.services.paper_trading import PaperTradingService
+                    from app.db.session import AsyncSessionLocal
+                    from app.services.market_service import MarketService
+                    
+                    async with AsyncSessionLocal() as session:
+                        service = PaperTradingService(session)
+                        position = await service.get_strategy_position(self.micro_strategy_id)
+                        
+                        if position:
+                            # Calculate Unrealized PnL
+                            market_service = MarketService()
+                            current_price = position.entry_price # Default
+                            try:
+                                ohlc = await market_service.get_ohlcv(self.symbol, "1m", 1)
+                                if ohlc:
+                                    current_price = Decimal(str(ohlc[-1]['close']))
+                            except Exception as e:
+                                logger.error(f"Failed to fetch price for PnL: {e}")
+                            finally:
+                                await market_service.close()
+                                
+                            # Ensure all operands are Decimal
+                            pos_entry = Decimal(str(position.entry_price))
+                            pos_size = Decimal(str(position.size))
+                            
+                            if position.side == "LONG":
+                                pnl = (current_price - pos_entry) * pos_size
+                            else:
+                                pnl = (pos_entry - current_price) * pos_size
+                                
+                            state["active_position"] = {
+                                "id": str(position.id),
+                                "symbol": position.symbol,
+                                "side": position.side,
+                                "size": float(position.size),
+                                "entry_price": float(position.entry_price),
+                                "current_price": float(current_price),
+                                "unrealized_pnl": float(pnl),
+                                "stop_loss": float(position.stop_loss) if position.stop_loss else None,
+                                "take_profit": float(position.take_profit) if position.take_profit else None,
+                                "is_trailing_stop": position.is_trailing_stop,
+                                "trailing_percent": float(position.trailing_percent) if position.trailing_percent else None,
+                            }
+            except Exception as e:
+                logger.error(f"Error fetching active position for agent {self.agent_id}: {e}")
+                
+        return state

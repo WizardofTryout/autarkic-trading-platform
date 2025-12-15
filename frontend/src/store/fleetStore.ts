@@ -33,6 +33,21 @@ export interface TradingAgent {
     updated_at: string | null;
     last_signal_at: string | null;
     current_proposal?: TradeProposal | null;
+    active_position?: ActivePosition | null;
+}
+
+export interface ActivePosition {
+    id: string;
+    symbol: string;
+    side: 'LONG' | 'SHORT';
+    size: number;
+    entry_price: number;
+    current_price: number;
+    unrealized_pnl: number;
+    stop_loss: number | null;
+    take_profit: number | null;
+    is_trailing_stop: boolean;
+    trailing_percent: number | null;
 }
 
 export type AgentStatus =
@@ -78,13 +93,14 @@ export interface VisualOverlay {
 }
 
 export interface FleetMessage {
-    type: 'status' | 'log' | 'proposal' | 'trade' | 'connected' | 'heartbeat' | 'pong';
+    type: 'status' | 'log' | 'proposal' | 'trade' | 'connected' | 'heartbeat' | 'pong' | 'agent_update';
     agent_id?: string;
     status?: string;
     log?: string;
     visuals?: VisualOverlay[];
     timestamp?: string;
     message?: string;
+    data?: Partial<TradingAgent>;
 }
 
 export interface DeployAgentParams {
@@ -134,6 +150,7 @@ interface FleetState {
     deleteAgent: (agentId: string) => Promise<void>;
     approveProposal: (agentId: string, approved: boolean, notes?: string) => Promise<void>;
     fetchAgentLogs: (agentId: string) => Promise<void>;
+    closePosition: (positionId: string) => Promise<void>;
 
     // Setters
     selectAgent: (agentId: string | null) => void;
@@ -147,6 +164,10 @@ interface FleetState {
     connectWebSocket: () => void;
     disconnectWebSocket: () => void;
     handleWebSocketMessage: (message: FleetMessage) => void;
+
+    // Backtest
+    backtestVisuals: Record<string, { macro: VisualOverlay[], micro: VisualOverlay[] } | null>;
+    fetchBacktestSnapshot: (agentId: string) => Promise<void>;
 }
 
 // WebSocket instance (outside store to persist across re-renders)
@@ -162,6 +183,7 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     wsError: null,
     isLoading: false,
     error: null,
+    backtestVisuals: {},
     showAgentCockpit: false,
 
     deployWizardState: {
@@ -272,8 +294,22 @@ export const useFleetStore = create<FleetState>((set, get) => ({
             }));
         } catch (error: any) {
             console.error('Failed to start agent:', error);
-            set({ error: error.message || 'Failed to start agent' });
+            set({ error: error.message || 'Failed to stop agent' });
             throw error;
+        }
+    },
+
+    fetchBacktestSnapshot: async (agentId: string) => {
+        try {
+            const data = await api.post(`/fleet/agents/${agentId}/backtest_snapshot`);
+            set(state => ({
+                backtestVisuals: {
+                    ...state.backtestVisuals,
+                    [agentId]: data
+                }
+            }));
+        } catch (error) {
+            console.error('Failed to fetch backtest snapshot:', error);
         }
     },
 
@@ -348,6 +384,17 @@ export const useFleetStore = create<FleetState>((set, get) => ({
         }
     },
 
+    closePosition: async (positionId: string) => {
+        try {
+            await api.post(`/paper/positions/${positionId}/close`);
+            // Refresh agents to reflect closed position
+            await get().fetchAgents();
+        } catch (err: any) {
+            console.error("Failed to close position:", err);
+            // Optionally set error state or notify user
+        }
+    },
+
     // ==================== Setters ====================
 
     selectAgent: (agentId: string | null) => {
@@ -372,7 +419,7 @@ export const useFleetStore = create<FleetState>((set, get) => ({
         }
     })),
 
-    resetDeployWizard: () => set(state => ({
+    resetDeployWizard: () => set(() => ({
         deployWizardState: {
             step: 1,
             isOpen: false,
@@ -397,8 +444,8 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     // ==================== WebSocket ====================
 
     connectWebSocket: () => {
-        if (wsInstance?.readyState === WebSocket.OPEN) {
-            return; // Already connected
+        if (wsInstance && (wsInstance.readyState === WebSocket.OPEN || wsInstance.readyState === WebSocket.CONNECTING)) {
+            return; // Already connected or connecting
         }
 
         const token = useAuthStore.getState().token;
@@ -457,8 +504,23 @@ export const useFleetStore = create<FleetState>((set, get) => ({
             wsReconnectTimer = null;
         }
         if (wsInstance) {
-            wsInstance.close();
-            wsInstance = null;
+            const ws = wsInstance;
+            wsInstance = null; // Clear global reference immediately
+
+            // Remove all active listeners
+            ws.onclose = null;
+            ws.onerror = null;
+            ws.onmessage = null;
+
+            if (ws.readyState === WebSocket.CONNECTING) {
+                // If still connecting, wait for open then close to avoid "closed before established" error
+                ws.onopen = () => {
+                    try { ws.close(); } catch (e) { }
+                };
+            } else {
+                ws.onopen = null;
+                ws.close();
+            }
         }
         set({ wsConnected: false });
     },
@@ -472,6 +534,19 @@ export const useFleetStore = create<FleetState>((set, get) => ({
                         agents: state.agents.map(a =>
                             a.id === message.agent_id
                                 ? { ...a, status: message.status as AgentStatus }
+                                : a
+                        )
+                    }));
+                }
+                break;
+
+            case 'agent_update':
+                // Update full agent data
+                if (message.agent_id && message.data) {
+                    set(state => ({
+                        agents: state.agents.map(a =>
+                            a.id === message.agent_id
+                                ? { ...a, ...message.data }
                                 : a
                         )
                     }));

@@ -52,6 +52,64 @@ class AgentFleetManager:
             redis_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
             self._redis = redis.from_url(redis_url)
         return self._redis
+
+    async def restore_active_agents(self):
+        """
+        Restore running agents from database on server startup.
+        
+        Checks for agents with running status (SCANNING, ACTIVE, IN_POSITION, AWAITING_APPROVAL)
+        and re-initializes them in memory.
+        """
+        try:
+            # Fetch all agents that should be running
+            stmt = select(TradingAgent).where(
+                TradingAgent.status.in_([
+                    AgentStatus.SCANNING,
+                    AgentStatus.ACTIVE,
+                    AgentStatus.IN_POSITION,
+                    AgentStatus.AWAITING_APPROVAL,
+                    # Note: ERROR or STOPPED agents are not auto-restarted
+                ])
+            )
+            result = await self.db.execute(stmt)
+            agents = result.scalars().all()
+            
+            logger.info(f"Restoring {len(agents)} active agents from database...")
+            
+            for agent in agents:
+                try:
+                    # Create instance if not exists
+                    if agent.id not in self._active_agents:
+                        instance = TradingAgentInstance(
+                            agent_id=agent.id,
+                            user_id=agent.user_id,
+                            symbol=agent.symbol,
+                            mode=agent.mode,
+                            budget=agent.budget,
+                            max_drawdown_percent=agent.max_drawdown_percent,
+                            risk_per_trade=agent.risk_per_trade,
+                            min_rr_ratio=agent.min_rr_ratio,
+                            macro_strategy_id=agent.macro_strategy_id,
+                            micro_strategy_id=agent.micro_strategy_id,
+                            macro_timeframe=agent.macro_timeframe,
+                            micro_timeframe=agent.micro_timeframe,
+                        )
+                        
+                        # Load previous state
+                        instance.status = AgentStatus(agent.status)
+                        
+                        # Restore active position check is done in get_state, but logic relies on resume
+                        # We need to manually set running flag and start loop WITHOUT resetting status
+                        await instance.resume()
+                        
+                        self._active_agents[agent.id] = instance
+                        logger.info(f"Restored agent {agent.name} ({agent.id})")
+                        
+                except Exception as e:
+                    logger.error(f"Failed to restore agent {agent.id}: {e}")
+                    
+        except Exception as e:
+            logger.error(f"Error checking for active agents to restore: {e}")
     
     async def deploy_agent(
         self,
@@ -168,10 +226,13 @@ class AgentFleetManager:
             min_rr_ratio=agent.min_rr_ratio,
             macro_strategy_code=macro_code,
             micro_strategy_code=micro_code,
+            macro_strategy_id=agent.macro_strategy_id,
+            micro_strategy_id=agent.micro_strategy_id,
             macro_timeframe=agent.macro_timeframe,
             micro_timeframe=agent.micro_timeframe,
             on_status_change=self._on_agent_status_change,
             on_log_entry=self._on_agent_log,
+            on_update=self._on_agent_update
         )
         
         # Store and start
@@ -277,7 +338,7 @@ class AgentFleetManager:
             # Add live state if running
             if agent.id in self._active_agents:
                 instance = self._active_agents[agent.id]
-                agent_data.update(instance.get_state())
+                agent_data.update(await instance.get_state())
             
             status_list.append(agent_data)
         
@@ -350,11 +411,31 @@ class AgentFleetManager:
     async def _on_agent_status_change(self, agent_id: UUID, status: AgentStatus):
         """Callback when an agent's status changes."""
         await self._update_agent_status(agent_id, status.value)
+        
+        # Get full state if agent is active
+        agent_data = {}
+        if agent_id in self._active_agents:
+            agent_data = await self._active_agents[agent_id].get_state()
+            
         await self._broadcast_update({
-            "type": "status",
+            "type": "agent_update",
             "agent_id": str(agent_id),
-            "status": status.value,
-            "timestamp": datetime.utcnow().isoformat(),
+            "data": agent_data,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+    async def _on_agent_update(self, agent_id: UUID):
+        """Handle periodic updates from agent (e.g. PnL updates)."""
+        # Get full state
+        agent_data = {}
+        if agent_id in self._active_agents:
+            agent_data = await self._active_agents[agent_id].get_state()
+            
+        await self._broadcast_update({
+            "type": "agent_update",
+            "agent_id": str(agent_id),
+            "data": agent_data,
+            "timestamp": datetime.utcnow().isoformat()
         })
     
     async def _on_agent_log(self, log_entry: Dict):

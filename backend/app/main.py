@@ -31,6 +31,18 @@ from app.services.background_monitor import monitor_positions
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(monitor_positions())
+    
+    # Restore active agents
+    from app.services.fleet_manager import AgentFleetManager
+    from app.db.session import AsyncSessionLocal
+    
+    try:
+        async with AsyncSessionLocal() as session:
+            manager = AgentFleetManager(session)
+            await manager.restore_active_agents()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Startup restoration failed: {e}")
 
 
 class ConnectionManager:
