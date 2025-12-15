@@ -452,3 +452,90 @@
 .btn-delete:hover {
     background: #b91c1c;
 }
+
+/* Expanded Trade Details */
+.clickable {
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.clickable:hover {
+    color: #3b82f6;
+}
+
+.expanded-details-row td {
+    background: rgba(15, 23, 42, 0.8) !important;
+    padding: 0 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.trade-details-panel {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    padding: 1rem 2rem;
+    background: rgba(30, 41, 59, 0.3);
+    border-left: 3px solid #3b82f6;
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.detail-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.detail-group .detail-label {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.detail-group .detail-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    font-family: 'SF Mono', monospace;
+}
+
+.detail-value.profit {
+    color: #22c55e;
+}
+
+.detail-value.loss {
+    color: #ef4444;
+}
+
+.detail-actions {
+    margin-left: auto;
+}
+
+.btn-close-position {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.875rem;
+}
+
+.btn-close-position:hover {
+    background: rgba(239, 68, 68, 0.3);
+    transform: translateY(-1px);
+}

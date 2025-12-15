@@ -19,6 +19,7 @@ import KlineChartCore from '../Chart/KlineChartCore';
 import LivePriceTicker from './LivePriceTicker';
 import StrategySelector from './StrategySelector';
 import { ConfirmationModal } from '../Common/ConfirmationModal';
+import { ActivePositionCard } from './ActivePositionCard';
 import './AgentCockpit.css';
 
 interface AgentCockpitProps {
@@ -36,6 +37,8 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
         approveProposal,
         fetchAgentLogs,
         updateAgent,
+        fetchBacktestSnapshot,
+        backtestVisuals,
     } = useFleetStore();
 
     const logContainerRef = useRef<HTMLDivElement>(null);
@@ -131,6 +134,23 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
         const interval = setInterval(() => fetchAgentLogs(agent.id), 10000);
         return () => clearInterval(interval);
     }, [agent.id]);
+
+    // Fetch Backtest Snapshot on start
+    useEffect(() => {
+        if (['ACTIVE', 'SCANNING', 'PROPOSING'].includes(agent.status)) {
+            fetchBacktestSnapshot(agent.id);
+        }
+    }, [agent.id, agent.status]);
+
+    const macroOverlays = useMemo(() => {
+        const backtest = backtestVisuals[agent.id]?.macro || [];
+        return [...backtest, ...ghostLines];
+    }, [backtestVisuals, agent.id, ghostLines]);
+
+    const microOverlays = useMemo(() => {
+        const backtest = backtestVisuals[agent.id]?.micro || [];
+        return [...backtest, ...ghostLines];
+    }, [backtestVisuals, agent.id, ghostLines]);
 
     // Auto-scroll logs
     useEffect(() => {
@@ -238,7 +258,20 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
                         <div className="chart-header">
                             <div className="chart-label">
                                 <span className="timeframe-badge macro">MACRO</span>
-                                <span>{agent.symbol} - {agent.macro_timeframe}</span>
+                                {isPaused ? (
+                                    <select
+                                        className="bg-gray-800 text-white text-xs rounded border border-gray-600 px-1 py-0.5 ml-2 focus:ring-1 focus:ring-blue-500 outline-none"
+                                        value={agent.macro_timeframe}
+                                        onChange={(e) => updateAgent(agent.id, { macro_timeframe: e.target.value })}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {['1m', '5m', '15m', '30m', '1h', '4h', '1d'].map(tf => (
+                                            <option key={tf} value={tf}>{tf}</option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <span>{agent.symbol} - {agent.macro_timeframe}</span>
+                                )}
                             </div>
                             <div className="chart-header-right">
                                 <span className="chart-description">Übergeordneter Trend</span>
@@ -254,7 +287,7 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
                             <KlineChartCore
                                 symbol={agent.symbol}
                                 timeframe={agent.macro_timeframe}
-                                overlays={ghostLines}
+                                overlays={macroOverlays}
                                 showToolbar={false}
                             />
                         </div>
@@ -265,7 +298,20 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
                         <div className="chart-header">
                             <div className="chart-label">
                                 <span className="timeframe-badge micro">MICRO</span>
-                                <span>{agent.symbol} - {agent.micro_timeframe}</span>
+                                {isPaused ? (
+                                    <select
+                                        className="bg-gray-800 text-white text-xs rounded border border-gray-600 px-1 py-0.5 ml-2 focus:ring-1 focus:ring-blue-500 outline-none"
+                                        value={agent.micro_timeframe}
+                                        onChange={(e) => updateAgent(agent.id, { micro_timeframe: e.target.value })}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {['1s', '15s', '1m', '5m', '15m', '30m', '1h', '4h'].map(tf => (
+                                            <option key={tf} value={tf}>{tf}</option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <span>{agent.symbol} - {agent.micro_timeframe}</span>
+                                )}
                             </div>
                             <div className="chart-header-right">
                                 <span className="chart-description">Trade-Ausführung</span>
@@ -286,7 +332,7 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
                             <KlineChartCore
                                 symbol={agent.symbol}
                                 timeframe={agent.micro_timeframe}
-                                overlays={ghostLines}
+                                overlays={microOverlays}
                                 showToolbar={false}
                             />
                         </div>
@@ -338,6 +384,13 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
                                     Reject
                                 </button>
                             </div>
+                        </div>
+                    )}
+
+                    {/* Active Position Card */}
+                    {agent.active_position && (
+                        <div className="mb-4">
+                            <ActivePositionCard position={agent.active_position} />
                         </div>
                     )}
 

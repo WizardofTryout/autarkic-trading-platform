@@ -194,6 +194,7 @@ class TradingAgentInstance:
                     continue
                 
                 # Check kill switch
+                if await self._check_kill_switch():
                     await self._log("Kill switch activated - max drawdown exceeded")
                     break
                 
@@ -595,7 +596,7 @@ class TradingAgentInstance:
             
             # Update budget (deduct used margin)
             if self.mode == "PAPER":
-                self.budget = float(Decimal(str(self.budget)) - Decimal(str(amount_usdt)))
+                self.budget = Decimal(str(self.budget)) - Decimal(str(amount_usdt))
             
             # Enter short cooldown after trade
             self._cooldown_until = datetime.utcnow() + timedelta(seconds=30)

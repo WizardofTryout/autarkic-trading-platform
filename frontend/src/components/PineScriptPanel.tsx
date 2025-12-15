@@ -103,10 +103,10 @@ if rsi > 70
   const handleSaveScript = async () => {
     setIsUploading(true);
     try {
-      await saveStrategy({ 
-        name: strategyName, 
+      await saveStrategy({
+        name: strategyName,
         script_code: pineScriptCode,
-        python_code: currentPythonCode || undefined 
+        python_code: currentPythonCode || undefined
       });
       console.log('Pine Script saved successfully');
       // Notify parent to refresh strategy list
@@ -171,7 +171,7 @@ if rsi > 70
     <div className="h-full flex flex-col bg-gray-900 min-h-0">
       <div className="border-b border-gray-700 p-3 sm:p-4 flex-shrink-0 bg-gray-800 flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <h2 className="text-lg sm:text-xl font-bold text-white">Pine Script Editor</h2>
+          <h2 className="text-lg sm:text-xl font-bold text-white">Strategy Script Editor</h2>
           <div className="flex items-center gap-2">
             <label htmlFor="strategyName" className="text-sm font-medium text-gray-300">Name:</label>
             <input
@@ -249,23 +249,23 @@ if rsi > 70
                 dropCursor: true,
                 allowMultipleSelections: true,
                 indentOnInput: true,
-              syntaxHighlighting: true,
-              bracketMatching: true,
-              closeBrackets: true,
-              autocompletion: true,
-              rectangularSelection: true,
-              crosshairCursor: true,
-              highlightActiveLine: true,
-              highlightSelectionMatches: true,
-              closeBracketsKeymap: true,
-              defaultKeymap: true,
-              searchKeymap: true,
-              historyKeymap: true,
-              foldKeymap: true,
-              completionKeymap: true,
-              lintKeymap: true,
-            }}
-          />
+                syntaxHighlighting: true,
+                bracketMatching: true,
+                closeBrackets: true,
+                autocompletion: true,
+                rectangularSelection: true,
+                crosshairCursor: true,
+                highlightActiveLine: true,
+                highlightSelectionMatches: true,
+                closeBracketsKeymap: true,
+                defaultKeymap: true,
+                searchKeymap: true,
+                historyKeymap: true,
+                foldKeymap: true,
+                completionKeymap: true,
+                lintKeymap: true,
+              }}
+            />
           </div>
         ) : (
           <div className="flex-1 min-h-0 flex flex-col">

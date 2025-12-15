@@ -465,6 +465,12 @@ export const api = {
             }
         });
         if (!response.ok) {
+            // Auto-logout on auth failure
+            if (response.status === 401 || response.status === 403) {
+                console.warn('[API] Auth failed, logging out...');
+                useAuthStore.getState().logout();
+            }
+
             const text = await response.text().catch(() => '');
             throw new Error(`GET ${endpoint} failed [${response.status}] ${text || response.statusText}`);
         }

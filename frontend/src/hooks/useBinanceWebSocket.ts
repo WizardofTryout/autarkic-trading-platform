@@ -114,7 +114,19 @@ export const useBinanceWebSocket = (
         };
 
         return () => {
-            ws.close();
+            // Cleanup: remove listeners and close
+            ws.onclose = null;
+            ws.onerror = null;
+            ws.onmessage = null;
+
+            if (ws.readyState === WebSocket.CONNECTING) {
+                ws.onopen = () => {
+                    try { ws.close(); } catch (e) { }
+                };
+            } else {
+                ws.onopen = null;
+                ws.close();
+            }
         };
     }, [JSON.stringify(symbols), timeframe, onUpdate, options.skipStateUpdate]); // Use stringified symbols to avoid deep dependency issues
 
