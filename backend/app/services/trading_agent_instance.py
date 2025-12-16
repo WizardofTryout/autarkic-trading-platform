@@ -58,6 +58,8 @@ class TradingAgentInstance:
         max_drawdown_percent: Decimal = Decimal("10.0"),
         risk_per_trade: Decimal = Decimal("0.01"),
         min_rr_ratio: Decimal = Decimal("2.0"),
+        leverage: int = 10,
+        margin_mode: str = "ISOLATED",
         macro_strategy_code: Optional[str] = None,
         micro_strategy_code: Optional[str] = None,
         macro_strategy_id: Optional[UUID] = None,
@@ -76,6 +78,8 @@ class TradingAgentInstance:
         self.max_drawdown_percent = max_drawdown_percent
         self.risk_per_trade = risk_per_trade
         self.min_rr_ratio = min_rr_ratio
+        self.leverage = leverage
+        self.margin_mode = margin_mode
         self.macro_strategy_code = macro_strategy_code
         self.micro_strategy_code = micro_strategy_code
         self.macro_strategy_id = macro_strategy_id
@@ -605,8 +609,8 @@ class TradingAgentInstance:
                     # Calculate margin based on risk_per_trade (e.g. 10% of budget)
                     margin = float(self.budget * self.risk_per_trade)
                     
-                    # Assume default leverage of 10x for calculation
-                    leverage = 10
+                    # Use agent's configured leverage
+                    leverage = self.leverage
                     
                     # Execute via paper trading
                     # strategy_id is tracked if available

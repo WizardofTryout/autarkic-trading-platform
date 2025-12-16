@@ -56,6 +56,10 @@ class TradingAgentBase(BaseModel):
     risk_per_trade: Decimal = Field(default=0.01, ge=0.001, le=0.1, description="Risk per trade (0.01 = 1%)")
     min_rr_ratio: Decimal = Field(default=2.0, ge=1.0, le=10.0, description="Minimum risk-reward ratio")
     
+    # Leverage & Margin (for exchange compatibility)
+    leverage: int = Field(default=10, ge=1, le=150, description="Leverage multiplier (1-150x)")
+    margin_mode: str = Field(default="ISOLATED", description="ISOLATED or CROSS margin mode")
+    
     # Multi-Timeframe Strategy
     macro_strategy_id: Optional[UUID] = Field(None, description="Strategy for macro trend (4h)")
     micro_strategy_id: Optional[UUID] = Field(None, description="Strategy for micro entry (15m)")
@@ -76,6 +80,8 @@ class TradingAgentUpdate(BaseModel):
     max_drawdown_percent: Optional[Decimal] = Field(None, ge=1, le=50)
     risk_per_trade: Optional[Decimal] = Field(None, ge=0.001, le=0.1)
     min_rr_ratio: Optional[Decimal] = Field(None, ge=1.0, le=10.0)
+    leverage: Optional[int] = Field(None, ge=1, le=150)
+    margin_mode: Optional[str] = Field(None, description="ISOLATED or CROSS")
     macro_strategy_id: Optional[UUID] = None
     micro_strategy_id: Optional[UUID] = None
     macro_timeframe: Optional[str] = None

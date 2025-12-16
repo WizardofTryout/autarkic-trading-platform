@@ -113,6 +113,8 @@ async def deploy_agent(
             max_drawdown_percent=agent_data.max_drawdown_percent,
             risk_per_trade=agent_data.risk_per_trade,
             min_rr_ratio=agent_data.min_rr_ratio,
+            leverage=agent_data.leverage,
+            margin_mode=agent_data.margin_mode,
             macro_strategy_id=agent_data.macro_strategy_id,
             micro_strategy_id=agent_data.micro_strategy_id,
             macro_timeframe=agent_data.macro_timeframe,

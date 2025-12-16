@@ -25,6 +25,8 @@ export interface TradingAgent {
     max_drawdown_percent: number;
     risk_per_trade: number;
     min_rr_ratio: number;
+    leverage: number;
+    margin_mode: 'ISOLATED' | 'CROSS';
     macro_strategy_id: string | null;
     micro_strategy_id: string | null;
     macro_timeframe: string;
@@ -112,6 +114,8 @@ export interface DeployAgentParams {
     max_drawdown_percent: number;
     risk_per_trade: number;
     min_rr_ratio: number;
+    leverage: number;
+    margin_mode: 'ISOLATED' | 'CROSS';
     macro_strategy_id?: string;
     micro_strategy_id?: string;
     macro_timeframe: string;
@@ -209,6 +213,8 @@ export const useFleetStore = create<FleetState>((set, get) => ({
             max_drawdown_percent: 10,
             risk_per_trade: 0.01,
             min_rr_ratio: 2,
+            leverage: 10,
+            margin_mode: 'ISOLATED',
             macro_strategy_id: undefined,
             micro_strategy_id: undefined,
             macro_timeframe: '4h',
@@ -273,6 +279,8 @@ export const useFleetStore = create<FleetState>((set, get) => ({
                         max_drawdown_percent: 10,
                         risk_per_trade: 0.01,
                         min_rr_ratio: 2,
+                        leverage: 10,
+                        margin_mode: 'ISOLATED',
                         macro_strategy_id: undefined,
                         micro_strategy_id: undefined,
                         macro_timeframe: '4h',

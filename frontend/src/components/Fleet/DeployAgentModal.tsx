@@ -250,6 +250,57 @@ const DeployAgentModal: React.FC = () => {
                             />
                             <span className="form-hint">This amount will be locked from your account</span>
                         </div>
+
+                        {/* Margin Mode Selection */}
+                        <div className="form-group">
+                            <label>Margin Mode</label>
+                            <div className="margin-mode-selector">
+                                <div
+                                    className={`margin-mode-option ${formData.margin_mode === 'ISOLATED' ? 'selected' : ''}`}
+                                    onClick={() => handleChange('margin_mode', 'ISOLATED')}
+                                >
+                                    <h4>Isolated</h4>
+                                    <p>Risk limited to position margin</p>
+                                </div>
+                                <div
+                                    className={`margin-mode-option ${formData.margin_mode === 'CROSS' ? 'selected' : ''}`}
+                                    onClick={() => handleChange('margin_mode', 'CROSS')}
+                                >
+                                    <h4>Cross</h4>
+                                    <p>Shares full margin balance</p>
+                                </div>
+                            </div>
+                            <span className="form-hint">
+                                {formData.margin_mode === 'ISOLATED' 
+                                    ? 'Each position has isolated margin. Loss limited to position margin.' 
+                                    : 'All positions share margin balance. Liquidation affects all positions.'}
+                            </span>
+                        </div>
+
+                        {/* Leverage Slider */}
+                        <div className="form-group">
+                            <label>Leverage: {formData.leverage}x</label>
+                            <input
+                                type="range"
+                                value={formData.leverage}
+                                onChange={(e) => handleChange('leverage', parseInt(e.target.value))}
+                                min={1}
+                                max={150}
+                                step={1}
+                                className="leverage-slider"
+                            />
+                            <div className="leverage-labels">
+                                <span>1x</span>
+                                <span>30x</span>
+                                <span>60x</span>
+                                <span>90x</span>
+                                <span>120x</span>
+                                <span>150x</span>
+                            </div>
+                            <span className="form-hint">
+                                Max open: ${(formData.budget * formData.leverage).toLocaleString()} USDT
+                            </span>
+                        </div>
                     </div>
                 );
 
@@ -374,6 +425,8 @@ const DeployAgentModal: React.FC = () => {
                                 <li><strong>Symbol:</strong> {formData.symbol}</li>
                                 <li><strong>Mode:</strong> {formData.mode}</li>
                                 <li><strong>Budget:</strong> ${formData.budget}</li>
+                                <li><strong>Leverage:</strong> {formData.leverage}x ({formData.margin_mode})</li>
+                                <li><strong>Max Position:</strong> ${(formData.budget * formData.leverage).toLocaleString()}</li>
                                 <li><strong>Kill Switch:</strong> {formData.max_drawdown_percent}%</li>
                             </ul>
                         </div>
