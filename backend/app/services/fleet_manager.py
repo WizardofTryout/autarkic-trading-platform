@@ -429,7 +429,12 @@ class AgentFleetManager:
     # ==================== Private Methods ====================
     
     async def _check_available_budget(self, user_id: UUID, required: Decimal) -> bool:
-        """Check if user has sufficient available balance."""
+        """Check if user has sufficient available balance.
+        
+        Note: balance = free capital (for manual trading)
+              locked_balance = capital already allocated to agents
+              We check 'balance' because that's the free pool to allocate from.
+        """
         result = await self.db.execute(
             select(PaperAccount).where(PaperAccount.user_id == user_id)
         )
@@ -438,24 +443,30 @@ class AgentFleetManager:
         if not account:
             return False
         
-        available = account.balance - account.locked_balance
-        return available >= required
+        # Check free balance (not locked in agents yet)
+        return account.balance >= required
     
     async def _lock_budget(self, user_id: UUID, amount: Decimal):
-        """Lock budget in paper_account for agent use."""
+        """Lock budget: Move from free balance to locked_balance for agent use."""
         await self.db.execute(
             update(PaperAccount)
             .where(PaperAccount.user_id == user_id)
-            .values(locked_balance=PaperAccount.locked_balance + amount)
+            .values(
+                balance=PaperAccount.balance - amount,  # Remove from free
+                locked_balance=PaperAccount.locked_balance + amount  # Add to locked
+            )
         )
         await self.db.commit()
     
     async def _release_budget(self, user_id: UUID, amount: Decimal):
-        """Release locked budget back to paper_account."""
+        """Release locked budget: Move from locked_balance back to free balance."""
         await self.db.execute(
             update(PaperAccount)
             .where(PaperAccount.user_id == user_id)
-            .values(locked_balance=PaperAccount.locked_balance - amount)
+            .values(
+                balance=PaperAccount.balance + amount,  # Return to free
+                locked_balance=PaperAccount.locked_balance - amount  # Remove from locked
+            )
         )
         await self.db.commit()
     
