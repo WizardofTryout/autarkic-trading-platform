@@ -95,6 +95,13 @@ class TradingAgentResponse(TradingAgentBase):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     last_signal_at: Optional[datetime] = None
+    
+    # Live runtime state (only when agent is running)
+    market_condition: Optional[str] = None
+    current_proposal: Optional[dict] = None
+    pending_proposal: Optional[dict] = None
+    active_position: Optional[dict] = None
+    active_positions: Optional[List[dict]] = None
 
     class Config:
         from_attributes = True
