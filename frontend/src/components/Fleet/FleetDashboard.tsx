@@ -8,10 +8,13 @@
 import React, { useEffect, useState } from 'react';
 import { useFleetStore } from '../../store/fleetStore';
 import type { TradingAgent, AgentStatus } from '../../store/fleetStore';
-import { Plus, Play, Pause, StopCircle, Trash2, Eye, RefreshCw, Bot } from 'lucide-react';
+import { Plus, Play, Pause, StopCircle, Trash2, Eye, RefreshCw, Bot, Pencil } from 'lucide-react';
 import DeployAgentModal from './DeployAgentModal';
 import AgentCockpit from './AgentCockpit';
 import './FleetDashboard.css';
+
+// Lazy load EditPositionModal
+const EditPositionModal = React.lazy(() => import('../Dashboard/EditPositionModal'));
 
 // Status color mapping
 const STATUS_COLORS: Record<AgentStatus, { bg: string; text: string; dot: string }> = {
@@ -56,6 +59,9 @@ const FleetDashboard: React.FC = () => {
         show: false, 
         agent: null 
     });
+
+    // State for editing position TP/SL
+    const [editingPosition, setEditingPosition] = useState<any | null>(null);
 
     // Connect WebSocket on mount
     useEffect(() => {
@@ -310,11 +316,35 @@ const FleetDashboard: React.FC = () => {
                                                     </div>
                                                     <div className="detail-group">
                                                         <span className="detail-label">Stop Loss</span>
-                                                        <span className="detail-value loss">${position.stop_loss?.toFixed(2) || '-'}</span>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <span className="detail-value loss">${position.stop_loss?.toFixed(2) || '-'}</span>
+                                                            <button
+                                                                className="btn-edit-small"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setEditingPosition({ ...position, agentId: agent.id, agentStatus: agent.status });
+                                                                }}
+                                                                title="Edit TP/SL"
+                                                            >
+                                                                <Pencil size={14} />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                     <div className="detail-group">
                                                         <span className="detail-label">Take Profit</span>
-                                                        <span className="detail-value profit">${position.take_profit?.toFixed(2) || '-'}</span>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <span className="detail-value profit">${position.take_profit?.toFixed(2) || '-'}</span>
+                                                            <button
+                                                                className="btn-edit-small"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setEditingPosition({ ...position, agentId: agent.id, agentStatus: agent.status });
+                                                                }}
+                                                                title="Edit TP/SL"
+                                                            >
+                                                                <Pencil size={14} />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                     <div className="detail-actions">
                                                         <button
@@ -438,6 +468,44 @@ const FleetDashboard: React.FC = () => {
                     </div>
                 )
             }
+
+            {/* Edit Position Modal */}
+            {editingPosition && (
+                <React.Suspense fallback={<div>Loading...</div>}>
+                    <EditPositionModal
+                        position={editingPosition}
+                        currentPrice={editingPosition.entry_price}
+                        onClose={() => setEditingPosition(null)}
+                        onSave={async (positionId: string, updates: { stop_loss?: number; take_profit?: number }) => {
+                            // Check if agent is running
+                            if (editingPosition.agentStatus === 'RUNNING') {
+                                alert('⚠️ Please pause the agent before editing positions!');
+                                return;
+                            }
+
+                            try {
+                                const response = await fetch(`/api/v1/paper/positions/${positionId}`, {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(updates)
+                                });
+
+                                if (!response.ok) {
+                                    const error = await response.json();
+                                    throw new Error(error.detail || 'Failed to update position');
+                                }
+
+                                // Refresh agent data
+                                await fetchAgents();
+                                setEditingPosition(null);
+                            } catch (error: any) {
+                                console.error('Failed to update position:', error);
+                                alert('❌ ' + error.message);
+                            }
+                        }}
+                    />
+                </React.Suspense>
+            )}
         </div >
     );
 };

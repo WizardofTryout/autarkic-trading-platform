@@ -667,3 +667,23 @@
     box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
     opacity: 0.9;
 }
+
+/* Edit Button for Position Details */
+.btn-edit-small {
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #3b82f6;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-edit-small:hover {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(59, 130, 246, 0.5);
+    transform: scale(1.05);
+}
