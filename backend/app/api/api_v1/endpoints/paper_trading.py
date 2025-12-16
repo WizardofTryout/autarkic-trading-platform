@@ -190,6 +190,35 @@ async def reset_account(
     account = await service.reset_account(current_user.id)
     return {"status": "success", "balance": account.balance}
 
+class PaperPositionUpdate(BaseModel):
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+
+@router.patch("/positions/{position_id}")
+async def update_position(
+    position_id: uuid.UUID,
+    position_update: PaperPositionUpdate,
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    """Update stop loss and/or take profit for an existing position."""
+    service = PaperTradingService(db)
+    try:
+        position = await service.update_position(
+            position_id=position_id,
+            user_id=current_user.id,
+            stop_loss=position_update.stop_loss,
+            take_profit=position_update.take_profit
+        )
+        return {
+            "status": "success",
+            "position_id": str(position.id),
+            "stop_loss": float(position.stop_loss) if position.stop_loss else None,
+            "take_profit": float(position.take_profit) if position.take_profit else None
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.post("/positions/{position_id}/close")
 async def close_position(
     position_id: uuid.UUID,

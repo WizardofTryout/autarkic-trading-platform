@@ -9,12 +9,14 @@ const StrategyActivationModal = React.lazy(() => import('../StrategyBuilder/Stra
 const ConfirmationModal = React.lazy(() => import('../Common/ConfirmationModal'));
 const EditOrderModal = React.lazy(() => import('./EditOrderModal'));
 const TradeResultModal = React.lazy(() => import('../Common/TradeResultModal'));
+const EditPositionModal = React.lazy(() => import('./EditPositionModal'));
 
 export const TradingDashboard: React.FC = () => {
     const { formatLogTimestamp } = useTimezone();
     const [activeTab, setActiveTab] = useState<'positions' | 'orders' | 'history' | 'strategies'>('positions');
     const [editingStrategy, setEditingStrategy] = useState<any | null>(null);
     const [editingOrder, setEditingOrder] = useState<any | null>(null);
+    const [editingPosition, setEditingPosition] = useState<any | null>(null);
     const [deletingStrategyId, setDeletingStrategyId] = useState<string | null>(null);
     const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
     const [tradeResult, setTradeResult] = useState<{
@@ -156,12 +158,21 @@ export const TradingDashboard: React.FC = () => {
                                         <td className="p-3 text-gray-300">{currentPrice.toFixed(2)}</td>
                                         <td className="p-3 text-orange-400">{pos.liquidation_price?.toFixed(2) || '-'}</td>
                                         <td className="p-3 text-gray-300">
-                                            <div className="flex flex-col text-xs">
-                                                <span className="text-green-400">TP: {pos.take_profit?.toFixed(2) || '-'}</span>
-                                                <span className="text-red-400 flex items-center gap-1">
-                                                    SL: {pos.stop_loss?.toFixed(2) || '-'}
-                                                    {pos.is_trailing_stop && <span className="text-[10px] px-1 bg-purple-500/20 text-purple-400 rounded">Trailing</span>}
-                                                </span>
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex flex-col text-xs">
+                                                    <span className="text-green-400">TP: {pos.take_profit?.toFixed(2) || '-'}</span>
+                                                    <span className="text-red-400 flex items-center gap-1">
+                                                        SL: {pos.stop_loss?.toFixed(2) || '-'}
+                                                        {pos.is_trailing_stop && <span className="text-[10px] px-1 bg-purple-500/20 text-purple-400 rounded">Trailing</span>}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    onClick={() => setEditingPosition(pos)}
+                                                    className="text-gray-400 hover:text-blue-400 transition-colors p-1"
+                                                    title="Edit TP/SL"
+                                                >
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                </button>
                                             </div>
                                         </td>
                                         <td className="p-3 text-gray-300">{pos.margin.toFixed(2)} USDT</td>
@@ -465,6 +476,26 @@ export const TradingDashboard: React.FC = () => {
                         isOpen={!!tradeResult}
                         result={tradeResult}
                         onClose={() => setTradeResult(null)}
+                    />
+                </React.Suspense>
+            )}
+
+            {editingPosition && (
+                <React.Suspense fallback={null}>
+                    <EditPositionModal
+                        position={editingPosition}
+                        currentPrice={currentData[editingPosition.symbol]?.close || editingPosition.entry_price}
+                        onClose={() => setEditingPosition(null)}
+                        onSave={async (positionId, updates) => {
+                            try {
+                                const { api } = await import('../../services/api');
+                                await api.patch(`/paper/positions/${positionId}`, updates);
+                                await fetchPortfolio();
+                            } catch (error) {
+                                console.error('Failed to update position:', error);
+                                throw error;
+                            }
+                        }}
                     />
                 </React.Suspense>
             )}
