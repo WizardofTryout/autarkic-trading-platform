@@ -290,8 +290,8 @@ const FleetDashboard: React.FC = () => {
                                             onClick={() => setExpandedAgentId(expandedAgentId === agent.id ? null : agent.id)}
                                             style={{ cursor: 'pointer', textDecoration: 'underline' }}
                                         >
-                                            {agent.winning_trades}/{agent.total_trades}
-                                            {agent.active_position && (expandedAgentId === agent.id ? ' ▲' : ' ▼')}
+                                            {agent.active_positions?.length || 0}/{agent.total_trades}
+                                            {(agent.active_positions && agent.active_positions.length > 0) && (expandedAgentId === agent.id ? ' ▲' : ' ▼')}
                                         </td>
                                         <td className="agent-killswitch">
                                             {Number(agent.max_drawdown_percent || 0)}%
