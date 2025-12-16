@@ -50,6 +50,7 @@ const FleetDashboard: React.FC = () => {
         deleteAgent,
         selectAgent,
         setShowDeployModal,
+        openEditWizard,
         connectWebSocket,
         disconnectWebSocket,
         closePosition,
@@ -173,9 +174,8 @@ const FleetDashboard: React.FC = () => {
         if (isRunning) {
             setEditWarningAgent(agent);
         } else {
-            // TODO: Open edit modal with agent data
-            console.log('Edit agent:', agent);
-            alert('Edit functionality coming soon!');
+            // Open edit wizard with agent data
+            openEditWizard(agent);
         }
     };
 

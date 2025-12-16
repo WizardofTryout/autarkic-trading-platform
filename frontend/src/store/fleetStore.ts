@@ -150,6 +150,8 @@ interface FleetState {
     deployWizardState: {
         step: number;
         isOpen: boolean;
+        isEditMode: boolean;
+        editingAgentId: string | null;
         data: DeployAgentParams;
     };
 
@@ -172,6 +174,7 @@ interface FleetState {
     setDeployWizardStep: (step: number) => void;
     updateDeployWizardData: (data: Partial<DeployAgentParams>) => void;
     resetDeployWizard: () => void;
+    openEditWizard: (agent: TradingAgent) => void;
     setShowAgentCockpit: (show: boolean) => void;
 
     // WebSocket
@@ -205,6 +208,8 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     deployWizardState: {
         step: 1,
         isOpen: false,
+        isEditMode: false,
+        editingAgentId: null,
         data: {
             name: '',
             symbol: 'BTC/USDT',
@@ -257,37 +262,80 @@ export const useFleetStore = create<FleetState>((set, get) => ({
 
     deployAgent: async (params: DeployAgentParams) => {
         set({ isLoading: true, error: null });
+        const state = get();
+        const isEditMode = state.deployWizardState.isEditMode;
+        const editingAgentId = state.deployWizardState.editingAgentId;
+        
         try {
-            const agent = await api.post('/fleet/agents', params);
+            let agent;
             
-            // Refresh budget info after deployment
-            await get().fetchBudgetInfo();
-            
-            set(state => ({
-                agents: [...state.agents, agent],
-                isLoading: false,
-                // Reset wizard on success
-                deployWizardState: {
-                    ...state.deployWizardState,
-                    step: 1,
-                    isOpen: false,
-                    data: {
-                        name: '',
-                        symbol: 'BTC/USDT',
-                        mode: 'PAPER',
-                        budget: 1000,
-                        max_drawdown_percent: 10,
-                        risk_per_trade: 0.01,
-                        min_rr_ratio: 2,
-                        leverage: 10,
-                        margin_mode: 'ISOLATED',
-                        macro_strategy_id: undefined,
-                        micro_strategy_id: undefined,
-                        macro_timeframe: '4h',
-                        micro_timeframe: '15m',
+            if (isEditMode && editingAgentId) {
+                // UPDATE existing agent
+                agent = await api.patch(`/fleet/agents/${editingAgentId}`, params);
+                
+                // Update agent in list
+                set(state => ({
+                    agents: state.agents.map(a => a.id === editingAgentId ? agent : a),
+                    isLoading: false,
+                    deployWizardState: {
+                        ...state.deployWizardState,
+                        step: 1,
+                        isOpen: false,
+                        isEditMode: false,
+                        editingAgentId: null,
+                        data: {
+                            name: '',
+                            symbol: 'BTC/USDT',
+                            mode: 'PAPER',
+                            budget: 1000,
+                            max_drawdown_percent: 10,
+                            risk_per_trade: 0.01,
+                            min_rr_ratio: 2,
+                            leverage: 10,
+                            margin_mode: 'ISOLATED',
+                            macro_strategy_id: undefined,
+                            micro_strategy_id: undefined,
+                            macro_timeframe: '4h',
+                            micro_timeframe: '15m',
+                        }
                     }
-                }
-            }));
+                }));
+            } else {
+                // CREATE new agent
+                agent = await api.post('/fleet/agents', params);
+                
+                // Refresh budget info after deployment
+                await get().fetchBudgetInfo();
+                
+                set(state => ({
+                    agents: [...state.agents, agent],
+                    isLoading: false,
+                    // Reset wizard on success
+                    deployWizardState: {
+                        ...state.deployWizardState,
+                        step: 1,
+                        isOpen: false,
+                        isEditMode: false,
+                        editingAgentId: null,
+                        data: {
+                            name: '',
+                            symbol: 'BTC/USDT',
+                            mode: 'PAPER',
+                            budget: 1000,
+                            max_drawdown_percent: 10,
+                            risk_per_trade: 0.01,
+                            min_rr_ratio: 2,
+                            leverage: 10,
+                            margin_mode: 'ISOLATED',
+                            macro_strategy_id: undefined,
+                            micro_strategy_id: undefined,
+                            macro_timeframe: '4h',
+                            micro_timeframe: '15m',
+                        }
+                    }
+                }));
+            }
+            
             return agent;
         } catch (error: any) {
             console.error('Failed to deploy agent:', error);
@@ -460,6 +508,8 @@ export const useFleetStore = create<FleetState>((set, get) => ({
         deployWizardState: {
             step: 1,
             isOpen: false,
+            isEditMode: false,
+            editingAgentId: null,
             data: {
                 name: '',
                 symbol: 'BTC/USDT',
@@ -468,10 +518,36 @@ export const useFleetStore = create<FleetState>((set, get) => ({
                 max_drawdown_percent: 10,
                 risk_per_trade: 0.01,
                 min_rr_ratio: 2,
+                leverage: 10,
+                margin_mode: 'ISOLATED',
                 macro_strategy_id: undefined,
                 micro_strategy_id: undefined,
                 macro_timeframe: '4h',
                 micro_timeframe: '15m',
+            }
+        }
+    })),
+    
+    openEditWizard: (agent: TradingAgent) => set((state) => ({
+        deployWizardState: {
+            step: 1,
+            isOpen: true,
+            isEditMode: true,
+            editingAgentId: agent.id,
+            data: {
+                name: agent.name,
+                symbol: agent.symbol,
+                mode: agent.mode,
+                budget: agent.budget,
+                max_drawdown_percent: agent.max_drawdown_percent,
+                risk_per_trade: agent.risk_per_trade,
+                min_rr_ratio: agent.min_rr_ratio,
+                leverage: agent.leverage,
+                margin_mode: agent.margin_mode,
+                macro_strategy_id: agent.macro_strategy_id || undefined,
+                micro_strategy_id: agent.micro_strategy_id || undefined,
+                macro_timeframe: agent.macro_timeframe,
+                micro_timeframe: agent.micro_timeframe,
             }
         }
     })),

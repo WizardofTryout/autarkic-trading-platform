@@ -37,7 +37,7 @@ const DeployAgentModal: React.FC = () => {
     } = useFleetStore();
 
     // Destructure state from store
-    const { step, data: formData } = deployWizardState;
+    const { step, data: formData, isEditMode } = deployWizardState;
 
     const [strategies, setStrategies] = useState<Strategy[]>([]);
     const [strategiesError, setStrategiesError] = useState<string | null>(null);
@@ -455,7 +455,7 @@ const DeployAgentModal: React.FC = () => {
                 <div className="modal-header">
                     <div className="modal-title">
                         <Bot size={20} />
-                        <h2>Deploy New Agent</h2>
+                        <h2>{isEditMode ? 'Edit Agent Configuration' : 'Deploy New Agent'}</h2>
                     </div>
                     <button className="modal-close" onClick={() => setShowDeployModal(false)}>
                         <X size={20} />
@@ -507,7 +507,7 @@ const DeployAgentModal: React.FC = () => {
                             onClick={handleSubmit}
                             disabled={isLoading || !canGoNext()}
                         >
-                            {isLoading ? 'Deploying...' : 'Deploy Agent'}
+                            {isLoading ? (isEditMode ? 'Updating...' : 'Deploying...') : (isEditMode ? 'Update Agent' : 'Deploy Agent')}
                             <Bot size={16} />
                         </button>
                     )}
