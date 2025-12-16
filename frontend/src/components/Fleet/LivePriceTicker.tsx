@@ -9,6 +9,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { TrendingUp, TrendingDown, Activity } from 'lucide-react';
+import { useTimezone } from '../../utils/timezone';
 import './LivePriceTicker.css';
 
 interface LivePriceTickerProps {
@@ -25,6 +26,7 @@ interface TickerData {
 }
 
 const LivePriceTicker: React.FC<LivePriceTickerProps> = ({ symbol }) => {
+    const { formatLogTimestamp } = useTimezone();
     const [tickerData, setTickerData] = useState<TickerData | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
@@ -170,7 +172,7 @@ const LivePriceTicker: React.FC<LivePriceTickerProps> = ({ symbol }) => {
                 </span>
                 {lastUpdate && (
                     <span className="last-update">
-                        {lastUpdate.toLocaleTimeString()}
+                        {formatLogTimestamp(lastUpdate)}
                     </span>
                 )}
             </div>

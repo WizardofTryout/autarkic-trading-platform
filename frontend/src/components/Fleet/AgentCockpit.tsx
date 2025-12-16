@@ -20,6 +20,7 @@ import LivePriceTicker from './LivePriceTicker';
 import StrategySelector from './StrategySelector';
 import { ConfirmationModal } from '../Common/ConfirmationModal';
 import { ActivePositionCard } from './ActivePositionCard';
+import { useTimezone } from '../../utils/timezone';
 import './AgentCockpit.css';
 
 interface AgentCockpitProps {
@@ -27,6 +28,7 @@ interface AgentCockpitProps {
 }
 
 const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
+    const { formatLogTimestamp } = useTimezone();
     const {
         agentLogs,
         selectAgent,
@@ -181,7 +183,7 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
     };
 
     const renderLogEntry = (log: AgentLog) => {
-        const time = new Date(log.timestamp).toLocaleTimeString();
+        const time = formatLogTimestamp(log.timestamp);
         const statusClass = log.status.toLowerCase().replace('_', '-');
         const isExpanded = expandedLogs.has(log.id);
 
