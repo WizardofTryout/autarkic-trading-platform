@@ -512,12 +512,12 @@ class AgentFleetManager:
         if agent_id in self._active_agents:
             agent_data = await self._active_agents[agent_id].get_state()
             
-            # Update database with latest P&L and stats
+            # Update database with latest P&L
+            # NOTE: total_trades and winning_trades are managed by paper_trading.close_position()
+            # and should NOT be updated here to avoid overwriting the database values
             try:
                 stmt = update(TradingAgent).where(TradingAgent.id == agent_id).values(
                     session_pnl=agent_data.get("session_pnl", 0),
-                    total_trades=agent_data.get("total_trades", 0),
-                    winning_trades=agent_data.get("winning_trades", 0),
                     updated_at=datetime.utcnow()
                 )
                 await self.db.execute(stmt)

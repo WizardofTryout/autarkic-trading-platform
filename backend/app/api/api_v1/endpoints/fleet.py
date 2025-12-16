@@ -6,6 +6,7 @@ Provides REST API for managing AI Trading Agents (the "Fleet").
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional
 from uuid import UUID
 from decimal import Decimal
@@ -160,7 +161,12 @@ async def update_agent(
     Update agent configuration.
     
     Can update: name, risk settings, strategies, status.
+    If budget changes, adjusts locked_balance accordingly.
     """
+    from decimal import Decimal
+    from app.models.base import PaperAccount
+    from sqlalchemy import update as sql_update
+    
     manager = AgentFleetManager(db)
     agent = await manager.get_agent(agent_id)
     
@@ -170,8 +176,41 @@ async def update_agent(
     if agent.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # Update fields
+    # Check if budget is being changed
     update_data = agent_update.model_dump(exclude_unset=True)
+    old_budget = agent.budget
+    new_budget = update_data.get('budget', old_budget)
+    
+    # If budget changes, adjust paper_account locked_balance
+    if new_budget != old_budget and agent.mode == "PAPER":
+        budget_diff = Decimal(str(new_budget)) - Decimal(str(old_budget))
+        
+        # Check if user has enough available balance for increase
+        if budget_diff > 0:
+            result = await db.execute(
+                select(PaperAccount).where(PaperAccount.user_id == current_user.id)
+            )
+            account = result.scalar_one_or_none()
+            if not account or account.balance < budget_diff:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient available balance. Need ${budget_diff} more."
+                )
+        
+        # Adjust locked_balance and balance
+        await db.execute(
+            sql_update(PaperAccount)
+            .where(PaperAccount.user_id == current_user.id)
+            .values(
+                balance=PaperAccount.balance - budget_diff,  # Decrease/increase balance
+                locked_balance=PaperAccount.locked_balance + budget_diff  # Increase/decrease locked
+            )
+        )
+        
+        # Update agent's locked_budget to match
+        update_data['locked_budget'] = new_budget
+    
+    # Update agent fields
     for field, value in update_data.items():
         setattr(agent, field, value)
     

@@ -74,6 +74,12 @@ const FleetDashboard: React.FC = () => {
     
     // State for edit warning modal
     const [editWarningAgent, setEditWarningAgent] = useState<TradingAgent | null>(null);
+    
+    // State for close position confirmation
+    const [closePositionModal, setClosePositionModal] = useState<{ show: boolean; position: any | null }>({ 
+        show: false, 
+        position: null 
+    });
 
     // Connect WebSocket on mount
     useEffect(() => {
@@ -358,7 +364,7 @@ const FleetDashboard: React.FC = () => {
                                 <th>Status</th>
                                 <th>Budget</th>
                                 <th>Session P&L</th>
-                                <th>Trades</th>
+                                <th>Open/Closed</th>
                                 <th>Kill Switch</th>
                                 <th>Actions</th>
                             </tr>
@@ -461,11 +467,9 @@ const FleetDashboard: React.FC = () => {
                                                     <div className="detail-actions">
                                                         <button
                                                             className="btn-close-position"
-                                                            onClick={async (e) => {
+                                                            onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                if (window.confirm('Are you sure you want to close this position?')) {
-                                                                    await closePosition(position.id);
-                                                                }
+                                                                setClosePositionModal({ show: true, position });
                                                             }}
                                                         >
                                                             Close Trade
@@ -661,6 +665,39 @@ const FleetDashboard: React.FC = () => {
                                 }}
                             >
                                 Pause Agent
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Close Position Confirmation Modal */}
+            {closePositionModal.show && closePositionModal.position && (
+                <div className="modal-overlay" onClick={() => setClosePositionModal({ show: false, position: null })}>
+                    <div className="modal-content warning-modal" onClick={(e) => e.stopPropagation()}>
+                        <h3>⚠️ Close Position</h3>
+                        <p>
+                            Are you sure you want to close this position?
+                            <br /><br />
+                            <strong>{closePositionModal.position.symbol}</strong> ({closePositionModal.position.side})
+                            <br />
+                            Entry: <strong>${Number(closePositionModal.position.entry_price).toFixed(2)}</strong>
+                        </p>
+                        <div className="modal-actions">
+                            <button 
+                                className="btn-secondary" 
+                                onClick={() => setClosePositionModal({ show: false, position: null })}
+                            >
+                                Abbrechen
+                            </button>
+                            <button 
+                                className="btn-danger" 
+                                onClick={async () => {
+                                    await closePosition(closePositionModal.position.id);
+                                    setClosePositionModal({ show: false, position: null });
+                                }}
+                            >
+                                Close Position
                             </button>
                         </div>
                     </div>
