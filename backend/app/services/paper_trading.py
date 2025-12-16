@@ -4,6 +4,7 @@ from sqlalchemy import delete
 from sqlalchemy.sql import func
 from app.models.base import User, PaperAccount, PaperOrder, PaperPosition, PaperTrade, ActiveStrategy
 from app.services.market_service import MarketService
+from typing import Optional
 import uuid
 from decimal import Decimal
 
