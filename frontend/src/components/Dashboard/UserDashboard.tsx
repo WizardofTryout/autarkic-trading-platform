@@ -19,6 +19,7 @@ import { useTradingStore } from '../../store/tradingStore';
 import { getStrategies, api, getUserPreferences, updateUserPreferences } from '../../services/api';
 import APIKeyManager from '../Settings/APIKeyManager';
 import UserProfile from '../Auth/UserProfile';
+import { NotificationModal } from '../Common/NotificationModal';
 
 interface DashboardTab {
     id: string;
@@ -44,6 +45,12 @@ const UserDashboard: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [timezone, setTimezone] = useState<string>('UTC');
     const [timezoneSaving, setTimezoneSaving] = useState(false);
+    const [notification, setNotification] = useState<{show: boolean; type: 'success' | 'error'; title: string; message: string}>({ 
+        show: false, 
+        type: 'success', 
+        title: '', 
+        message: '' 
+    });
     const [stats, setStats] = useState<DashboardStats>({
         paperBalance: 0,
         totalStrategies: 0,
@@ -180,10 +187,20 @@ const UserDashboard: React.FC = () => {
         setTimezoneSaving(true);
         try {
             await updateUserPreferences({ timezone });
-            alert('✅ Timezone erfolgreich gespeichert!');
+            setNotification({
+                show: true,
+                type: 'success',
+                title: 'Timezone gespeichert',
+                message: `Alle Timestamps werden jetzt in ${timezone} angezeigt.`
+            });
         } catch (error) {
             console.error('Failed to update timezone:', error);
-            alert('❌ Fehler beim Speichern der Timezone');
+            setNotification({
+                show: true,
+                type: 'error',
+                title: 'Fehler beim Speichern',
+                message: 'Die Timezone konnte nicht gespeichert werden. Bitte versuche es erneut.'
+            });
         } finally {
             setTimezoneSaving(false);
         }
@@ -571,6 +588,15 @@ const UserDashboard: React.FC = () => {
                     </div>
                 </main>
             </div>
+
+            {/* Notification Modal */}
+            <NotificationModal
+                isOpen={notification.show}
+                type={notification.type}
+                title={notification.title}
+                message={notification.message}
+                onClose={() => setNotification({ ...notification, show: false })}
+            />
         </div>
     );
 };
