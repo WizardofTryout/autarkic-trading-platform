@@ -68,13 +68,34 @@ const FleetDashboard: React.FC = () => {
 
     // Connect WebSocket on mount
     useEffect(() => {
-        fetchAgents();
-        connectWebSocket();
+        // Initial load with slight delay to ensure backend is ready
+        const loadData = async () => {
+            await fetchAgents();
+            connectWebSocket();
+        };
+        loadData();
 
         return () => {
             disconnectWebSocket();
         };
     }, []);
+    
+    // Debug logging
+    useEffect(() => {
+        if (agents.length > 0) {
+            console.log('🔍 Fleet Dashboard - Agents:', agents);
+            agents.forEach(agent => {
+                console.log(`Agent ${agent.name}:`, {
+                    id: agent.id,
+                    status: agent.status,
+                    active_positions: agent.active_positions,
+                    active_positions_count: agent.active_positions?.length || 0,
+                    total_trades: agent.total_trades,
+                    winning_trades: agent.winning_trades
+                });
+            });
+        }
+    }, [agents]);
 
     // Calculate fleet stats
     const activeCount = agents.filter(a => ['SCANNING', 'PROPOSING', 'ACTIVE', 'IN_POSITION'].includes(a.status)).length;
@@ -478,17 +499,20 @@ const FleetDashboard: React.FC = () => {
                     <div className="pause-warning-modal" onClick={(e) => e.stopPropagation()}>
                         <div className="warning-header">
                             <span className="warning-icon">⚠️</span>
-                            <h3>Agent pausieren erforderlich</h3>
+                            <h3>Agent Must Be Paused</h3>
                         </div>
                         <p className="warning-message">
-                            Bitte pausiere den Agent erst, bevor du Stop Loss und Take Profit anpassen kannst.
+                            Please pause the agent before editing Stop Loss and Take Profit values.
+                        </p>
+                        <p className="warning-submessage">
+                            Current Status: <strong>{editingPosition?.agentStatus}</strong>
                         </p>
                         <div className="warning-actions">
                             <button 
                                 className="btn-warning-ok"
                                 onClick={() => setShowPauseWarning(false)}
                             >
-                                OK, verstanden
+                                OK, Got it
                             </button>
                         </div>
                     </div>
@@ -503,8 +527,9 @@ const FleetDashboard: React.FC = () => {
                         currentPrice={editingPosition.entry_price}
                         onClose={() => setEditingPosition(null)}
                         onSave={async (positionId: string, updates: { stop_loss?: number; take_profit?: number }) => {
-                            // Check if agent is running
-                            if (editingPosition.agentStatus === 'RUNNING') {
+                            // Check if agent is running (any active status)
+                            const activeStatuses = ['SCANNING', 'PROPOSING', 'AWAITING_APPROVAL', 'ACTIVE', 'IN_POSITION', 'COOLDOWN'];
+                            if (activeStatuses.includes(editingPosition.agentStatus)) {
                                 setShowPauseWarning(true);
                                 return;
                             }

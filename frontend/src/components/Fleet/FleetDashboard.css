@@ -724,7 +724,18 @@
     color: #e2e8f0;
     font-size: 1rem;
     line-height: 1.6;
+    margin: 0 0 0.75rem 0;
+}
+
+.warning-submessage {
+    color: #94a3b8;
+    font-size: 0.875rem;
     margin: 0 0 1.5rem 0;
+}
+
+.warning-submessage strong {
+    color: #eab308;
+    font-weight: 600;
 }
 
 .warning-actions {

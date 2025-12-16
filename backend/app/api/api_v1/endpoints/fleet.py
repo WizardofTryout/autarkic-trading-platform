@@ -40,6 +40,12 @@ async def list_agents(
     manager = AgentFleetManager(db)
     agents = await manager.get_fleet_status(current_user.id)
     
+    # Debug logging
+    import logging
+    logger = logging.getLogger(__name__)
+    for agent in agents:
+        logger.info(f"🔍 Agent {agent.get('name')}: active_positions={agent.get('active_positions')}, total_trades={agent.get('total_trades')}")
+    
     return TradingAgentListResponse(
         agents=[TradingAgentResponse(**a) for a in agents],
         total=len(agents)
