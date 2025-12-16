@@ -250,6 +250,8 @@ class TradingAgent(Base):
     max_drawdown_percent = Column(Numeric(precision=5, scale=2), default=10.0)  # Kill switch threshold
     risk_per_trade = Column(Numeric(precision=5, scale=4), default=0.01)  # 1% default
     min_rr_ratio = Column(Numeric(precision=5, scale=2), default=2.0)  # Min risk-reward ratio
+    trailing_stop_enabled = Column(Boolean, default=False, nullable=False)  # Enable trailing stop
+    trailing_stop_percent = Column(Numeric(precision=4, scale=2), default=1.5)  # Trailing stop distance %
     
     # Leverage & Margin (for exchange compatibility)
     leverage = Column(Integer, default=10, nullable=False)  # Leverage multiplier (1-150x)
