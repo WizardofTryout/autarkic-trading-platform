@@ -84,16 +84,20 @@ const FleetDashboard: React.FC = () => {
     // Debug logging
     useEffect(() => {
         if (agents.length > 0) {
-            console.log('🔍 Fleet Dashboard - Agents:', agents);
+            console.log('🔍 Fleet Dashboard - Agents received:', agents.length);
             agents.forEach(agent => {
-                console.log(`Agent ${agent.name}:`, {
+                const posCount = agent.active_positions?.length || 0;
+                console.log(`📊 Agent "${agent.name}":`, {
                     id: agent.id,
                     status: agent.status,
-                    active_positions: agent.active_positions,
-                    active_positions_count: agent.active_positions?.length || 0,
+                    positions_count: posCount,
+                    positions_data: agent.active_positions,
                     total_trades: agent.total_trades,
                     winning_trades: agent.winning_trades
                 });
+                if (posCount === 0 && agent.total_trades > 0) {
+                    console.warn(`⚠️ Agent "${agent.name}" has ${agent.total_trades} total trades but 0 active positions!`);
+                }
             });
         }
     }, [agents]);
