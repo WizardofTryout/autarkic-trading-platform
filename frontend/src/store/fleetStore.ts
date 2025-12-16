@@ -120,11 +120,19 @@ export interface DeployAgentParams {
 
 // ==================== Store State ====================
 
+interface BudgetInfo {
+    balance: number;           // Free capital available
+    locked_balance: number;    // Capital allocated to agents
+    total_capital: number;     // Total capital (balance + locked_balance)
+}
+
 interface FleetState {
     // Data
     agents: TradingAgent[];
     selectedAgentId: string | null;
     agentLogs: Record<string, AgentLog[]>;
+    budgetInfo: BudgetInfo | null;
+    currentPrices: Record<string, number>; // symbol -> current price
 
     // WebSocket
     wsConnected: boolean;
@@ -143,6 +151,7 @@ interface FleetState {
 
     // Actions
     fetchAgents: () => Promise<void>;
+    fetchBudgetInfo: () => Promise<void>;
     deployAgent: (params: DeployAgentParams) => Promise<TradingAgent>;
     updateAgent: (agentId: string, updates: Partial<TradingAgent>) => Promise<void>;
     startAgent: (agentId: string) => Promise<void>;
@@ -180,6 +189,8 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     agents: [],
     selectedAgentId: null,
     agentLogs: {},
+    budgetInfo: null,
+    currentPrices: {},
     wsConnected: false,
     wsError: null,
     isLoading: false,
@@ -229,10 +240,23 @@ export const useFleetStore = create<FleetState>((set, get) => ({
         }
     },
 
+    fetchBudgetInfo: async () => {
+        try {
+            const budgetInfo = await api.get('/fleet/budget');
+            set({ budgetInfo });
+        } catch (error: any) {
+            console.error('Failed to fetch budget info:', error);
+        }
+    },
+
     deployAgent: async (params: DeployAgentParams) => {
         set({ isLoading: true, error: null });
         try {
             const agent = await api.post('/fleet/agents', params);
+            
+            // Refresh budget info after deployment
+            await get().fetchBudgetInfo();
+            
             set(state => ({
                 agents: [...state.agents, agent],
                 isLoading: false,
@@ -354,6 +378,10 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     deleteAgent: async (agentId: string) => {
         try {
             await api.delete(`/fleet/agents/${agentId}`);
+            
+            // Refresh budget info after deletion (budget is released)
+            await get().fetchBudgetInfo();
+            
             set(state => ({
                 agents: state.agents.filter(a => a.id !== agentId),
                 selectedAgentId: state.selectedAgentId === agentId ? null : state.selectedAgentId

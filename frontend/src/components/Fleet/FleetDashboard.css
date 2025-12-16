@@ -98,7 +98,7 @@
 /* Stats Bar */
 .fleet-stats {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 1rem;
     margin-bottom: 1.5rem;
 }
@@ -122,6 +122,12 @@
 .stat-value {
     font-size: 1.5rem;
     font-weight: 600;
+    margin-top: 0.25rem;
+}
+
+.stat-sublabel {
+    font-size: 0.625rem;
+    color: #475569;
     margin-top: 0.25rem;
 }
 

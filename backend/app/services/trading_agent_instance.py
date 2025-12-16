@@ -96,6 +96,7 @@ class TradingAgentInstance:
         self._total_trades = 0
         self._winning_trades = 0
         self._current_proposal: Optional[Dict] = None
+        self._proposal_timeout_task: Optional[asyncio.Task] = None
         self._last_signal_at: Optional[datetime] = None
         self._cooldown_until: Optional[datetime] = None
         
@@ -169,6 +170,11 @@ class TradingAgentInstance:
             logger.warning(f"Agent {self.agent_id} not awaiting approval")
             return False
         
+        # Cancel timeout task if running
+        if self._proposal_timeout_task and not self._proposal_timeout_task.done():
+            self._proposal_timeout_task.cancel()
+            self._proposal_timeout_task = None
+        
         if approved and self._current_proposal:
             await self._log(f"Proposal approved: {notes or 'No notes'}")
             self.status = AgentStatus.ACTIVE
@@ -179,6 +185,23 @@ class TradingAgentInstance:
             self.status = AgentStatus.SCANNING
         
         return True
+    
+    async def _handle_proposal_timeout(self):
+        """
+        Auto-reject proposal after 60 seconds of no response.
+        """
+        try:
+            await asyncio.sleep(60)  # Wait 1 minute
+            
+            # If still waiting for approval, auto-reject
+            if self.status == AgentStatus.AWAITING_APPROVAL:
+                logger.info(f"Agent {self.agent_id}: Proposal timeout - auto-rejecting")
+                await self._log("Trade proposal timeout - automatically rejected (no response for 1 minute)")
+                self._current_proposal = None
+                self.status = AgentStatus.SCANNING
+        except asyncio.CancelledError:
+            # User responded in time, timeout cancelled
+            pass
     
     async def _run_loop(self):
         """
@@ -198,18 +221,25 @@ class TradingAgentInstance:
                     await self._log("Kill switch activated - max drawdown exceeded")
                     break
                 
-                # Update agent state including PnL (always do this if active/in_position)
-                if self.status in [AgentStatus.ACTIVE, AgentStatus.IN_POSITION]:
+                # Update agent state including PnL (always do this if active/in_position/awaiting_approval)
+                if self.status in [AgentStatus.ACTIVE, AgentStatus.IN_POSITION, AgentStatus.AWAITING_APPROVAL]:
                     if self._on_update:
                         await self._on_update(self.agent_id)
+
+                # Step 1: Fetch multi-timeframe data (Always fetch for price updates)
+                await self._fetch_market_data()
+
+                # If AWAITING_APPROVAL: Only monitor positions, don't create new proposals
+                if self.status == AgentStatus.AWAITING_APPROVAL:
+                    # Monitor existing positions (TP/SL checks etc.) but don't analyze for new trades
+                    await self._monitor_positions()
+                    await asyncio.sleep(5)
+                    continue
 
                 # Skip if not in scanning mode or active/in_position mode
                 if self.status not in [AgentStatus.SCANNING, AgentStatus.ACTIVE, AgentStatus.IN_POSITION]:
                     await asyncio.sleep(5)
                     continue
-                
-                # Step 1: Fetch multi-timeframe data (Always fetch)
-                await self._fetch_market_data()
 
                 # Proceed to analysis regardless of position status
                 # This allows searching for pyramiding opportunities or monitoring
@@ -516,6 +546,11 @@ class TradingAgentInstance:
         
         # Transition to awaiting approval
         self.status = AgentStatus.AWAITING_APPROVAL
+        
+        # Start timeout timer (1 minute auto-reject)
+        if self._proposal_timeout_task:
+            self._proposal_timeout_task.cancel()
+        self._proposal_timeout_task = asyncio.create_task(self._handle_proposal_timeout())
     
     def _calculate_position_size(self, entry: Decimal, stop_loss: Decimal) -> Decimal:
         """
@@ -613,6 +648,54 @@ class TradingAgentInstance:
             await self._log(f"Execution Error: {str(e)}")
             self.status = AgentStatus.ERROR
             self._running = False
+    
+    async def _monitor_positions(self):
+        """
+        Monitor existing positions for TP/SL hits during AWAITING_APPROVAL.
+        
+        This ensures positions are still managed even when waiting for proposal approval.
+        """
+        try:
+            if self.mode == "PAPER":
+                from app.services.paper_trading import PaperTradingService
+                from app.db.session import AsyncSessionLocal
+                from app.services.market_service import MarketService
+                
+                async with AsyncSessionLocal() as session:
+                    service = PaperTradingService(session)
+                    positions = await service.get_strategy_positions(self.agent_id)
+                    
+                    if positions:
+                        # Get current price
+                        market_service = MarketService()
+                        try:
+                            ohlc = await market_service.get_ohlcv(self.symbol, "1m", 1)
+                            current_price = Decimal(str(ohlc[-1]['close'])) if ohlc else None
+                            
+                            if current_price:
+                                # Check each position for TP/SL
+                                for position in positions:
+                                    entry_price = Decimal(str(position.entry_price))
+                                    
+                                    # Check Stop Loss
+                                    if position.stop_loss:
+                                        sl = Decimal(str(position.stop_loss))
+                                        if (position.side == "LONG" and current_price <= sl) or \
+                                           (position.side == "SHORT" and current_price >= sl):
+                                            await self._log(f"Stop Loss hit at {float(current_price):.2f} - closing position")
+                                            await service.close_position(position.id, float(current_price))
+                                    
+                                    # Check Take Profit
+                                    if position.take_profit:
+                                        tp = Decimal(str(position.take_profit))
+                                        if (position.side == "LONG" and current_price >= tp) or \
+                                           (position.side == "SHORT" and current_price <= tp):
+                                            await self._log(f"Take Profit hit at {float(current_price):.2f} - closing position")
+                                            await service.close_position(position.id, float(current_price))
+                        finally:
+                            await market_service.close()
+        except Exception as e:
+            logger.error(f"Error monitoring positions: {e}")
     
     async def _check_kill_switch(self) -> bool:
         """

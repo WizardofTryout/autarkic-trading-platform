@@ -12,6 +12,7 @@ import { Plus, Play, Pause, StopCircle, Trash2, Eye, RefreshCw, Bot, Pencil } fr
 import DeployAgentModal from './DeployAgentModal';
 import AgentCockpit from './AgentCockpit';
 import { api } from '../../services/api';
+import { priceService } from '../../services/priceService';
 import './FleetDashboard.css';
 
 // Lazy load EditPositionModal
@@ -39,7 +40,10 @@ const FleetDashboard: React.FC = () => {
         deployWizardState,
         showAgentCockpit,
         wsConnected,
+        budgetInfo,
+        currentPrices,
         fetchAgents,
+        fetchBudgetInfo,
         startAgent,
         pauseAgent,
         stopAgent,
@@ -72,6 +76,7 @@ const FleetDashboard: React.FC = () => {
         // Initial load with slight delay to ensure backend is ready
         const loadData = async () => {
             await fetchAgents();
+            await fetchBudgetInfo();
             connectWebSocket();
         };
         loadData();
@@ -80,6 +85,35 @@ const FleetDashboard: React.FC = () => {
             disconnectWebSocket();
         };
     }, []);
+
+    // Subscribe to price updates for all symbols with positions
+    useEffect(() => {
+        const symbols = new Set<string>();
+        agents.forEach(agent => {
+            if (agent.active_positions && agent.active_positions.length > 0) {
+                symbols.add(agent.symbol);
+            }
+        });
+
+        // Subscribe to all unique symbols
+        symbols.forEach(symbol => priceService.subscribe(symbol));
+
+        // Setup price update callback
+        const unsubscribe = priceService.onPriceUpdate((symbol, price) => {
+            // Update currentPrices in store
+            useFleetStore.setState(state => ({
+                currentPrices: {
+                    ...state.currentPrices,
+                    [symbol]: price
+                }
+            }));
+        });
+
+        return () => {
+            unsubscribe();
+            // Don't unsubscribe from symbols - keep connections alive
+        };
+    }, [agents]);
     
     // Debug logging
     useEffect(() => {
@@ -253,6 +287,17 @@ const FleetDashboard: React.FC = () => {
                 <div className="stat-card">
                     <span className="stat-label">Total Budget</span>
                     <span className="stat-value">${totalBudget.toLocaleString()}</span>
+                    <span className="stat-sublabel">Allocated to Agents</span>
+                </div>
+                <div className="stat-card">
+                    <span className="stat-label">Available Budget</span>
+                    <span className="stat-value">${budgetInfo?.balance.toLocaleString() || '0'}</span>
+                    <span className="stat-sublabel">Free Capital</span>
+                </div>
+                <div className="stat-card">
+                    <span className="stat-label">Total Capital</span>
+                    <span className="stat-value">${budgetInfo?.total_capital.toLocaleString() || '0'}</span>
+                    <span className="stat-sublabel">Balance + Locked</span>
                 </div>
                 <div className="stat-card">
                     <span className="stat-label">Session P&L</span>
@@ -338,9 +383,24 @@ const FleetDashboard: React.FC = () => {
                                                     </div>
                                                     <div className="detail-group">
                                                         <span className="detail-label">Current P&L</span>
-                                                        <span className={`detail-value ${position.unrealized_pnl >= 0 ? 'profit' : 'loss'}`}>
-                                                            {position.unrealized_pnl >= 0 ? '+' : ''}
-                                                            {position.unrealized_pnl?.toFixed(2) || '0.00'}
+                                                        <span className={`detail-value ${(() => {
+                                                            const currentPrice = currentPrices[agent.symbol] || position.current_price;
+                                                            const entryPrice = position.entry_price;
+                                                            const size = position.size;
+                                                            const pnl = position.side === 'LONG' 
+                                                                ? (currentPrice - entryPrice) * size
+                                                                : (entryPrice - currentPrice) * size;
+                                                            return pnl >= 0 ? 'profit' : 'loss';
+                                                        })()}`}>
+                                                            {(() => {
+                                                                const currentPrice = currentPrices[agent.symbol] || position.current_price;
+                                                                const entryPrice = position.entry_price;
+                                                                const size = position.size;
+                                                                const pnl = position.side === 'LONG' 
+                                                                    ? (currentPrice - entryPrice) * size
+                                                                    : (entryPrice - currentPrice) * size;
+                                                                return `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`;
+                                                            })()}
                                                         </span>
                                                     </div>
                                                     <div className="detail-group">
