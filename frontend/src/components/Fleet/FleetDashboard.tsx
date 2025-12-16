@@ -62,6 +62,9 @@ const FleetDashboard: React.FC = () => {
 
     // State for editing position TP/SL
     const [editingPosition, setEditingPosition] = useState<any | null>(null);
+    
+    // State for agent pause warning
+    const [showPauseWarning, setShowPauseWarning] = useState(false);
 
     // Connect WebSocket on mount
     useEffect(() => {
@@ -469,6 +472,29 @@ const FleetDashboard: React.FC = () => {
                 )
             }
 
+            {/* Agent Pause Warning Modal */}
+            {showPauseWarning && (
+                <div className="modal-overlay" onClick={() => setShowPauseWarning(false)}>
+                    <div className="pause-warning-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="warning-header">
+                            <span className="warning-icon">⚠️</span>
+                            <h3>Agent pausieren erforderlich</h3>
+                        </div>
+                        <p className="warning-message">
+                            Bitte pausiere den Agent erst, bevor du Stop Loss und Take Profit anpassen kannst.
+                        </p>
+                        <div className="warning-actions">
+                            <button 
+                                className="btn-warning-ok"
+                                onClick={() => setShowPauseWarning(false)}
+                            >
+                                OK, verstanden
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Edit Position Modal */}
             {editingPosition && (
                 <React.Suspense fallback={<div>Loading...</div>}>
@@ -479,7 +505,7 @@ const FleetDashboard: React.FC = () => {
                         onSave={async (positionId: string, updates: { stop_loss?: number; take_profit?: number }) => {
                             // Check if agent is running
                             if (editingPosition.agentStatus === 'RUNNING') {
-                                alert('⚠️ Please pause the agent before editing positions!');
+                                setShowPauseWarning(true);
                                 return;
                             }
 
