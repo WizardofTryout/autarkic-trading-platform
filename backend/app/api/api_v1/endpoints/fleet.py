@@ -27,6 +27,43 @@ from app.schemas.trading_agent import (
 router = APIRouter()
 
 
+@router.get("/budget")
+async def get_budget_info(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get budget overview for the current user.
+    
+    Returns:
+    - balance: Free capital available for manual trading or new agents
+    - locked_balance: Capital allocated to active agents
+    - total_capital: Total capital (balance + locked_balance)
+    """
+    from app.models.base import PaperAccount
+    from sqlalchemy import select
+    
+    result = await db.execute(
+        select(PaperAccount).where(PaperAccount.user_id == current_user.id)
+    )
+    account = result.scalar_one_or_none()
+    
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Paper account not found"
+        )
+    
+    balance = float(account.balance)
+    locked_balance = float(account.locked_balance)
+    
+    return {
+        "balance": balance,
+        "locked_balance": locked_balance,
+        "total_capital": balance + locked_balance
+    }
+
+
 @router.get("/agents", response_model=TradingAgentListResponse)
 async def list_agents(
     db: AsyncSession = Depends(get_db),
