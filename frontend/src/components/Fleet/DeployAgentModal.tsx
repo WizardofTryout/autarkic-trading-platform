@@ -427,6 +427,16 @@ const DeployAgentModal: React.FC = () => {
                                 <li><strong>Budget:</strong> ${formData.budget}</li>
                                 <li><strong>Leverage:</strong> {formData.leverage}x ({formData.margin_mode})</li>
                                 <li><strong>Max Position:</strong> ${(formData.budget * formData.leverage).toLocaleString()}</li>
+                                <li><strong>Macro Strategy:</strong> {formData.macro_timeframe} - {
+                                    formData.macro_strategy_id 
+                                        ? strategies.find(s => s.id === formData.macro_strategy_id)?.name || 'Unknown'
+                                        : 'None (Manual)'
+                                }</li>
+                                <li><strong>Micro Strategy:</strong> {formData.micro_timeframe} - {
+                                    formData.micro_strategy_id 
+                                        ? strategies.find(s => s.id === formData.micro_strategy_id)?.name || 'Unknown'
+                                        : 'None (Manual)'
+                                }</li>
                                 <li><strong>Kill Switch:</strong> {formData.max_drawdown_percent}%</li>
                             </ul>
                         </div>
