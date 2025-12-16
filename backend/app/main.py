@@ -30,19 +30,25 @@ from app.services.background_monitor import monitor_positions
 
 @app.on_event("startup")
 async def startup_event():
+    import logging
+    logger = logging.getLogger("uvicorn.error")
+    logger.info("🚀 Application startup initiated")
+    
     asyncio.create_task(monitor_positions())
+    logger.info("✅ Position monitor task started")
     
     # Restore active agents
     from app.services.fleet_manager import AgentFleetManager
     from app.db.session import AsyncSessionLocal
     
     try:
+        logger.info("🔄 Starting agent restoration...")
         async with AsyncSessionLocal() as session:
             manager = AgentFleetManager(session)
             await manager.restore_active_agents()
+        logger.info("✅ Agent restoration completed")
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(f"Startup restoration failed: {e}")
+        logger.error(f"❌ Startup restoration failed: {e}", exc_info=True)
 
 
 class ConnectionManager:
