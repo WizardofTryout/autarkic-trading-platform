@@ -331,6 +331,8 @@ class AgentFleetManager:
     
     async def get_fleet_status(self, user_id: UUID) -> List[Dict]:
         """Get status of all agents for a user."""
+        from app.services.paper_trading import PaperTradingService
+        
         result = await self.db.execute(
             select(TradingAgent).where(TradingAgent.user_id == user_id)
         )
@@ -359,6 +361,37 @@ class AgentFleetManager:
                 "updated_at": agent.updated_at.isoformat() if agent.updated_at else None,
                 "last_signal_at": agent.last_signal_at.isoformat() if agent.last_signal_at else None,
             }
+            
+            # Clean up stale AWAITING_APPROVAL status if agent not running
+            # (Proposals expire when agent is stopped/restarted)
+            if agent.status == "AWAITING_APPROVAL" and agent.id not in self._active_agents:
+                logger.info(f"Agent {agent.id} has stale AWAITING_APPROVAL status (not running). Resetting to PAUSED.")
+                agent.status = "PAUSED"
+                await self.db.commit()
+                agent_data["status"] = "PAUSED"
+            
+            # Load active positions from database (for all agents, regardless of running state)
+            try:
+                paper_service = PaperTradingService(self.db)
+                positions = await paper_service.get_strategy_positions(agent.id)
+                if positions:
+                    agent_data["active_positions"] = [
+                        {
+                            "id": str(pos.id),
+                            "symbol": pos.symbol,
+                            "side": pos.side,
+                            "size": float(pos.size),
+                            "entry_price": float(pos.entry_price),
+                            "current_price": float(pos.mark_price or pos.entry_price),
+                            "unrealized_pnl": float(pos.unrealized_pnl or 0),
+                            "stop_loss": float(pos.stop_loss) if pos.stop_loss else None,
+                            "take_profit": float(pos.take_profit) if pos.take_profit else None,
+                            "is_trailing_stop": pos.is_trailing_stop,
+                        }
+                        for pos in positions
+                    ]
+            except Exception as e:
+                logger.error(f"Error loading positions for agent {agent.id}: {e}", exc_info=True)
             
             # Enrich with live state if running
             if agent.id in self._active_agents:
