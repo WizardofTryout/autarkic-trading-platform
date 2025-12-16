@@ -318,7 +318,7 @@ const DeployAgentModal: React.FC = () => {
                                     onChange={(e) => handleChange('macro_timeframe', e.target.value)}
                                     className="timeframe-select"
                                 >
-                                    {TIMEFRAMES.slice(4).map(tf => (
+                                    {TIMEFRAMES.slice(1).map(tf => (
                                         <option key={tf} value={tf}>{tf}</option>
                                     ))}
                                 </select>
