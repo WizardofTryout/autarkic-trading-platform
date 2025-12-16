@@ -70,6 +70,9 @@ const FleetDashboard: React.FC = () => {
     
     // State for agent pause warning
     const [showPauseWarning, setShowPauseWarning] = useState(false);
+    
+    // State for edit warning modal
+    const [editWarningAgent, setEditWarningAgent] = useState<TradingAgent | null>(null);
 
     // Connect WebSocket on mount
     useEffect(() => {
@@ -163,6 +166,18 @@ const FleetDashboard: React.FC = () => {
     const handleDeleteCancel = () => {
         setDeleteConfirm({ show: false, agentId: '', agentName: '' });
     };
+    
+    const handleEditClick = (agent: TradingAgent) => {
+        const isRunning = ['SCANNING', 'PROPOSING', 'AWAITING_APPROVAL', 'ACTIVE', 'IN_POSITION'].includes(agent.status);
+        
+        if (isRunning) {
+            setEditWarningAgent(agent);
+        } else {
+            // TODO: Open edit modal with agent data
+            console.log('Edit agent:', agent);
+            alert('Edit functionality coming soon!');
+        }
+    };
 
     const renderStatusBadge = (status: AgentStatus, agent?: TradingAgent) => {
         const colors = STATUS_COLORS[status] || STATUS_COLORS.PAUSED;
@@ -218,6 +233,14 @@ const FleetDashboard: React.FC = () => {
                     title="View Agent"
                 >
                     <Eye size={14} />
+                </button>
+                
+                <button
+                    className="action-btn edit"
+                    onClick={() => handleEditClick(agent)}
+                    title="Edit Agent Settings"
+                >
+                    <Pencil size={14} />
                 </button>
 
                 {agent.status !== 'IN_POSITION' && (
@@ -613,6 +636,35 @@ const FleetDashboard: React.FC = () => {
                         }}
                     />
                 </React.Suspense>
+            )}
+            
+            {/* Edit Warning Modal */}
+            {editWarningAgent && (
+                <div className="modal-overlay" onClick={() => setEditWarningAgent(null)}>
+                    <div className="confirmation-modal" onClick={(e) => e.stopPropagation()}>
+                        <h3>⚠️ Agent is Running</h3>
+                        <p>
+                            Please pause the agent <strong>{editWarningAgent.name}</strong> before making changes to its configuration.
+                        </p>
+                        <div className="modal-actions">
+                            <button 
+                                className="btn-secondary" 
+                                onClick={() => setEditWarningAgent(null)}
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                className="btn-primary" 
+                                onClick={async () => {
+                                    await pauseAgent(editWarningAgent.id);
+                                    setEditWarningAgent(null);
+                                }}
+                            >
+                                Pause Agent
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div >
     );
