@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useTradingStore } from '../../store/tradingStore';
-import { getStrategies, api } from '../../services/api';
+import { getStrategies, api, getUserPreferences, updateUserPreferences } from '../../services/api';
 import APIKeyManager from '../Settings/APIKeyManager';
 import UserProfile from '../Auth/UserProfile';
 
@@ -42,6 +42,8 @@ const UserDashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState('overview');
     const [tradingMode, setTradingMode] = useState<'paper' | 'live'>('paper');
     const [isLoading, setIsLoading] = useState(true);
+    const [timezone, setTimezone] = useState<string>('UTC');
+    const [timezoneSaving, setTimezoneSaving] = useState(false);
     const [stats, setStats] = useState<DashboardStats>({
         paperBalance: 0,
         totalStrategies: 0,
@@ -56,6 +58,19 @@ const UserDashboard: React.FC = () => {
         const loadDashboardData = async () => {
             setIsLoading(true);
             try {
+                // Fetch user preferences (timezone)
+                try {
+                    const prefs = await getUserPreferences();
+                    if (prefs.timezone) {
+                        setTimezone(prefs.timezone);
+                    } else {
+                        const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                        setTimezone(detectedTz);
+                    }
+                } catch (e) {
+                    console.log('Failed to load timezone preference');
+                }
+
                 // Fetch portfolio data
                 await fetchPortfolio();
                 await fetchActiveStrategies();
@@ -158,6 +173,19 @@ const UserDashboard: React.FC = () => {
             }
         } else {
             setTradingMode('paper');
+        }
+    };
+
+    const handleTimezoneUpdate = async () => {
+        setTimezoneSaving(true);
+        try {
+            await updateUserPreferences({ timezone });
+            alert('✅ Timezone erfolgreich gespeichert!');
+        } catch (error) {
+            console.error('Failed to update timezone:', error);
+            alert('❌ Fehler beim Speichern der Timezone');
+        } finally {
+            setTimezoneSaving(false);
         }
     };
 
@@ -337,6 +365,62 @@ const UserDashboard: React.FC = () => {
                     Verwalte deine API Keys für KI-Dienste und Börsen.
                 </p>
                 <APIKeyManager />
+            </div>
+
+            {/* Timezone Settings */}
+            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <h3 className="text-xl font-semibold text-white mb-2">Zeitzone</h3>
+                <p className="text-gray-400 text-sm mb-6">
+                    Alle Timestamps werden in deiner ausgewählten Zeitzone angezeigt.
+                </p>
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Deine Zeitzone
+                        </label>
+                        <select
+                            value={timezone}
+                            onChange={(e) => setTimezone(e.target.value)}
+                            className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                            <optgroup label="Europa">
+                                <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
+                                <option value="Europe/London">Europe/London (GMT/BST)</option>
+                                <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
+                                <option value="Europe/Zurich">Europe/Zurich (CET/CEST)</option>
+                                <option value="Europe/Vienna">Europe/Vienna (CET/CEST)</option>
+                            </optgroup>
+                            <optgroup label="Amerika">
+                                <option value="America/New_York">America/New York (EST/EDT)</option>
+                                <option value="America/Chicago">America/Chicago (CST/CDT)</option>
+                                <option value="America/Los_Angeles">America/Los Angeles (PST/PDT)</option>
+                            </optgroup>
+                            <optgroup label="Asien">
+                                <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                                <option value="Asia/Hong_Kong">Asia/Hong Kong (HKT)</option>
+                                <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                                <option value="Asia/Dubai">Asia/Dubai (GST)</option>
+                            </optgroup>
+                            <optgroup label="Sonstige">
+                                <option value="UTC">UTC</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <button
+                        onClick={handleTimezoneUpdate}
+                        disabled={timezoneSaving}
+                        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                        {timezoneSaving ? (
+                            <>
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                Speichern...
+                            </>
+                        ) : (
+                            'Timezone speichern'
+                        )}
+                    </button>
+                </div>
             </div>
         </div>
     );
