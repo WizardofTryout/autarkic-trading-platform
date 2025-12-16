@@ -334,6 +334,7 @@ class OHLCVCache(Base):
     __tablename__ = "ohlcv_cache"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    exchange = Column(String(20), nullable=False, default='binance', index=True)  # binance, bitget
     symbol = Column(String(20), nullable=False, index=True)  # e.g. "BTC/USDT"
     timeframe = Column(String(10), nullable=False, index=True)  # e.g. "1m", "15m", "4h"
     timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
@@ -348,9 +349,9 @@ class OHLCVCache(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     __table_args__ = (
-        # Prevent duplicate candles
-        UniqueConstraint('symbol', 'timeframe', 'timestamp', name='uix_ohlcv_symbol_tf_ts'),
+        # Prevent duplicate candles (now per-exchange)
+        UniqueConstraint('exchange', 'symbol', 'timeframe', 'timestamp', name='uix_ohlcv_exchange_symbol_tf_ts'),
         # Composite index for fast lookups (most common query pattern)
-        Index('idx_ohlcv_lookup', 'symbol', 'timeframe', 'timestamp'),
+        Index('idx_ohlcv_lookup', 'exchange', 'symbol', 'timeframe', 'timestamp'),
     )
 
