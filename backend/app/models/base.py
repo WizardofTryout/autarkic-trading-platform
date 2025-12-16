@@ -251,6 +251,10 @@ class TradingAgent(Base):
     risk_per_trade = Column(Numeric(precision=5, scale=4), default=0.01)  # 1% default
     min_rr_ratio = Column(Numeric(precision=5, scale=2), default=2.0)  # Min risk-reward ratio
     
+    # Leverage & Margin (for exchange compatibility)
+    leverage = Column(Integer, default=10, nullable=False)  # Leverage multiplier (1-150x)
+    margin_mode = Column(String(10), default="ISOLATED", nullable=False)  # ISOLATED or CROSS
+    
     # Session Performance
     session_pnl = Column(Numeric(precision=20, scale=8), default=0)
     total_trades = Column(Integer, default=0)
