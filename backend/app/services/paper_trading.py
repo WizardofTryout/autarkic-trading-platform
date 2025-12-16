@@ -281,6 +281,36 @@ class PaperTradingService:
         await self.db.refresh(order)
         return order
 
+    async def update_position(
+        self,
+        position_id: uuid.UUID,
+        user_id: uuid.UUID,
+        stop_loss: Optional[float] = None,
+        take_profit: Optional[float] = None
+    ) -> PaperPosition:
+        """Update stop loss and/or take profit for an existing position."""
+        # Fetch position and verify ownership
+        result = await self.db.execute(
+            select(PaperPosition)
+            .join(PaperAccount)
+            .where(PaperPosition.id == position_id)
+            .where(PaperAccount.user_id == user_id)
+        )
+        position = result.scalars().first()
+        
+        if not position:
+            raise Exception("Position not found or unauthorized")
+        
+        # Update values
+        if stop_loss is not None:
+            position.stop_loss = Decimal(str(stop_loss))
+        if take_profit is not None:
+            position.take_profit = Decimal(str(take_profit))
+        
+        await self.db.commit()
+        await self.db.refresh(position)
+        return position
+
     async def close_position(self, position_id: uuid.UUID) -> PaperTrade:
         """Close an active position at market price."""
         # 1. Fetch Position
