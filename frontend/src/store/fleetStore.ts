@@ -557,10 +557,12 @@ export const useFleetStore = create<FleetState>((set, get) => ({
             case 'log':
                 // Add log to agent's log list
                 if (message.agent_id) {
+                    // ALWAYS use client timestamp for accurate local time display
+                    // Backend timestamps are in UTC and cause timezone display issues
                     const newLog: AgentLog = {
                         id: crypto.randomUUID(),
                         agent_id: message.agent_id,
-                        timestamp: message.timestamp || new Date().toISOString(),
+                        timestamp: new Date().toISOString(),
                         status: message.status || '',
                         log_text: message.log || null,
                         visual_snapshot: message.visuals || [],
