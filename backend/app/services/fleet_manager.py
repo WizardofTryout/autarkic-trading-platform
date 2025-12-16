@@ -86,13 +86,13 @@ class AgentFleetManager:
                         
                         if agent.macro_strategy_id:
                             macro_stmt = select(Strategy).where(Strategy.id == agent.macro_strategy_id)
-                            res = await session.execute(macro_stmt)
+                            res = await self.db.execute(macro_stmt)
                             macro_strategy = res.scalars().first()
                             macro_code = macro_strategy.python_code if macro_strategy else None
                         
                         if agent.micro_strategy_id:
                             micro_stmt = select(Strategy).where(Strategy.id == agent.micro_strategy_id)
-                            res = await session.execute(micro_stmt)
+                            res = await self.db.execute(micro_stmt)
                             micro_strategy = res.scalars().first()
                             micro_code = micro_strategy.python_code if micro_strategy else None
 
