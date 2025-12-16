@@ -150,6 +150,8 @@ class AgentFleetManager:
         micro_strategy_id: Optional[UUID] = None,
         macro_timeframe: str = "4h",
         micro_timeframe: str = "15m",
+        trailing_stop_enabled: bool = False,
+        trailing_stop_percent: Decimal = Decimal("1.5"),
     ) -> TradingAgent:
         """
         Deploy a new trading agent.
@@ -200,6 +202,8 @@ class AgentFleetManager:
             micro_strategy_id=micro_strategy_id,
             macro_timeframe=macro_timeframe,
             micro_timeframe=micro_timeframe,
+            trailing_stop_enabled=trailing_stop_enabled,
+            trailing_stop_percent=trailing_stop_percent,
         )
         
         self.db.add(agent)

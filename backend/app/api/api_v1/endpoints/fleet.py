@@ -120,6 +120,8 @@ async def deploy_agent(
             micro_strategy_id=agent_data.micro_strategy_id,
             macro_timeframe=agent_data.macro_timeframe,
             micro_timeframe=agent_data.micro_timeframe,
+            trailing_stop_enabled=agent_data.trailing_stop_enabled,
+            trailing_stop_percent=agent_data.trailing_stop_percent,
         )
         
         return TradingAgentResponse.model_validate(agent)

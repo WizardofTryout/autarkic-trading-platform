@@ -417,6 +417,42 @@ const DeployAgentModal: React.FC = () => {
                             </div>
                         </div>
 
+                        {/* Trailing Stop Loss */}
+                        <div className="trailing-stop-section">
+                            <div className="trailing-stop-checkbox">
+                                <input
+                                    type="checkbox"
+                                    id="trailing-stop"
+                                    checked={formData.trailing_stop_enabled}
+                                    onChange={(e) => handleChange('trailing_stop_enabled', e.target.checked)}
+                                />
+                                <label htmlFor="trailing-stop">Trailing Stop</label>
+                            </div>
+                            {formData.trailing_stop_enabled && (
+                                <div className="trailing-stop-slider">
+                                    <div className="slider-header">
+                                        <span className="slider-label">Distance: {formData.trailing_stop_percent}%</span>
+                                        <span className="slider-hint">Dist: ${(formData.budget * formData.leverage * formData.trailing_stop_percent / 100).toFixed(2)}</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min={0.5}
+                                        max={5}
+                                        step={0.1}
+                                        value={formData.trailing_stop_percent}
+                                        onChange={(e) => handleChange('trailing_stop_percent', parseFloat(e.target.value))}
+                                        className="trailing-slider"
+                                    />
+                                    <div className="slider-labels">
+                                        <span>0.5%</span>
+                                        <span>1.5%</span>
+                                        <span>3%</span>
+                                        <span>5%</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         {/* Summary */}
                         <div className="deploy-summary">
                             <h4>Summary</h4>
