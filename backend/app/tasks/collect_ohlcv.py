@@ -166,6 +166,7 @@ async def _store_candles(db, symbol: str, timeframe: str, candles: List[Dict]) -
         try:
             # PostgreSQL-specific INSERT with ON CONFLICT
             stmt = pg_insert(OHLCVCache).values(
+                exchange='binance',  # Explicit Binance marker for dual-stream support
                 symbol=symbol,
                 timeframe=timeframe,
                 timestamp=candle['timestamp'],
@@ -175,8 +176,8 @@ async def _store_candles(db, symbol: str, timeframe: str, candles: List[Dict]) -
                 close=candle['close'],
                 volume=candle['volume']
             ).on_conflict_do_nothing(
-                # Use the unique constraint we defined
-                index_elements=['symbol', 'timeframe', 'timestamp']
+                # Updated to use new constraint with exchange
+                index_elements=['exchange', 'symbol', 'timeframe', 'timestamp']
             )
             
             result = await db.execute(stmt)
