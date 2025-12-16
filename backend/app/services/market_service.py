@@ -1,14 +1,215 @@
 import ccxt.async_support as ccxt
 import pandas as pd
+import logging
 from datetime import datetime, timedelta
+from typing import List, Dict, Optional
+from decimal import Decimal
+
+logger = logging.getLogger(__name__)
+
 
 class MarketService:
     def __init__(self):
         self.exchange = ccxt.binance()
+        
+        # Cache freshness thresholds in seconds
+        # Defines how old cached data can be before fetching from exchange
+        self._cache_freshness_seconds = {
+            '1s': 2,      # 1s candles: max 2 seconds old
+            '1m': 10,     # 1m candles: max 10 seconds old
+            '3m': 30,     # 3m candles: max 30 seconds old
+            '5m': 60,     # 5m candles: max 1 minute old
+            '15m': 120,   # 15m candles: max 2 minutes old
+            '30m': 300,   # 30m candles: max 5 minutes old
+            '1h': 300,    # 1h candles: max 5 minutes old
+            '2h': 600,    # 2h candles: max 10 minutes old
+            '4h': 600,    # 4h candles: max 10 minutes old
+            '1d': 3600,   # 1d candles: max 1 hour old
+        }
 
-    async def get_ohlcv(self, symbol: str, timeframe: str = '1d', limit: int = 100):
+    async def get_ohlcv(
+        self, 
+        symbol: str, 
+        timeframe: str = '1d', 
+        limit: int = 100,
+        use_cache: bool = True
+    ) -> List[Dict]:
         """
-        Fetch OHLCV data from Binance.
+        Fetch OHLCV data with smart caching.
+        
+        Strategy:
+        1. If use_cache=True: Check database cache first
+        2. If cache is fresh enough: Return cached data
+        3. If cache miss or stale: Fetch from Binance and update cache
+        4. If use_cache=False: Always fetch from Binance (bypass cache)
+        
+        Args:
+            symbol: Trading symbol (e.g. "BTC/USDT")
+            timeframe: Candle timeframe (e.g. "1m", "15m", "4h")
+            limit: Number of candles to fetch
+            use_cache: Whether to use database cache (default: True)
+        
+        Returns:
+            List of OHLCV dicts with timestamp, open, high, low, close, volume
+        """
+        # Bypass cache if requested (e.g. for critical real-time decisions)
+        if not use_cache:
+            logger.debug(f"Cache bypassed for {symbol} {timeframe}")
+            return await self._fetch_from_exchange(symbol, timeframe, limit)
+        
+        # Try cache first
+        try:
+            cached_data = await self._get_from_cache(symbol, timeframe, limit)
+            
+            if cached_data:
+                # Check if cache is fresh enough
+                if await self._is_cache_fresh(cached_data, timeframe):
+                    logger.debug(f"Cache hit (fresh): {symbol} {timeframe} ({len(cached_data)} candles)")
+                    return cached_data
+                else:
+                    logger.debug(f"Cache hit (stale): {symbol} {timeframe} - fetching fresh data")
+            else:
+                logger.debug(f"Cache miss: {symbol} {timeframe} - fetching from exchange")
+        
+        except Exception as e:
+            logger.warning(f"Cache read failed for {symbol} {timeframe}: {e} - falling back to exchange")
+        
+        # Cache miss or stale - fetch from exchange
+        fresh_data = await self._fetch_from_exchange(symbol, timeframe, limit)
+        
+        # Update cache asynchronously (don't block on this)
+        if fresh_data:
+            try:
+                await self._update_cache(symbol, timeframe, fresh_data)
+            except Exception as e:
+                logger.error(f"Failed to update cache for {symbol} {timeframe}: {e}")
+        
+        return fresh_data
+    
+    async def _get_from_cache(self, symbol: str, timeframe: str, limit: int) -> Optional[List[Dict]]:
+        """
+        Retrieve OHLCV data from database cache.
+        
+        Returns:
+            List of candle dicts if found, None if not in cache
+        """
+        from app.db.session import AsyncSessionLocal
+        from sqlalchemy import select, desc
+        from app.models.base import OHLCVCache
+        
+        try:
+            async with AsyncSessionLocal() as db:
+                # Query cache for most recent candles
+                stmt = select(OHLCVCache).where(
+                    OHLCVCache.symbol == symbol,
+                    OHLCVCache.timeframe == timeframe
+                ).order_by(desc(OHLCVCache.timestamp)).limit(limit)
+                
+                result = await db.execute(stmt)
+                cached = result.scalars().all()
+                
+                if not cached or len(cached) < min(10, limit):
+                    # Not enough data in cache
+                    return None
+                
+                # Convert to dict format (reverse to chronological order)
+                return [self._ohlcv_model_to_dict(c) for c in reversed(cached)]
+        
+        except Exception as e:
+            logger.error(f"Cache read error: {e}")
+            return None
+    
+    async def _is_cache_fresh(self, cached_data: List[Dict], timeframe: str) -> bool:
+        """
+        Check if cached data is fresh enough based on timeframe.
+        
+        Args:
+            cached_data: List of cached candles
+            timeframe: Timeframe string
+        
+        Returns:
+            bool: True if cache is fresh, False if stale
+        """
+        if not cached_data:
+            return False
+        
+        # Get newest candle timestamp
+        newest_candle = cached_data[-1]
+        newest_timestamp = newest_candle['timestamp']
+        
+        # Remove timezone info if present for comparison
+        if hasattr(newest_timestamp, 'tzinfo') and newest_timestamp.tzinfo:
+            newest_timestamp = newest_timestamp.replace(tzinfo=None)
+        
+        # Calculate age in seconds
+        age_seconds = (datetime.utcnow() - newest_timestamp).total_seconds()
+        
+        # Get max age for this timeframe
+        max_age = self._cache_freshness_seconds.get(timeframe, 60)
+        
+        is_fresh = age_seconds < max_age
+        
+        if not is_fresh:
+            logger.debug(f"Cache stale: {age_seconds:.1f}s old (max: {max_age}s)")
+        
+        return is_fresh
+    
+    async def _update_cache(self, symbol: str, timeframe: str, candles: List[Dict]):
+        """
+        Update cache with fresh candles from exchange.
+        
+        Uses INSERT ... ON CONFLICT DO NOTHING to avoid duplicates.
+        """
+        from app.db.session import AsyncSessionLocal
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        from app.models.base import OHLCVCache
+        
+        async with AsyncSessionLocal() as db:
+            inserted = 0
+            
+            for candle in candles:
+                try:
+                    stmt = pg_insert(OHLCVCache).values(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        timestamp=candle['timestamp'],
+                        open=candle['open'],
+                        high=candle['high'],
+                        low=candle['low'],
+                        close=candle['close'],
+                        volume=candle['volume']
+                    ).on_conflict_do_nothing(
+                        index_elements=['symbol', 'timeframe', 'timestamp']
+                    )
+                    
+                    result = await db.execute(stmt)
+                    if result.rowcount > 0:
+                        inserted += 1
+                
+                except Exception as e:
+                    logger.error(f"Error caching candle: {e}")
+            
+            await db.commit()
+            
+            if inserted > 0:
+                logger.debug(f"Cached {inserted} new candles for {symbol} {timeframe}")
+    
+    def _ohlcv_model_to_dict(self, model) -> Dict:
+        """Convert SQLAlchemy OHLCVCache model to dict."""
+        return {
+            'timestamp': model.timestamp,
+            'open': float(model.open),
+            'high': float(model.high),
+            'low': float(model.low),
+            'close': float(model.close),
+            'volume': float(model.volume),
+        }
+    
+    async def _fetch_from_exchange(self, symbol: str, timeframe: str, limit: int) -> List[Dict]:
+        """
+        Fetch OHLCV directly from Binance (original implementation).
+        
+        This is the fallback when cache is unavailable or stale.
         """
         try:
             # Map common timeframe strings if necessary
