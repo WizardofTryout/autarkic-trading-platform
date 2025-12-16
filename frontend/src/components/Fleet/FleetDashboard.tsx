@@ -11,6 +11,7 @@ import type { TradingAgent, AgentStatus } from '../../store/fleetStore';
 import { Plus, Play, Pause, StopCircle, Trash2, Eye, RefreshCw, Bot, Pencil } from 'lucide-react';
 import DeployAgentModal from './DeployAgentModal';
 import AgentCockpit from './AgentCockpit';
+import { api } from '../../services/api';
 import './FleetDashboard.css';
 
 // Lazy load EditPositionModal
@@ -535,16 +536,8 @@ const FleetDashboard: React.FC = () => {
                             }
 
                             try {
-                                const response = await fetch(`/api/v1/paper/positions/${positionId}`, {
-                                    method: 'PATCH',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(updates)
-                                });
-
-                                if (!response.ok) {
-                                    const error = await response.json();
-                                    throw new Error(error.detail || 'Failed to update position');
-                                }
+                                // Use api.patch() which includes authentication headers
+                                await api.patch(`/paper/positions/${positionId}`, updates);
 
                                 // Refresh agent data
                                 await fetchAgents();
