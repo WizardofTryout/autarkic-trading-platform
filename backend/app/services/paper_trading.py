@@ -381,7 +381,19 @@ class PaperTradingService:
         else:
             account.locked_balance += position.margin + pnl
         
-        # 6. Remove Position
+        # 6. Update TradingAgent stats (total_trades, winning_trades)
+        if position.strategy_id:
+            from app.models.base import TradingAgent
+            agent_result = await self.db.execute(
+                select(TradingAgent).where(TradingAgent.id == position.strategy_id)
+            )
+            agent = agent_result.scalars().first()
+            if agent:
+                agent.total_trades += 1
+                if pnl > 0:
+                    agent.winning_trades += 1
+        
+        # 7. Remove Position
         await self.db.delete(position)
         await self.db.commit()
         

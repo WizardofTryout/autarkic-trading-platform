@@ -637,7 +637,7 @@ class TradingAgentInstance:
                 pass
             
             self.status = AgentStatus.IN_POSITION
-            self._total_trades += 1
+            # NOTE: total_trades is incremented when position is CLOSED, not opened
             self._current_proposal = None
             
             # Budget is NOT deducted here - it's managed by the database
@@ -745,8 +745,10 @@ class TradingAgentInstance:
             "status": self.status.value,
             "budget": float(self.budget),
             "session_pnl": float(self._session_pnl),
-            "total_trades": self._total_trades,
-            "winning_trades": self._winning_trades,
+            # NOTE: total_trades and winning_trades are managed by database
+            # and should NOT be overridden by in-memory state
+            # "total_trades": self._total_trades,
+            # "winning_trades": self._winning_trades,
             "current_proposal": self._current_proposal,
             "last_signal_at": self._last_signal_at.isoformat() if self._last_signal_at else None,
             "active_position": None

@@ -414,7 +414,7 @@ const AgentCockpit: React.FC<AgentCockpitProps> = ({ agent }) => {
                                 </span>
                             </div>
                             <div className="stat">
-                                <span className="stat-label">Trades</span>
+                                <span className="stat-label">Closed Trades</span>
                                 <span className="stat-value">{agent.total_trades}</span>
                             </div>
                             <div className="stat">
