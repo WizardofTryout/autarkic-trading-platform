@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowUpRight, ArrowDownRight, XCircle, RefreshCw, Pencil } from 'lucide-react';
 import { useTradingStore } from '../../store/tradingStore';
 import { useBinanceWebSocket } from '../../hooks/useBinanceWebSocket';
+import { useTimezone } from '../../utils/timezone';
 
 // Lazy load the modal to avoid circular dependencies if any
 const StrategyActivationModal = React.lazy(() => import('../StrategyBuilder/StrategyActivationModal'));
@@ -10,6 +11,7 @@ const EditOrderModal = React.lazy(() => import('./EditOrderModal'));
 const TradeResultModal = React.lazy(() => import('../Common/TradeResultModal'));
 
 export const TradingDashboard: React.FC = () => {
+    const { formatLogTimestamp } = useTimezone();
     const [activeTab, setActiveTab] = useState<'positions' | 'orders' | 'history' | 'strategies'>('positions');
     const [editingStrategy, setEditingStrategy] = useState<any | null>(null);
     const [editingOrder, setEditingOrder] = useState<any | null>(null);
@@ -228,7 +230,7 @@ export const TradingDashboard: React.FC = () => {
                         <tbody className="divide-y divide-gray-800">
                             {portfolio.orders.map((order) => (
                                 <tr key={order.id} className="hover:bg-gray-800/30 transition-colors">
-                                    <td className="p-3 text-gray-400">{new Date(order.created_at).toLocaleTimeString()}</td>
+                                    <td className="p-3 text-gray-400">{formatLogTimestamp(order.created_at)}</td>
                                     <td
                                         className="p-3 font-bold text-white cursor-pointer hover:text-blue-400 transition-colors"
                                         onClick={() => setSymbol(order.symbol)}
