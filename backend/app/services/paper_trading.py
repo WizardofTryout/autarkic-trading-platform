@@ -186,15 +186,12 @@ class PaperTradingService:
         self.db.add(trade)
         
         # Update Account Balance
-        # Update Account Balance (Fees Only first, Margin handled later based on action)
+        # Deduct Fees from appropriate balance (Manual: balance, Agent: locked_balance)
         if not strategy_id:
             account.balance -= fee
         else:
-            # Strategy Fee deduction
-            if account.locked_balance >= fee:
-                account.locked_balance -= fee
-            else:
-                account.locked_balance -= fee
+            # Strategy Fee deduction from locked_balance
+            account.locked_balance -= fee
         
         # Update/Create Position
         # For Agent trades (strategy_id set), always create NEW position (no aggregation)
@@ -214,13 +211,11 @@ class PaperTradingService:
         
         if position:
             if position.side == side.upper():
-                # Add to position -> Deduct Margin
+                # Add to position -> Deduct Margin from appropriate balance
                 if not strategy_id:
                     account.balance -= margin
                 else:
-                    # For strategy, ensure we check/deduct from virtual allocation?
-                    # For now, simplistic approach
-                    pass
+                    account.locked_balance -= margin
 
                 # Add to position logic
                 total_cost = (position.size * position.entry_price) + (quantity * current_price)
@@ -257,9 +252,11 @@ class PaperTradingService:
                 if position.size <= 0:
                     await self.db.delete(position)
         else:
-            # New Position -> Deduct Margin
+            # New Position -> Deduct Margin from appropriate balance
             if not strategy_id:
                 account.balance -= margin
+            else:
+                account.locked_balance -= margin
             
             # New Position logic
             position = PaperPosition(
@@ -780,6 +777,8 @@ class PaperTradingService:
         
         return {
             "balance": account.balance,
+            "locked_balance": account.locked_balance,
+            "total_balance": account.balance + account.locked_balance,
             "positions": positions,
             "orders": orders,
             "history": history

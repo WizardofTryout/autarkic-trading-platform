@@ -56,9 +56,16 @@ async def get_dashboard(
     service = PaperTradingService(db)
     portfolio = await service.get_portfolio(current_user.id)
     
-    # Calculate reserved margin from open orders
+    # Calculate balances
+    # balance = free capital (manual trading)
+    # locked_balance = capital allocated to agents
+    # total_balance = balance + locked_balance + unrealized P&L
+    free_balance = float(portfolio["balance"])
+    locked_balance = float(portfolio["locked_balance"])
+    
+    # Calculate reserved margin from open orders (only affects free balance display)
     reserved_margin = sum(float(order.amount) for order in portfolio["orders"])
-    available_balance = float(portfolio["balance"]) - reserved_margin
+    available_free_balance = free_balance - reserved_margin
     
     # Fetch current prices for all position symbols
     positions_with_prices = []
@@ -99,9 +106,15 @@ async def get_dashboard(
             "liquidation_price": float(pos.liquidation_price) if pos.liquidation_price else None,
         })
     
+    # Calculate total unrealized P&L from all positions
+    total_unrealized_pnl = sum(pos["unrealized_pnl"] for pos in positions_with_prices)
+    
     # Convert SQLAlchemy objects to dicts for JSON serialization
     return {
-        "balance": available_balance,  # Show available balance (total - reserved)
+        "balance": free_balance + locked_balance + total_unrealized_pnl,  # Total balance including locked and unrealized P&L
+        "free_balance": available_free_balance,  # Available for manual trading
+        "locked_balance": locked_balance,  # Allocated to agent strategies
+        "unrealized_pnl": total_unrealized_pnl,  # Total P&L from open positions
         "positions": positions_with_prices,
         "orders": [
             {
