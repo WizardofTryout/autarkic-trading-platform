@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, LargeBinary, Numeric, Integer, JSON
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, LargeBinary, Numeric, Integer, JSON, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
@@ -307,4 +307,44 @@ class AgentLog(Base):
 
 # Update User relationship for trading agents
 User.trading_agents = relationship("TradingAgent", back_populates="user", cascade="all, delete-orphan")
+
+
+# ===============================
+# OHLCV Cache for Market Data
+# ===============================
+
+class OHLCVCache(Base):
+    """
+    Cached OHLCV (candlestick) data from exchanges.
+    Reduces API calls to Binance and enables backtesting with historical data.
+    
+    Retention Policy (managed by Celery task):
+    - 1s candles: 1 day
+    - 1m candles: 7 days
+    - 15m candles: 30 days
+    - 4h candles: 90 days
+    - 1d candles: 365 days
+    """
+    __tablename__ = "ohlcv_cache"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    symbol = Column(String(20), nullable=False, index=True)  # e.g. "BTC/USDT"
+    timeframe = Column(String(10), nullable=False, index=True)  # e.g. "1m", "15m", "4h"
+    timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
+    
+    # OHLCV data
+    open = Column(Numeric(precision=20, scale=8), nullable=False)
+    high = Column(Numeric(precision=20, scale=8), nullable=False)
+    low = Column(Numeric(precision=20, scale=8), nullable=False)
+    close = Column(Numeric(precision=20, scale=8), nullable=False)
+    volume = Column(Numeric(precision=30, scale=8), nullable=False)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    __table_args__ = (
+        # Prevent duplicate candles
+        UniqueConstraint('symbol', 'timeframe', 'timestamp', name='uix_ohlcv_symbol_tf_ts'),
+        # Composite index for fast lookups (most common query pattern)
+        Index('idx_ohlcv_lookup', 'symbol', 'timeframe', 'timestamp'),
+    )
 
