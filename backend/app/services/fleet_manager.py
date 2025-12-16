@@ -382,8 +382,8 @@ class AgentFleetManager:
                             "side": pos.side,
                             "size": float(pos.size),
                             "entry_price": float(pos.entry_price),
-                            "current_price": float(pos.mark_price or pos.entry_price),
-                            "unrealized_pnl": float(pos.unrealized_pnl or 0),
+                            "current_price": float(pos.entry_price),  # Use entry_price as current_price (real-time prices updated via WebSocket)
+                            "unrealized_pnl": 0.0,  # P&L calculated real-time in frontend from live prices
                             "stop_loss": float(pos.stop_loss) if pos.stop_loss else None,
                             "take_profit": float(pos.take_profit) if pos.take_profit else None,
                             "is_trailing_stop": pos.is_trailing_stop,
