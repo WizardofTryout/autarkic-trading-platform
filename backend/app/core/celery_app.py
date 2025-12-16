@@ -14,7 +14,7 @@ celery_app = Celery(
     "autarkic_trading",
     broker=os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0"),
     backend=os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0"),
-    include=["app.tasks.cleanup_logs", "app.tasks.fleet_tasks", "app.tasks.collect_ohlcv", "app.tasks.cleanup_ohlcv"]
+    include=["app.tasks.cleanup_logs", "app.tasks.fleet_tasks", "app.tasks.collect_ohlcv", "app.tasks.collect_ohlcv_bitget", "app.tasks.cleanup_ohlcv"]
 )
 
 # Celery configuration
@@ -44,5 +44,10 @@ celery_app.conf.beat_schedule = {
     "cleanup-ohlcv-data": {
         "task": "app.tasks.cleanup_ohlcv.cleanup_old_candles",
         "schedule": crontab(hour=3, minute=0),  # Daily at 3:00 AM UTC
+    },
+    # Collect Bitget OHLCV data for LIVE agents every 60 seconds
+    "collect-bitget-ohlcv-data": {
+        "task": "app.tasks.collect_ohlcv_bitget.collect_bitget_active_symbols",
+        "schedule": 60.0,  # Every 60 seconds
     },
 }
