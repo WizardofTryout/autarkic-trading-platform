@@ -845,12 +845,14 @@ export const getFuturesPnL = async (
     limit: number = 100,
     offset: number = 0,
     symbol?: string,
-    taxType?: string
+    taxType?: string,
+    dateFrom?: string
 ): Promise<{ records: FuturesPnLRecord[]; total: number }> => {
     const token = useAuthStore.getState().token;
     let url = `${getApiBase()}/history/futures-pnl?limit=${limit}&offset=${offset}`;
     if (symbol) url += `&symbol=${symbol}`;
     if (taxType) url += `&tax_type=${taxType}`;
+    if (dateFrom) url += `&date_from=${dateFrom}`;
 
     const response = await fetch(url, {
         headers: {
