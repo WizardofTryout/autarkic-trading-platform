@@ -798,3 +798,32 @@ export const exportHistoryCSV = async (year?: number): Promise<Blob> => {
     }
     return response.blob();
 };
+
+export interface ImportResult {
+    success: boolean;
+    imported: number;
+    skipped: number;
+    total_rows: number;
+    errors: string[];
+}
+
+export const importHistoryCSV = async (file: File): Promise<ImportResult> => {
+    const token = useAuthStore.getState().token;
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${getApiBase()}/history/import`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        },
+        body: formData
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to import CSV');
+    }
+
+    return response.json();
+};

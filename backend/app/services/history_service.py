@@ -445,3 +445,124 @@ class HistoryService:
             ])
         
         return output.getvalue()
+    
+    # ========================
+    # CSV Import (Phase 5 - for >90 day history)
+    # ========================
+    
+    DIRECTION_MAP = {
+        "open long": "open_long",
+        "open short": "open_short",
+        "close long": "close_long",
+        "close short": "close_short",
+        "liquidation for long": "liquidation_long",
+        "liquidation for short": "liquidation_short",
+    }
+    
+    async def import_csv(self, csv_content: str) -> Dict[str, Any]:
+        """
+        Import Bitget Futures order CSV export into futures_tax_records.
+        
+        Expected CSV columns:
+            Date, Direction, Coin, Futures, order source, Transaction type,
+            Price, Average Price, Order amount, Executed, Realized P/L, NetProfits, Status
+        
+        Returns:
+            Dict with counts: {"imported": X, "skipped": Y, "errors": []}
+        """
+        result = {
+            "imported": 0,
+            "skipped": 0,
+            "total_rows": 0,
+            "errors": []
+        }
+        
+        # Parse CSV
+        reader = csv.DictReader(io.StringIO(csv_content))
+        rows = list(reader)
+        result["total_rows"] = len(rows)
+        
+        for row in rows:
+            try:
+                # Skip cancelled orders
+                status = row.get("Status", "").strip().lower()
+                if status == "cancelled" or status == "canceled":
+                    result["skipped"] += 1
+                    continue
+                
+                # Parse date
+                date_str = row.get("Date", "").strip()
+                if not date_str:
+                    result["skipped"] += 1
+                    continue
+                
+                try:
+                    recorded_at = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    result["errors"].append(f"Invalid date: {date_str}")
+                    continue
+                
+                # Map direction to tax_type
+                direction = row.get("Direction", "").strip().lower()
+                tax_type = self.DIRECTION_MAP.get(direction, direction.replace(" ", "_"))
+                
+                # Extract fields
+                symbol = row.get("Futures", "").strip()
+                margin_coin = row.get("Coin", "USDT").strip()
+                
+                # Amount: Use Realized P/L for closes, Order amount for opens
+                realized_pl = row.get("Realized P/L", "0").strip()
+                net_profits = row.get("NetProfits", "0").strip()
+                order_amount = row.get("Order amount", "0").strip()
+                
+                try:
+                    realized_pl_val = Decimal(realized_pl) if realized_pl else Decimal(0)
+                    net_profits_val = Decimal(net_profits) if net_profits else Decimal(0)
+                    order_amount_val = Decimal(order_amount) if order_amount else Decimal(0)
+                except:
+                    realized_pl_val = Decimal(0)
+                    net_profits_val = Decimal(0)
+                    order_amount_val = Decimal(0)
+                
+                # For closes (with P/L), use realized P/L as amount
+                # For opens, use order amount
+                if "close" in tax_type or "liquidation" in tax_type:
+                    amount = realized_pl_val
+                else:
+                    amount = order_amount_val
+                
+                # Fee = Realized P/L - NetProfits
+                fee = realized_pl_val - net_profits_val if realized_pl_val != 0 else Decimal(0)
+                
+                # Generate unique record_id
+                timestamp_ms = int(recorded_at.timestamp() * 1000)
+                record_id = f"csv_{symbol}_{tax_type}_{timestamp_ms}"
+                
+                # Upsert record
+                stmt = pg_insert(FuturesTaxRecord).values(
+                    user_id=self.user_id,
+                    exchange='bitget',
+                    record_id=record_id,
+                    product_type="USDT-FUTURES",  # From CSV context
+                    symbol=symbol,
+                    margin_coin=margin_coin,
+                    tax_type=tax_type,
+                    amount=amount,
+                    fee=fee if fee != Decimal(0) else None,
+                    recorded_at=recorded_at
+                ).on_conflict_do_nothing(
+                    index_elements=['user_id', 'exchange', 'record_id', 'product_type']
+                )
+                
+                db_result = await self.db.execute(stmt)
+                if db_result.rowcount > 0:
+                    result["imported"] += 1
+                else:
+                    result["skipped"] += 1  # Already exists
+                    
+            except Exception as e:
+                result["errors"].append(f"Row error: {str(e)}")
+                continue
+        
+        await self.db.commit()
+        return result

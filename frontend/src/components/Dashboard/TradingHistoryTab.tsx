@@ -9,22 +9,27 @@
  * - Export CSV button for tax reporting
  */
 
-import React, { useState, useEffect } from 'react';
-import { RefreshCw, Download, Wallet, TrendingUp, TrendingDown, Clock, AlertCircle, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { RefreshCw, Download, Upload, Wallet, TrendingUp, TrendingDown, Clock, AlertCircle, CheckCircle } from 'lucide-react';
 import {
     syncHistory,
     getAccountBalance,
     getHistoryOrders,
     exportHistoryCSV,
+    importHistoryCSV,
     type HistoryOrder,
-    type BalanceAsset
+    type BalanceAsset,
+    type ImportResult
 } from '../../services/api';
 
 const TradingHistoryTab: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
+    const [importing, setImporting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [syncResult, setSyncResult] = useState<{ orders: number; trades: number; bills: number; futures_tax: number } | null>(null);
+    const [importResult, setImportResult] = useState<ImportResult | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [balances, setBalances] = useState<Record<string, BalanceAsset>>({});
     const [orders, setOrders] = useState<HistoryOrder[]>([]);
@@ -88,6 +93,35 @@ const TradingHistoryTab: React.FC = () => {
         }
     };
 
+    const handleImportClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setImporting(true);
+        setError(null);
+        setImportResult(null);
+        setSyncResult(null);
+
+        try {
+            const result = await importHistoryCSV(file);
+            setImportResult(result);
+            // Reload data after import
+            await loadData();
+        } catch (err: any) {
+            setError(err.message || 'Import failed');
+        } finally {
+            setImporting(false);
+            // Reset file input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
+    };
+
     const formatCurrency = (value: number) => {
         if (value >= 1000) return value.toLocaleString('en-US', { maximumFractionDigits: 2 });
         return value.toFixed(8);
@@ -129,12 +163,27 @@ const TradingHistoryTab: React.FC = () => {
                 <div className="flex gap-3">
                     <button
                         onClick={handleSync}
-                        disabled={syncing}
+                        disabled={syncing || importing}
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
                     >
                         <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
                         {syncing ? 'Syncing...' : 'Sync Now'}
                     </button>
+                    <button
+                        onClick={handleImportClick}
+                        disabled={syncing || importing}
+                        className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                    >
+                        <Upload className={`w-4 h-4 ${importing ? 'animate-pulse' : ''}`} />
+                        {importing ? 'Importing...' : 'Import CSV'}
+                    </button>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept=".csv"
+                        className="hidden"
+                    />
                     <button
                         onClick={handleExport}
                         className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
@@ -158,6 +207,15 @@ const TradingHistoryTab: React.FC = () => {
                 <div className="flex items-center gap-2 p-4 bg-green-900/30 border border-green-700 rounded-lg text-green-400">
                     <CheckCircle className="w-5 h-5" />
                     Synced: {syncResult.orders} orders, {syncResult.trades} trades, {syncResult.bills} bills, {syncResult.futures_tax} futures PnL records
+                </div>
+            )}
+
+            {/* Import Result */}
+            {importResult && (
+                <div className={`flex items-center gap-2 p-4 rounded-lg ${importResult.success ? 'bg-green-900/30 border border-green-700 text-green-400' : 'bg-yellow-900/30 border border-yellow-700 text-yellow-400'}`}>
+                    <CheckCircle className="w-5 h-5" />
+                    CSV Import: {importResult.imported} imported, {importResult.skipped} skipped (of {importResult.total_rows} rows)
+                    {importResult.errors.length > 0 && ` — ${importResult.errors.length} errors`}
                 </div>
             )}
 
