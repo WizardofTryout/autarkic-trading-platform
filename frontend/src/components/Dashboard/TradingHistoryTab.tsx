@@ -43,6 +43,7 @@ const TradingHistoryTab: React.FC = () => {
     const [pnlPageSize] = useState(25);
     const [symbolFilter, setSymbolFilter] = useState<string>('');
     const [typeFilter, setTypeFilter] = useState<string>('');
+    const [dateFilter, setDateFilter] = useState<string>('');  // '' = all time, or months like '3', '6', '12', '18', '24'
     const [allSymbols, setAllSymbols] = useState<string[]>([]);
     const [pnlLoading, setPnlLoading] = useState(false);
 
@@ -72,11 +73,21 @@ const TradingHistoryTab: React.FC = () => {
     const loadFuturesPnL = useCallback(async () => {
         setPnlLoading(true);
         try {
+            // Calculate date_from based on dateFilter
+            let dateFromStr: string | undefined = undefined;
+            if (dateFilter) {
+                const months = parseInt(dateFilter, 10);
+                const dateFrom = new Date();
+                dateFrom.setMonth(dateFrom.getMonth() - months);
+                dateFromStr = dateFrom.toISOString().split('T')[0];  // YYYY-MM-DD
+            }
+
             const pnlData = await getFuturesPnL(
                 pnlPageSize,
                 pnlPage * pnlPageSize,
                 symbolFilter || undefined,
-                typeFilter || undefined
+                typeFilter || undefined,
+                dateFromStr
             );
             setFuturesPnL(pnlData.records);
             setFuturesPnLTotal(pnlData.total);
@@ -85,7 +96,7 @@ const TradingHistoryTab: React.FC = () => {
         } finally {
             setPnlLoading(false);
         }
-    }, [pnlPage, pnlPageSize, symbolFilter, typeFilter]);
+    }, [pnlPage, pnlPageSize, symbolFilter, typeFilter, dateFilter]);
 
     useEffect(() => {
         loadData();
@@ -98,9 +109,19 @@ const TradingHistoryTab: React.FC = () => {
             loadFuturesPnL();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pnlPage, symbolFilter, typeFilter]);
+    }, [pnlPage, symbolFilter, typeFilter, dateFilter]);
 
     const TAX_TYPES = ['open_long', 'open_short', 'close_long', 'close_short', 'liquidation_long', 'liquidation_short'];
+    const TIME_RANGES = [
+        { value: '', label: 'All Time' },
+        { value: '0.25', label: 'Last 7 Days' },
+        { value: '1', label: 'Last Month' },
+        { value: '3', label: 'Last 3 Months' },
+        { value: '6', label: 'Last 6 Months' },
+        { value: '12', label: 'Last 12 Months' },
+        { value: '18', label: 'Last 18 Months' },
+        { value: '24', label: 'Last 24 Months' }
+    ];
     const totalPages = Math.ceil(futuresPnLTotal / pnlPageSize);
 
     const handleSync = async () => {
@@ -407,10 +428,24 @@ const TradingHistoryTab: React.FC = () => {
                         </select>
                     </div>
 
+                    {/* Time Range Filter */}
+                    <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-400">Time:</label>
+                        <select
+                            value={dateFilter}
+                            onChange={(e) => { setDateFilter(e.target.value); setPnlPage(0); }}
+                            className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                        >
+                            {TIME_RANGES.map(t => (
+                                <option key={t.value} value={t.value}>{t.label}</option>
+                            ))}
+                        </select>
+                    </div>
+
                     {/* Clear Filters */}
-                    {(symbolFilter || typeFilter) && (
+                    {(symbolFilter || typeFilter || dateFilter) && (
                         <button
-                            onClick={() => { setSymbolFilter(''); setTypeFilter(''); setPnlPage(0); }}
+                            onClick={() => { setSymbolFilter(''); setTypeFilter(''); setDateFilter(''); setPnlPage(0); }}
                             className="text-sm text-purple-400 hover:text-purple-300"
                         >
                             Clear Filters
@@ -477,8 +512,8 @@ const TradingHistoryTab: React.FC = () => {
                                                     </span>
                                                 </td>
                                                 <td className={`py-3 px-2 text-right font-mono font-semibold ${isOpen ? 'text-gray-400' :
-                                                        isProfit ? 'text-green-400' :
-                                                            isLoss ? 'text-red-400' : 'text-gray-400'
+                                                    isProfit ? 'text-green-400' :
+                                                        isLoss ? 'text-red-400' : 'text-gray-400'
                                                     }`}>
                                                     {isOpen ? record.amount.toFixed(2) :
                                                         (isProfit ? '+' : '') + record.amount.toFixed(4)}

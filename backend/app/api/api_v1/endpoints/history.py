@@ -275,6 +275,7 @@ async def get_futures_pnl(
     offset: int = 0,
     symbol: Optional[str] = None,
     tax_type: Optional[str] = None,
+    date_from: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -289,17 +290,34 @@ async def get_futures_pnl(
         offset: Pagination offset
         symbol: Filter by trading pair (e.g., BTCUSDT)
         tax_type: Filter by type (open_long, close_short, etc.)
+        date_from: ISO date string for minimum date filter (e.g., 2024-01-01)
     """
     service = HistoryService(db, current_user.id)
+    
+    # Parse date_from if provided
+    date_from_dt = None
+    if date_from:
+        try:
+            date_from_dt = datetime.fromisoformat(date_from)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid date format: {date_from}. Use ISO format (YYYY-MM-DD)"
+            )
     
     try:
         records = await service.get_futures_pnl(
             limit=limit, 
             offset=offset, 
             symbol=symbol, 
-            tax_type=tax_type
+            tax_type=tax_type,
+            date_from=date_from_dt
         )
-        total = await service.get_futures_pnl_count()
+        total = await service.get_futures_pnl_count(
+            symbol=symbol,
+            tax_type=tax_type,
+            date_from=date_from_dt
+        )
         
         return FuturesPnLResponse(
             records=[
