@@ -827,3 +827,38 @@ export const importHistoryCSV = async (file: File): Promise<ImportResult> => {
 
     return response.json();
 };
+
+// Futures PnL Records
+export interface FuturesPnLRecord {
+    id: string;
+    record_id: string;
+    symbol: string;
+    margin_coin: string;
+    tax_type: string;
+    amount: number;
+    fee: number | null;
+    recorded_at: string;
+    product_type: string;
+}
+
+export const getFuturesPnL = async (
+    limit: number = 100,
+    offset: number = 0,
+    symbol?: string,
+    taxType?: string
+): Promise<{ records: FuturesPnLRecord[]; total: number }> => {
+    const token = useAuthStore.getState().token;
+    let url = `${getApiBase()}/history/futures-pnl?limit=${limit}&offset=${offset}`;
+    if (symbol) url += `&symbol=${symbol}`;
+    if (taxType) url += `&tax_type=${taxType}`;
+
+    const response = await fetch(url, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) {
+        throw new Error('Failed to fetch Futures PnL');
+    }
+    return response.json();
+};

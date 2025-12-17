@@ -90,6 +90,26 @@ class TradesResponse(BaseModel):
     total: int
 
 
+class FuturesPnLItem(BaseModel):
+    id: str
+    record_id: str
+    symbol: str
+    margin_coin: str
+    tax_type: str
+    amount: float
+    fee: Optional[float]
+    recorded_at: datetime
+    product_type: str
+    
+    class Config:
+        from_attributes = True
+
+
+class FuturesPnLResponse(BaseModel):
+    records: List[FuturesPnLItem]
+    total: int
+
+
 # ====================== Endpoints ======================
 
 @router.post("/sync", response_model=SyncResponse)
@@ -248,6 +268,61 @@ async def get_trades(
             detail=str(e)
         )
 
+
+@router.get("/futures-pnl", response_model=FuturesPnLResponse)
+async def get_futures_pnl(
+    limit: int = 100,
+    offset: int = 0,
+    symbol: Optional[str] = None,
+    tax_type: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get Futures PnL records (from API sync or CSV import).
+    
+    These are stored in the futures_tax_records table and include
+    18 months of history from the Bitget Tax API or imported CSVs.
+    
+    Args:
+        limit: Max records to return (default 100)
+        offset: Pagination offset
+        symbol: Filter by trading pair (e.g., BTCUSDT)
+        tax_type: Filter by type (open_long, close_short, etc.)
+    """
+    service = HistoryService(db, current_user.id)
+    
+    try:
+        records = await service.get_futures_pnl(
+            limit=limit, 
+            offset=offset, 
+            symbol=symbol, 
+            tax_type=tax_type
+        )
+        total = await service.get_futures_pnl_count()
+        
+        return FuturesPnLResponse(
+            records=[
+                FuturesPnLItem(
+                    id=str(r.id),
+                    record_id=r.record_id,
+                    symbol=r.symbol,
+                    margin_coin=r.margin_coin,
+                    tax_type=r.tax_type,
+                    amount=float(r.amount),
+                    fee=float(r.fee) if r.fee else None,
+                    recorded_at=r.recorded_at,
+                    product_type=r.product_type
+                )
+                for r in records
+            ],
+            total=total
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 @router.get("/export")
 async def export_csv(
