@@ -19,6 +19,7 @@ import { useTradingStore } from '../../store/tradingStore';
 import { getStrategies, api, getUserPreferences, updateUserPreferences } from '../../services/api';
 import APIKeyManager from '../Settings/APIKeyManager';
 import UserProfile from '../Auth/UserProfile';
+import TradingHistoryTab from './TradingHistoryTab';
 import { NotificationModal } from '../Common/NotificationModal';
 
 interface DashboardTab {
@@ -45,11 +46,11 @@ const UserDashboard: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [timezone, setTimezone] = useState<string>('UTC');
     const [timezoneSaving, setTimezoneSaving] = useState(false);
-    const [notification, setNotification] = useState<{show: boolean; type: 'success' | 'error'; title: string; message: string}>({ 
-        show: false, 
-        type: 'success', 
-        title: '', 
-        message: '' 
+    const [notification, setNotification] = useState<{ show: boolean; type: 'success' | 'error'; title: string; message: string }>({
+        show: false,
+        type: 'success',
+        title: '',
+        message: ''
     });
     const [stats, setStats] = useState<DashboardStats>({
         paperBalance: 0,
@@ -163,6 +164,7 @@ const UserDashboard: React.FC = () => {
         { id: 'overview', label: 'Übersicht', icon: <TrendingUp className="w-5 h-5" /> },
         { id: 'profile', label: 'Profil', icon: <User className="w-5 h-5" /> },
         { id: 'api-keys', label: 'API Keys', icon: <Key className="w-5 h-5" /> },
+        { id: 'history', label: 'Trading History', icon: <Wallet className="w-5 h-5" /> },
         { id: 'strategies', label: 'Strategien', icon: <LineChart className="w-5 h-5" /> },
         { id: 'security', label: 'Sicherheit', icon: <Shield className="w-5 h-5" /> },
     ];
@@ -520,6 +522,8 @@ const UserDashboard: React.FC = () => {
                 return renderProfile();
             case 'api-keys':
                 return renderApiKeys();
+            case 'history':
+                return <TradingHistoryTab />;
             case 'strategies':
                 return renderStrategies();
             case 'security':

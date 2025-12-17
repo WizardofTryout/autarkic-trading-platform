@@ -680,3 +680,120 @@ export const deleteDocument = async (id: string): Promise<void> => {
         throw new Error('Failed to delete document');
     }
 };
+
+// --- History & Account Sync (Phase 5) ---
+
+export interface SyncResult {
+    success: boolean;
+    orders: number;
+    trades: number;
+    bills: number;
+    errors: string[];
+}
+
+export interface BalanceAsset {
+    free: number;
+    used: number;
+    total: number;
+}
+
+export interface HistoryOrder {
+    id: string;
+    exchange_order_id: string;
+    symbol: string;
+    side: string;
+    order_type: string;
+    price: number | null;
+    avg_fill_price: number | null;
+    size: number;
+    filled_size: number;
+    total_fee: number | null;
+    fee_currency: string | null;
+    status: string;
+    created_at: string;
+}
+
+export interface HistoryTrade {
+    id: string;
+    exchange_trade_id: string;
+    symbol: string;
+    side: string;
+    price: number;
+    size: number;
+    fee: number;
+    fee_currency: string | null;
+    role: string | null;
+    executed_at: string;
+}
+
+export const syncHistory = async (days: number = 90): Promise<SyncResult> => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${getApiBase()}/history/sync?days=${days}`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'Failed to sync history');
+    }
+    return response.json();
+};
+
+export const getAccountBalance = async (): Promise<Record<string, BalanceAsset>> => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${getApiBase()}/history/balance`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'Failed to fetch balance');
+    }
+    const data = await response.json();
+    return data.balances;
+};
+
+export const getHistoryOrders = async (limit: number = 50, offset: number = 0): Promise<HistoryOrder[]> => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${getApiBase()}/history/orders?limit=${limit}&offset=${offset}`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) {
+        throw new Error('Failed to fetch orders');
+    }
+    const data = await response.json();
+    return data.orders;
+};
+
+export const getHistoryTrades = async (limit: number = 50, offset: number = 0): Promise<HistoryTrade[]> => {
+    const token = useAuthStore.getState().token;
+    const response = await fetch(`${getApiBase()}/history/trades?limit=${limit}&offset=${offset}`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) {
+        throw new Error('Failed to fetch trades');
+    }
+    const data = await response.json();
+    return data.trades;
+};
+
+export const exportHistoryCSV = async (year?: number): Promise<Blob> => {
+    const token = useAuthStore.getState().token;
+    const url = year ? `${getApiBase()}/history/export?year=${year}` : `${getApiBase()}/history/export`;
+    const response = await fetch(url, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) {
+        throw new Error('Failed to export CSV');
+    }
+    return response.blob();
+};
