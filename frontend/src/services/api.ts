@@ -688,6 +688,7 @@ export interface SyncResult {
     orders: number;
     trades: number;
     bills: number;
+    futures_tax: number;
     errors: string[];
 }
 
