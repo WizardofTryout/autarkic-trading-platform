@@ -26,7 +26,7 @@ from sqlalchemy.future import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.models.base import UserSecret
-from app.models.history import LiveOrder, LiveTrade, FinancialRecord
+from app.models.history import LiveOrder, LiveTrade, FinancialRecord, FuturesTaxRecord
 from app.services.exchanges import BitgetService
 from app.core.encryption import decrypt_value
 
@@ -105,13 +105,13 @@ class HistoryService:
     
     async def sync_all(self, days: int = 90) -> Dict[str, int]:
         """
-        Sync all history from Bitget (orders, trades, bills).
+        Sync all history from Bitget (orders, trades, bills, futures tax).
         
         Args:
-            days: Number of days to look back (max 90 per Bitget API)
+            days: Number of days to look back (max 90 for regular API, 540 for tax API)
             
         Returns:
-            Summary dict with counts: {"orders": X, "trades": Y, "bills": Z}
+            Summary dict with counts: {"orders": X, "trades": Y, "bills": Z, "futures_tax": W}
         """
         self._ensure_initialized()
         
@@ -119,18 +119,22 @@ class HistoryService:
             "orders": 0,
             "trades": 0, 
             "bills": 0,
+            "futures_tax": 0,
             "errors": []
         }
         
-        # Calculate time range
+        # Calculate time range for regular API (90 days max)
         end_time = int(datetime.utcnow().timestamp() * 1000)
-        start_time = int((datetime.utcnow() - timedelta(days=min(days, 90))).timestamp() * 1000)
+        start_time_90d = int((datetime.utcnow() - timedelta(days=min(days, 90))).timestamp() * 1000)
+        
+        # For Tax API: use 18 months (540 days) if days > 90
+        start_time_tax = int((datetime.utcnow() - timedelta(days=min(days, 540))).timestamp() * 1000)
         
         try:
             # 1. Sync Orders
-            logger.info(f"Syncing order history (last {days} days)...")
+            logger.info(f"Syncing order history (last {min(days, 90)} days)...")
             orders = await self._bitget.fetch_order_history(
-                start_time=start_time,
+                start_time=start_time_90d,
                 end_time=end_time,
                 limit=500
             )
@@ -145,7 +149,7 @@ class HistoryService:
             # 2. Sync Fills/Trades
             logger.info("Syncing trade fills...")
             fills = await self._bitget.fetch_fills(
-                start_time=start_time,
+                start_time=start_time_90d,
                 end_time=end_time,
                 limit=500
             )
@@ -160,7 +164,7 @@ class HistoryService:
             # 3. Sync Bills (ledger)
             logger.info("Syncing account bills...")
             bills = await self._bitget.fetch_bills(
-                start_time=start_time,
+                start_time=start_time_90d,
                 end_time=end_time,
                 limit=500
             )
@@ -170,6 +174,30 @@ class HistoryService:
         except Exception as e:
             logger.error(f"Failed to sync bills: {e}")
             result["errors"].append(f"Bills: {str(e)}")
+        
+        # 4. Sync Futures Tax Records (18 months retention)
+        try:
+            logger.info("Syncing Futures Tax Records (USDT-M, USDC-M)...")
+            futures_count = 0
+            
+            for product_type in ["USDT-FUTURES", "USDC-FUTURES"]:
+                logger.info(f"Fetching {product_type} tax records...")
+                records = await self._bitget.fetch_futures_tax_records(
+                    product_type=product_type,
+                    start_time=start_time_tax,
+                    end_time=end_time,
+                    limit=100
+                )
+                count = await self._upsert_futures_tax_records(records)
+                futures_count += count
+                logger.info(f"Synced {count} {product_type} records")
+            
+            result["futures_tax"] = futures_count
+            logger.info(f"Total Futures Tax Records synced: {futures_count}")
+            
+        except Exception as e:
+            logger.error(f"Failed to sync futures tax records: {e}")
+            result["errors"].append(f"Futures Tax: {str(e)}")
         
         return result
     
@@ -285,6 +313,43 @@ class HistoryService:
                 recorded_at=recorded_at or datetime.utcnow()
             ).on_conflict_do_nothing(
                 index_elements=['user_id', 'exchange', 'record_id']
+            )
+            
+            result = await self.db.execute(stmt)
+            if result.rowcount > 0:
+                count += 1
+        
+        await self.db.commit()
+        return count
+    
+    async def _upsert_futures_tax_records(self, records: List[Dict]) -> int:
+        """Insert or update Futures Tax Records with deduplication."""
+        count = 0
+        for record in records:
+            if not record.get("record_id"):
+                continue
+            
+            # Parse timestamp
+            recorded_at = None
+            if record.get("recorded_at"):
+                try:
+                    recorded_at = datetime.fromtimestamp(int(record["recorded_at"]) / 1000)
+                except:
+                    recorded_at = datetime.utcnow()
+            
+            stmt = pg_insert(FuturesTaxRecord).values(
+                user_id=self.user_id,
+                exchange='bitget',
+                record_id=record["record_id"],
+                product_type=record.get("product_type", "USDT-FUTURES"),
+                symbol=record.get("symbol", ""),
+                margin_coin=record.get("margin_coin", "USDT"),
+                tax_type=record.get("tax_type", "unknown"),
+                amount=Decimal(str(record.get("amount", 0))),
+                fee=Decimal(str(record.get("fee", 0))) if record.get("fee") else None,
+                recorded_at=recorded_at or datetime.utcnow()
+            ).on_conflict_do_nothing(
+                index_elements=['user_id', 'exchange', 'record_id', 'product_type']
             )
             
             result = await self.db.execute(stmt)

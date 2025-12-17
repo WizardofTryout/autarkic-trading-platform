@@ -31,6 +31,7 @@ class SyncResponse(BaseModel):
     orders: int
     trades: int
     bills: int
+    futures_tax: int = 0
     errors: List[str]
 
 
@@ -100,23 +101,27 @@ async def sync_history(
     """
     Sync trade history from Bitget.
     
-    Fetches orders, trades, and financial records from the last N days.
+    Fetches orders, trades, bills, and futures tax records.
+    - Regular API (orders, trades, bills): max 90 days
+    - Tax API (futures_tax): up to 540 days (18 months)
+    
     Data is deduplicated - running multiple times is safe.
     
     Args:
-        days: Number of days to sync (max 90 per Bitget API)
+        days: Number of days to sync (90 for regular, up to 540 for futures tax)
     """
     service = HistoryService(db, current_user.id)
     
     try:
         await service.initialize()
-        result = await service.sync_all(days=min(days, 90))
+        result = await service.sync_all(days=min(days, 540))
         
         return SyncResponse(
             success=len(result.get("errors", [])) == 0,
             orders=result.get("orders", 0),
             trades=result.get("trades", 0),
             bills=result.get("bills", 0),
+            futures_tax=result.get("futures_tax", 0),
             errors=result.get("errors", [])
         )
     except Exception as e:

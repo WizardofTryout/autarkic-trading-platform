@@ -24,7 +24,7 @@ const TradingHistoryTab: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [syncResult, setSyncResult] = useState<{ orders: number; trades: number; bills: number } | null>(null);
+    const [syncResult, setSyncResult] = useState<{ orders: number; trades: number; bills: number; futures_tax: number } | null>(null);
 
     const [balances, setBalances] = useState<Record<string, BalanceAsset>>({});
     const [orders, setOrders] = useState<HistoryOrder[]>([]);
@@ -55,11 +55,13 @@ const TradingHistoryTab: React.FC = () => {
         setError(null);
         setSyncResult(null);
         try {
-            const result = await syncHistory(90);
+            // Sync 540 days for Futures Tax API (18 months), 90 days for regular API
+            const result = await syncHistory(540);
             setSyncResult({
                 orders: result.orders,
                 trades: result.trades,
-                bills: result.bills
+                bills: result.bills,
+                futures_tax: result.futures_tax
             });
             // Reload data after sync
             await loadData();
@@ -155,7 +157,7 @@ const TradingHistoryTab: React.FC = () => {
             {syncResult && (
                 <div className="flex items-center gap-2 p-4 bg-green-900/30 border border-green-700 rounded-lg text-green-400">
                     <CheckCircle className="w-5 h-5" />
-                    Synced: {syncResult.orders} orders, {syncResult.trades} trades, {syncResult.bills} bills
+                    Synced: {syncResult.orders} orders, {syncResult.trades} trades, {syncResult.bills} bills, {syncResult.futures_tax} futures PnL records
                 </div>
             )}
 

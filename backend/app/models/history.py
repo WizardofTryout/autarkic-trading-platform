@@ -179,3 +179,45 @@ class FinancialRecord(Base):
         Index('idx_financial_records_type', 'user_id', 'record_type'),
         Index('idx_financial_records_recorded', 'user_id', 'recorded_at'),
     )
+
+
+class FuturesTaxRecord(Base):
+    """
+    Futures tax/transaction records from Bitget Tax API.
+    
+    Provides 18 months of historical data (vs 90 days for regular API).
+    Used for comprehensive tax reporting of Futures PnL.
+    
+    Synced from Bitget API: /api/v2/tax/future-record
+    """
+    __tablename__ = "futures_tax_records"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Exchange identifiers
+    exchange = Column(String(20), nullable=False, default='bitget')
+    record_id = Column(String(100), nullable=False)  # Bitget's id
+    
+    # Product type
+    product_type = Column(String(30), nullable=False)  # USDT-FUTURES, USDC-FUTURES, COIN-FUTURES
+    symbol = Column(String(30), nullable=False)  # e.g., TRXUSDT
+    margin_coin = Column(String(20), nullable=False)  # USDT, USDC, or base coin
+    
+    # Tax/Transaction type
+    tax_type = Column(String(50), nullable=False)  # close_long, close_short, open_long, funding_fee, etc.
+    
+    # Amounts
+    amount = Column(Numeric(precision=24, scale=8), nullable=False)  # PnL amount (positive = profit, negative = loss)
+    fee = Column(Numeric(precision=24, scale=8), nullable=True)  # Trading/funding fee
+    
+    # Timestamps
+    recorded_at = Column(DateTime(timezone=True), nullable=False)  # When it happened on exchange
+    synced_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    __table_args__ = (
+        UniqueConstraint('user_id', 'exchange', 'record_id', 'product_type', name='uix_futures_tax_record_id'),
+        Index('idx_futures_tax_records_type', 'user_id', 'tax_type'),
+        Index('idx_futures_tax_records_symbol', 'user_id', 'symbol'),
+        Index('idx_futures_tax_records_recorded', 'user_id', 'recorded_at'),
+    )

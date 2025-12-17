@@ -522,3 +522,109 @@ class BitgetService(ExchangeService):
             })
         
         return bills
+    
+    # ========================
+    # Futures Tax Records (Phase 5.3) - 18 months retention
+    # ========================
+    
+    async def fetch_futures_tax_records(
+        self,
+        product_type: str = "USDT-FUTURES",
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
+        limit: int = 100
+    ) -> List[Dict]:
+        """
+        Fetch Futures tax/transaction records from Bitget Tax API.
+        
+        API: GET /api/v2/tax/future-record
+        Retention: 18 months
+        Rate Limit: 1 request/second per User ID
+        
+        Args:
+            product_type: USDT-FUTURES, USDC-FUTURES, or COIN-FUTURES
+            start_time: Start timestamp in milliseconds
+            end_time: End timestamp in milliseconds
+            limit: Max records per request (default 100)
+        
+        Returns:
+            List of futures tax records with PnL, fees, tax types
+        """
+        params = {
+            "productType": product_type,
+            "limit": str(limit)
+        }
+        
+        if start_time:
+            params["startTime"] = str(start_time)
+        if end_time:
+            params["endTime"] = str(end_time)
+        
+        data = await self._request(
+            "GET",
+            "/api/v2/tax/future-record",
+            params=params
+        )
+        
+        records = []
+        for record in data if isinstance(data, list) else []:
+            records.append({
+                "record_id": record.get("id", ""),
+                "symbol": record.get("symbol", ""),
+                "margin_coin": record.get("marginCoin", ""),
+                "tax_type": record.get("futureTaxType", ""),
+                "amount": record.get("amount", "0"),
+                "fee": record.get("fee", "0"),
+                "recorded_at": record.get("ts"),
+                "product_type": product_type
+            })
+        
+        return records
+    
+    async def fetch_margin_tax_records(
+        self,
+        margin_type: str = "isolated",
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
+        limit: int = 100
+    ) -> List[Dict]:
+        """
+        Fetch Margin tax/transaction records from Bitget Tax API.
+        
+        API: GET /api/v2/tax/margin-record
+        Retention: 18 months
+        
+        Args:
+            margin_type: isolated or crossed
+        """
+        params = {
+            "marginType": margin_type,
+            "limit": str(limit)
+        }
+        
+        if start_time:
+            params["startTime"] = str(start_time)
+        if end_time:
+            params["endTime"] = str(end_time)
+        
+        data = await self._request(
+            "GET",
+            "/api/v2/tax/margin-record",
+            params=params
+        )
+        
+        records = []
+        for record in data if isinstance(data, list) else []:
+            records.append({
+                "record_id": record.get("id", ""),
+                "coin": record.get("coin", ""),
+                "symbol": record.get("symbol"),
+                "tax_type": record.get("marginTaxType", ""),
+                "amount": record.get("amount", "0"),
+                "fee": record.get("fee", "0"),
+                "total": record.get("total", "0"),
+                "recorded_at": record.get("ts"),
+                "margin_type": margin_type
+            })
+        
+        return records
