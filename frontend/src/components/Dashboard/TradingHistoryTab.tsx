@@ -9,8 +9,8 @@
  * - Export CSV button for tax reporting
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Download, Upload, Wallet, TrendingUp, TrendingDown, Clock, AlertCircle, CheckCircle, BarChart3 } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { RefreshCw, Download, Upload, Wallet, TrendingUp, TrendingDown, Clock, AlertCircle, CheckCircle, BarChart3, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import {
     syncHistory,
     getAccountBalance,
@@ -38,19 +38,30 @@ const TradingHistoryTab: React.FC = () => {
     const [futuresPnL, setFuturesPnL] = useState<FuturesPnLRecord[]>([]);
     const [futuresPnLTotal, setFuturesPnLTotal] = useState(0);
 
+    // Futures PnL Filters & Pagination
+    const [pnlPage, setPnlPage] = useState(0);
+    const [pnlPageSize] = useState(25);
+    const [symbolFilter, setSymbolFilter] = useState<string>('');
+    const [typeFilter, setTypeFilter] = useState<string>('');
+    const [allSymbols, setAllSymbols] = useState<string[]>([]);
+    const [pnlLoading, setPnlLoading] = useState(false);
+
     const loadData = async () => {
         setLoading(true);
         setError(null);
         try {
-            const [balanceData, orderData, pnlData] = await Promise.all([
+            const [balanceData, orderData] = await Promise.all([
                 getAccountBalance().catch(() => ({})),
-                getHistoryOrders(50, 0).catch(() => []),
-                getFuturesPnL(100, 0).catch(() => ({ records: [], total: 0 }))
+                getHistoryOrders(50, 0).catch(() => [])
             ]);
             setBalances(balanceData);
             setOrders(orderData);
-            setFuturesPnL(pnlData.records);
-            setFuturesPnLTotal(pnlData.total);
+            // Load initial PnL data and get all symbols
+            await loadFuturesPnL();
+            // Get all records once to extract unique symbols
+            const allPnl = await getFuturesPnL(1000, 0).catch(() => ({ records: [], total: 0 }));
+            const symbols = [...new Set(allPnl.records.map(r => r.symbol))].sort();
+            setAllSymbols(symbols);
         } catch (err: any) {
             setError(err.message || 'Failed to load data');
         } finally {
@@ -58,9 +69,39 @@ const TradingHistoryTab: React.FC = () => {
         }
     };
 
+    const loadFuturesPnL = useCallback(async () => {
+        setPnlLoading(true);
+        try {
+            const pnlData = await getFuturesPnL(
+                pnlPageSize,
+                pnlPage * pnlPageSize,
+                symbolFilter || undefined,
+                typeFilter || undefined
+            );
+            setFuturesPnL(pnlData.records);
+            setFuturesPnLTotal(pnlData.total);
+        } catch (err) {
+            console.error('Failed to load PnL', err);
+        } finally {
+            setPnlLoading(false);
+        }
+    }, [pnlPage, pnlPageSize, symbolFilter, typeFilter]);
+
     useEffect(() => {
         loadData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Reload PnL when filters/page change
+    useEffect(() => {
+        if (!loading) {
+            loadFuturesPnL();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pnlPage, symbolFilter, typeFilter]);
+
+    const TAX_TYPES = ['open_long', 'open_short', 'close_long', 'close_short', 'liquidation_long', 'liquidation_short'];
+    const totalPages = Math.ceil(futuresPnLTotal / pnlPageSize);
 
     const handleSync = async () => {
         setSyncing(true);
@@ -319,12 +360,62 @@ const TradingHistoryTab: React.FC = () => {
 
             {/* Futures PnL Records */}
             <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                {/* Header with title and count */}
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <BarChart3 className="w-5 h-5 text-purple-500" />
                         <h3 className="text-lg font-semibold text-white">Futures PnL Records</h3>
                         <span className="text-sm text-gray-400">({futuresPnLTotal} records)</span>
+                        {pnlLoading && <RefreshCw className="w-4 h-4 animate-spin text-gray-400" />}
                     </div>
+                </div>
+
+                {/* Filter Bar */}
+                <div className="flex items-center gap-4 mb-4 flex-wrap">
+                    <div className="flex items-center gap-2">
+                        <Filter className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm text-gray-400">Filters:</span>
+                    </div>
+
+                    {/* Symbol Filter */}
+                    <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-400">Symbol:</label>
+                        <select
+                            value={symbolFilter}
+                            onChange={(e) => { setSymbolFilter(e.target.value); setPnlPage(0); }}
+                            className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                        >
+                            <option value="">All Pairs</option>
+                            {allSymbols.map(s => (
+                                <option key={s} value={s}>{s}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Type Filter */}
+                    <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-400">Type:</label>
+                        <select
+                            value={typeFilter}
+                            onChange={(e) => { setTypeFilter(e.target.value); setPnlPage(0); }}
+                            className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                        >
+                            <option value="">All Types</option>
+                            {TAX_TYPES.map(t => (
+                                <option key={t} value={t}>{t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Clear Filters */}
+                    {(symbolFilter || typeFilter) && (
+                        <button
+                            onClick={() => { setSymbolFilter(''); setTypeFilter(''); setPnlPage(0); }}
+                            className="text-sm text-purple-400 hover:text-purple-300"
+                        >
+                            Clear Filters
+                        </button>
+                    )}
                 </div>
 
                 {loading ? (
@@ -333,74 +424,105 @@ const TradingHistoryTab: React.FC = () => {
                     </div>
                 ) : futuresPnL.length === 0 ? (
                     <p className="text-gray-400 text-center py-4">
-                        No Futures PnL records found. Import CSV or Sync to fetch data.
+                        No Futures PnL records found. {symbolFilter || typeFilter ? 'Try different filters.' : 'Import CSV or Sync to fetch data.'}
                     </p>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-900/50 text-gray-400">
-                                <tr>
-                                    <th className="py-2 px-2 text-left">Date</th>
-                                    <th className="py-2 px-2 text-left">Symbol</th>
-                                    <th className="py-2 px-2 text-left">Type</th>
-                                    <th className="py-2 px-2 text-right">Amount</th>
-                                    <th className="py-2 px-2 text-right">Fee</th>
-                                    <th className="py-2 px-2 text-left">Margin</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-700">
-                                {futuresPnL.map((record) => {
-                                    const isProfit = record.amount > 0;
-                                    const isLoss = record.amount < 0;
-                                    const isOpen = record.tax_type.includes('open');
-                                    const isLiquidation = record.tax_type.includes('liquidation');
+                    <>
+                        {/* Scrollable Table */}
+                        <div className="overflow-x-auto max-h-[500px] overflow-y-auto border border-gray-700 rounded">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-900/50 text-gray-400 sticky top-0">
+                                    <tr>
+                                        <th className="py-2 px-2 text-left">Date</th>
+                                        <th className="py-2 px-2 text-left">Symbol</th>
+                                        <th className="py-2 px-2 text-left">Type</th>
+                                        <th className="py-2 px-2 text-right">Amount</th>
+                                        <th className="py-2 px-2 text-right">Fee</th>
+                                        <th className="py-2 px-2 text-left">Margin</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-700">
+                                    {futuresPnL.map((record) => {
+                                        const isProfit = record.amount > 0;
+                                        const isLoss = record.amount < 0;
+                                        const isOpen = record.tax_type.includes('open');
+                                        const isLiquidation = record.tax_type.includes('liquidation');
 
-                                    const getTypeBadge = () => {
-                                        if (isLiquidation) return 'bg-red-600 text-white';
-                                        if (record.tax_type.includes('close_long') || record.tax_type.includes('close_short')) {
-                                            return isProfit ? 'bg-green-600 text-white' : 'bg-red-500 text-white';
-                                        }
-                                        if (record.tax_type.includes('open_long')) return 'bg-blue-600 text-white';
-                                        if (record.tax_type.includes('open_short')) return 'bg-orange-600 text-white';
-                                        return 'bg-gray-600 text-white';
-                                    };
+                                        const getTypeBadge = () => {
+                                            if (isLiquidation) return 'bg-red-600 text-white';
+                                            if (record.tax_type.includes('close_long') || record.tax_type.includes('close_short')) {
+                                                return isProfit ? 'bg-green-600 text-white' : 'bg-red-500 text-white';
+                                            }
+                                            if (record.tax_type.includes('open_long')) return 'bg-blue-600 text-white';
+                                            if (record.tax_type.includes('open_short')) return 'bg-orange-600 text-white';
+                                            return 'bg-gray-600 text-white';
+                                        };
 
-                                    const formatType = (type: string) => {
-                                        return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                                    };
+                                        const formatType = (type: string) => {
+                                            return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                                        };
 
-                                    return (
-                                        <tr key={record.id} className="hover:bg-gray-700/30">
-                                            <td className="py-3 px-2 text-gray-300">
-                                                {new Date(record.recorded_at).toLocaleDateString()}<br />
-                                                <span className="text-xs text-gray-500">
-                                                    {new Date(record.recorded_at).toLocaleTimeString()}
-                                                </span>
-                                            </td>
-                                            <td className="py-3 px-2 font-mono text-white">{record.symbol}</td>
-                                            <td className="py-3 px-2">
-                                                <span className={`px-2 py-1 rounded text-xs font-medium ${getTypeBadge()}`}>
-                                                    {formatType(record.tax_type)}
-                                                </span>
-                                            </td>
-                                            <td className={`py-3 px-2 text-right font-mono font-semibold ${isOpen ? 'text-gray-400' :
-                                                    isProfit ? 'text-green-400' :
-                                                        isLoss ? 'text-red-400' : 'text-gray-400'
-                                                }`}>
-                                                {isOpen ? record.amount.toFixed(2) :
-                                                    (isProfit ? '+' : '') + record.amount.toFixed(4)}
-                                                {!isOpen && ' USDT'}
-                                            </td>
-                                            <td className="py-3 px-2 text-right font-mono text-gray-400">
-                                                {record.fee ? record.fee.toFixed(4) : '-'}
-                                            </td>
-                                            <td className="py-3 px-2 text-gray-400">{record.margin_coin}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                                        return (
+                                            <tr key={record.id} className="hover:bg-gray-700/30">
+                                                <td className="py-3 px-2 text-gray-300">
+                                                    {new Date(record.recorded_at).toLocaleDateString()}<br />
+                                                    <span className="text-xs text-gray-500">
+                                                        {new Date(record.recorded_at).toLocaleTimeString()}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-2 font-mono text-white">{record.symbol}</td>
+                                                <td className="py-3 px-2">
+                                                    <span className={`px-2 py-1 rounded text-xs font-medium ${getTypeBadge()}`}>
+                                                        {formatType(record.tax_type)}
+                                                    </span>
+                                                </td>
+                                                <td className={`py-3 px-2 text-right font-mono font-semibold ${isOpen ? 'text-gray-400' :
+                                                        isProfit ? 'text-green-400' :
+                                                            isLoss ? 'text-red-400' : 'text-gray-400'
+                                                    }`}>
+                                                    {isOpen ? record.amount.toFixed(2) :
+                                                        (isProfit ? '+' : '') + record.amount.toFixed(4)}
+                                                    {!isOpen && ' USDT'}
+                                                </td>
+                                                <td className="py-3 px-2 text-right font-mono text-gray-400">
+                                                    {record.fee ? record.fee.toFixed(4) : '-'}
+                                                </td>
+                                                <td className="py-3 px-2 text-gray-400">{record.margin_coin}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination */}
+                        <div className="flex items-center justify-between mt-4 text-sm">
+                            <div className="text-gray-400">
+                                Showing {pnlPage * pnlPageSize + 1} - {Math.min((pnlPage + 1) * pnlPageSize, futuresPnLTotal)} of {futuresPnLTotal}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setPnlPage(p => Math.max(0, p - 1))}
+                                    disabled={pnlPage === 0}
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                    Prev
+                                </button>
+                                <span className="text-gray-400 px-2">
+                                    Page {pnlPage + 1} of {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setPnlPage(p => Math.min(totalPages - 1, p + 1))}
+                                    disabled={pnlPage >= totalPages - 1}
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Next
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    </>
                 )}
             </div>
         </div>
