@@ -21,8 +21,10 @@ from sqlalchemy import Column, String, Numeric, DateTime, ForeignKey, Enum, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.ext.declarative import declarative_base
 
-from app.db.base_class import Base
+# Import Base from the models module where it's defined
+from app.models.base import Base
 
 
 class LiveOrder(Base):
