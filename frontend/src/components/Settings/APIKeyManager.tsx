@@ -13,7 +13,10 @@ const APIKeyManager: React.FC = () => {
         key_name: '',
         provider: 'gemini',
         model: '',
-        api_key: ''
+        api_key: '',
+        // Bitget-specific fields
+        bitget_secret: '',
+        bitget_passphrase: ''
     });
 
     const fetchKeys = async () => {
@@ -37,8 +40,42 @@ const APIKeyManager: React.FC = () => {
         setAdding(true);
         setError(null);
         try {
-            await addAPIKey(newKey);
-            setNewKey({ key_name: '', provider: 'gemini', model: '', api_key: '' });
+            // Special handling for Bitget - creates 3 separate keys
+            if (newKey.provider === 'bitget') {
+                // Validate all 3 fields are filled
+                if (!newKey.api_key || !newKey.bitget_secret || !newKey.bitget_passphrase) {
+                    throw new Error('Bitget requires API Key, Secret, and Passphrase');
+                }
+
+                // Create 3 separate keys
+                await addAPIKey({
+                    key_name: `${newKey.key_name}_api_key`,
+                    provider: 'bitget',
+                    model: '',
+                    api_key: newKey.api_key
+                });
+                await addAPIKey({
+                    key_name: `${newKey.key_name}_secret`,
+                    provider: 'bitget',
+                    model: '',
+                    api_key: newKey.bitget_secret
+                });
+                await addAPIKey({
+                    key_name: `${newKey.key_name}_passphrase`,
+                    provider: 'bitget',
+                    model: '',
+                    api_key: newKey.bitget_passphrase
+                });
+            } else {
+                // Standard single key for AI providers
+                await addAPIKey({
+                    key_name: newKey.key_name,
+                    provider: newKey.provider,
+                    model: newKey.model,
+                    api_key: newKey.api_key
+                });
+            }
+            setNewKey({ key_name: '', provider: 'gemini', model: '', api_key: '', bitget_secret: '', bitget_passphrase: '' });
             await fetchKeys();
         } catch (err: any) {
             console.error(err);
@@ -110,40 +147,84 @@ const APIKeyManager: React.FC = () => {
                             <option value="bitget">Bitget</option>
                         </select>
                     </div>
-                    <div>
-                        <label className="block text-xs text-gray-500 mb-1">Model (Optional)</label>
-                        <input
-                            type="text"
-                            list="model-suggestions"
-                            className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                            value={newKey.model}
-                            onChange={(e) => setNewKey({ ...newKey, model: e.target.value })}
-                            placeholder={newKey.provider === 'ollama' ? 'llama3' : 'gemini-2.5-flash'}
-                        />
-                        <datalist id="model-suggestions">
-                            <option value="gemini-2.5-flash" />
-                            <option value="gemini-2.0-flash-exp" />
-                            <option value="gemini-1.5-pro" />
-                            <option value="gemini-1.5-flash" />
-                            <option value="gpt-4o" />
-                            <option value="gpt-4-turbo" />
-                            <option value="claude-3-opus-20240229" />
-                            <option value="claude-3-sonnet-20240229" />
-                            <option value="llama3" />
-                            <option value="mistral" />
-                        </datalist>
-                    </div>
-                    <div>
-                        <label className="block text-xs text-gray-500 mb-1">API Key</label>
-                        <input
-                            type="password"
-                            required
-                            className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                            value={newKey.api_key}
-                            onChange={(e) => setNewKey({ ...newKey, api_key: e.target.value })}
-                            placeholder="sk-..."
-                        />
-                    </div>
+
+                    {/* Conditional fields based on provider */}
+                    {newKey.provider === 'bitget' ? (
+                        /* Bitget needs 3 fields: API Key, Secret, Passphrase */
+                        <>
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1">API Key</label>
+                                <input
+                                    type="password"
+                                    required
+                                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                    value={newKey.api_key}
+                                    onChange={(e) => setNewKey({ ...newKey, api_key: e.target.value })}
+                                    placeholder="bg_..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1">Secret Key</label>
+                                <input
+                                    type="password"
+                                    required
+                                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                    value={newKey.bitget_secret}
+                                    onChange={(e) => setNewKey({ ...newKey, bitget_secret: e.target.value })}
+                                    placeholder="Your Secret Key"
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-xs text-gray-500 mb-1">Passphrase</label>
+                                <input
+                                    type="password"
+                                    required
+                                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                    value={newKey.bitget_passphrase}
+                                    onChange={(e) => setNewKey({ ...newKey, bitget_passphrase: e.target.value })}
+                                    placeholder="Your Passphrase"
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        /* Standard AI provider: Model (optional) + API Key */
+                        <>
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1">Model (Optional)</label>
+                                <input
+                                    type="text"
+                                    list="model-suggestions"
+                                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                    value={newKey.model}
+                                    onChange={(e) => setNewKey({ ...newKey, model: e.target.value })}
+                                    placeholder={newKey.provider === 'ollama' ? 'llama3' : 'gemini-2.5-flash'}
+                                />
+                                <datalist id="model-suggestions">
+                                    <option value="gemini-2.5-flash" />
+                                    <option value="gemini-2.0-flash-exp" />
+                                    <option value="gemini-1.5-pro" />
+                                    <option value="gemini-1.5-flash" />
+                                    <option value="gpt-4o" />
+                                    <option value="gpt-4-turbo" />
+                                    <option value="claude-3-opus-20240229" />
+                                    <option value="claude-3-sonnet-20240229" />
+                                    <option value="llama3" />
+                                    <option value="mistral" />
+                                </datalist>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1">API Key</label>
+                                <input
+                                    type="password"
+                                    required
+                                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                    value={newKey.api_key}
+                                    onChange={(e) => setNewKey({ ...newKey, api_key: e.target.value })}
+                                    placeholder="sk-..."
+                                />
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
