@@ -10,16 +10,18 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Download, Upload, Wallet, TrendingUp, TrendingDown, Clock, AlertCircle, CheckCircle } from 'lucide-react';
+import { RefreshCw, Download, Upload, Wallet, TrendingUp, TrendingDown, Clock, AlertCircle, CheckCircle, BarChart3 } from 'lucide-react';
 import {
     syncHistory,
     getAccountBalance,
     getHistoryOrders,
     exportHistoryCSV,
     importHistoryCSV,
+    getFuturesPnL,
     type HistoryOrder,
     type BalanceAsset,
-    type ImportResult
+    type ImportResult,
+    type FuturesPnLRecord
 } from '../../services/api';
 
 const TradingHistoryTab: React.FC = () => {
@@ -33,17 +35,22 @@ const TradingHistoryTab: React.FC = () => {
 
     const [balances, setBalances] = useState<Record<string, BalanceAsset>>({});
     const [orders, setOrders] = useState<HistoryOrder[]>([]);
+    const [futuresPnL, setFuturesPnL] = useState<FuturesPnLRecord[]>([]);
+    const [futuresPnLTotal, setFuturesPnLTotal] = useState(0);
 
     const loadData = async () => {
         setLoading(true);
         setError(null);
         try {
-            const [balanceData, orderData] = await Promise.all([
+            const [balanceData, orderData, pnlData] = await Promise.all([
                 getAccountBalance().catch(() => ({})),
-                getHistoryOrders(50, 0).catch(() => [])
+                getHistoryOrders(50, 0).catch(() => []),
+                getFuturesPnL(100, 0).catch(() => ({ records: [], total: 0 }))
             ]);
             setBalances(balanceData);
             setOrders(orderData);
+            setFuturesPnL(pnlData.records);
+            setFuturesPnLTotal(pnlData.total);
         } catch (err: any) {
             setError(err.message || 'Failed to load data');
         } finally {
@@ -304,6 +311,93 @@ const TradingHistoryTab: React.FC = () => {
                                         </td>
                                     </tr>
                                 ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
+            {/* Futures PnL Records */}
+            <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5 text-purple-500" />
+                        <h3 className="text-lg font-semibold text-white">Futures PnL Records</h3>
+                        <span className="text-sm text-gray-400">({futuresPnLTotal} records)</span>
+                    </div>
+                </div>
+
+                {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                        <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+                    </div>
+                ) : futuresPnL.length === 0 ? (
+                    <p className="text-gray-400 text-center py-4">
+                        No Futures PnL records found. Import CSV or Sync to fetch data.
+                    </p>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-900/50 text-gray-400">
+                                <tr>
+                                    <th className="py-2 px-2 text-left">Date</th>
+                                    <th className="py-2 px-2 text-left">Symbol</th>
+                                    <th className="py-2 px-2 text-left">Type</th>
+                                    <th className="py-2 px-2 text-right">Amount</th>
+                                    <th className="py-2 px-2 text-right">Fee</th>
+                                    <th className="py-2 px-2 text-left">Margin</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-700">
+                                {futuresPnL.map((record) => {
+                                    const isProfit = record.amount > 0;
+                                    const isLoss = record.amount < 0;
+                                    const isOpen = record.tax_type.includes('open');
+                                    const isLiquidation = record.tax_type.includes('liquidation');
+
+                                    const getTypeBadge = () => {
+                                        if (isLiquidation) return 'bg-red-600 text-white';
+                                        if (record.tax_type.includes('close_long') || record.tax_type.includes('close_short')) {
+                                            return isProfit ? 'bg-green-600 text-white' : 'bg-red-500 text-white';
+                                        }
+                                        if (record.tax_type.includes('open_long')) return 'bg-blue-600 text-white';
+                                        if (record.tax_type.includes('open_short')) return 'bg-orange-600 text-white';
+                                        return 'bg-gray-600 text-white';
+                                    };
+
+                                    const formatType = (type: string) => {
+                                        return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                                    };
+
+                                    return (
+                                        <tr key={record.id} className="hover:bg-gray-700/30">
+                                            <td className="py-3 px-2 text-gray-300">
+                                                {new Date(record.recorded_at).toLocaleDateString()}<br />
+                                                <span className="text-xs text-gray-500">
+                                                    {new Date(record.recorded_at).toLocaleTimeString()}
+                                                </span>
+                                            </td>
+                                            <td className="py-3 px-2 font-mono text-white">{record.symbol}</td>
+                                            <td className="py-3 px-2">
+                                                <span className={`px-2 py-1 rounded text-xs font-medium ${getTypeBadge()}`}>
+                                                    {formatType(record.tax_type)}
+                                                </span>
+                                            </td>
+                                            <td className={`py-3 px-2 text-right font-mono font-semibold ${isOpen ? 'text-gray-400' :
+                                                    isProfit ? 'text-green-400' :
+                                                        isLoss ? 'text-red-400' : 'text-gray-400'
+                                                }`}>
+                                                {isOpen ? record.amount.toFixed(2) :
+                                                    (isProfit ? '+' : '') + record.amount.toFixed(4)}
+                                                {!isOpen && ' USDT'}
+                                            </td>
+                                            <td className="py-3 px-2 text-right font-mono text-gray-400">
+                                                {record.fee ? record.fee.toFixed(4) : '-'}
+                                            </td>
+                                            <td className="py-3 px-2 text-gray-400">{record.margin_coin}</td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

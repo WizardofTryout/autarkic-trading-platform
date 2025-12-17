@@ -395,6 +395,36 @@ class HistoryService:
         result = await self.db.execute(query)
         return result.scalars().all()
     
+    async def get_futures_pnl(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        symbol: Optional[str] = None,
+        tax_type: Optional[str] = None
+    ) -> List[FuturesTaxRecord]:
+        """Get futures tax/PnL records from database."""
+        query = select(FuturesTaxRecord).where(
+            FuturesTaxRecord.user_id == self.user_id
+        )
+        
+        if symbol:
+            query = query.where(FuturesTaxRecord.symbol == symbol)
+        if tax_type:
+            query = query.where(FuturesTaxRecord.tax_type == tax_type)
+        
+        query = query.order_by(FuturesTaxRecord.recorded_at.desc()).offset(offset).limit(limit)
+        result = await self.db.execute(query)
+        return result.scalars().all()
+    
+    async def get_futures_pnl_count(self) -> int:
+        """Get total count of futures tax records for user."""
+        from sqlalchemy import func
+        query = select(func.count()).select_from(FuturesTaxRecord).where(
+            FuturesTaxRecord.user_id == self.user_id
+        )
+        result = await self.db.execute(query)
+        return result.scalar() or 0
+    
     async def export_csv(self, year: Optional[int] = None) -> str:
         """
         Export trades and financial records as CSV for tax reporting.
