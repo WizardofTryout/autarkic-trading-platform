@@ -372,3 +372,153 @@ class BitgetService(ExchangeService):
         """
         # Spot doesn't have positions in the Futures sense
         return []
+    
+    # ========================
+    # History Methods (Phase 5)
+    # ========================
+    
+    async def fetch_order_history(
+        self, 
+        symbol: Optional[str] = None,
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
+        limit: int = 100
+    ) -> List[Dict]:
+        """
+        Fetch order history from Bitget.
+        
+        API: /api/v2/spot/trade/history-orders
+        
+        Returns list of orders with status, fills, fees, etc.
+        """
+        params = {"limit": str(limit)}
+        
+        if symbol:
+            params["symbol"] = symbol.replace("/", "")
+        if start_time:
+            params["startTime"] = str(start_time)
+        if end_time:
+            params["endTime"] = str(end_time)
+        
+        data = await self._request(
+            "GET",
+            "/api/v2/spot/trade/history-orders",
+            params=params
+        )
+        
+        orders = []
+        for order in data if isinstance(data, list) else []:
+            orders.append({
+                "exchange_order_id": order.get("orderId", ""),
+                "client_order_id": order.get("clientOid"),
+                "symbol": order.get("symbol", ""),
+                "side": order.get("side", ""),
+                "order_type": order.get("orderType", ""),
+                "price": order.get("price"),
+                "avg_fill_price": order.get("priceAvg"),
+                "size": order.get("size", "0"),
+                "filled_size": order.get("baseVolume", "0"),
+                "total_fee": order.get("feeDetail", {}).get("totalFee") if order.get("feeDetail") else None,
+                "fee_currency": order.get("feeDetail", {}).get("feeCoin") if order.get("feeDetail") else None,
+                "status": order.get("state", "unknown"),
+                "created_at": order.get("cTime"),
+                "updated_at": order.get("uTime")
+            })
+        
+        return orders
+    
+    async def fetch_fills(
+        self,
+        symbol: Optional[str] = None,
+        order_id: Optional[str] = None,
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
+        limit: int = 100
+    ) -> List[Dict]:
+        """
+        Fetch trade fills (executions) from Bitget.
+        
+        API: /api/v2/spot/trade/fills
+        
+        Returns individual fills with price, size, fee, role (maker/taker).
+        """
+        params = {"limit": str(limit)}
+        
+        if symbol:
+            params["symbol"] = symbol.replace("/", "")
+        if order_id:
+            params["orderId"] = order_id
+        if start_time:
+            params["startTime"] = str(start_time)
+        if end_time:
+            params["endTime"] = str(end_time)
+        
+        data = await self._request(
+            "GET",
+            "/api/v2/spot/trade/fills",
+            params=params
+        )
+        
+        fills = []
+        for fill in data if isinstance(data, list) else []:
+            fills.append({
+                "exchange_trade_id": fill.get("tradeId", ""),
+                "exchange_order_id": fill.get("orderId", ""),
+                "symbol": fill.get("symbol", ""),
+                "side": fill.get("side", ""),
+                "price": fill.get("priceAvg", "0"),
+                "size": fill.get("size", "0"),
+                "quote_size": fill.get("quoteVolume"),
+                "fee": fill.get("feeDetail", {}).get("totalFee") if fill.get("feeDetail") else "0",
+                "fee_currency": fill.get("feeDetail", {}).get("feeCoin") if fill.get("feeDetail") else None,
+                "role": fill.get("tradeScope", "").lower(),  # maker/taker
+                "executed_at": fill.get("cTime")
+            })
+        
+        return fills
+    
+    async def fetch_bills(
+        self,
+        coin: Optional[str] = None,
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
+        limit: int = 100
+    ) -> List[Dict]:
+        """
+        Fetch account bills (ledger) from Bitget.
+        
+        API: /api/v2/spot/account/bills
+        
+        Returns transfers, trades, fees, deposits, withdrawals.
+        Used for tax reporting and balance reconciliation.
+        """
+        params = {"limit": str(limit)}
+        
+        if coin:
+            params["coin"] = coin
+        if start_time:
+            params["startTime"] = str(start_time)
+        if end_time:
+            params["endTime"] = str(end_time)
+        
+        data = await self._request(
+            "GET",
+            "/api/v2/spot/account/bills",
+            params=params
+        )
+        
+        bills = []
+        for bill in data if isinstance(data, list) else []:
+            bills.append({
+                "record_id": bill.get("billId", ""),
+                "record_type": bill.get("businessType", "unknown"),
+                "business_type": bill.get("businessType"),
+                "amount": bill.get("size", "0"),
+                "currency": bill.get("coin", ""),
+                "balance_after": bill.get("balance"),
+                "symbol": bill.get("symbol"),
+                "related_order_id": bill.get("orderId"),
+                "recorded_at": bill.get("cTime")
+            })
+        
+        return bills
