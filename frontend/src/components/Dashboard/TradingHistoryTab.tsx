@@ -43,7 +43,9 @@ const TradingHistoryTab: React.FC = () => {
     const [pnlPageSize] = useState(25);
     const [symbolFilter, setSymbolFilter] = useState<string>('');
     const [typeFilter, setTypeFilter] = useState<string>('');
-    const [dateFilter, setDateFilter] = useState<string>('');  // '' = all time, or months like '3', '6', '12', '18', '24'
+    const [dateFilter, setDateFilter] = useState<string>('');  // '' = all time, or months like '3', '6', '12', '18', '24', 'custom'
+    const [customDateFrom, setCustomDateFrom] = useState<string>('');  // YYYY-MM-DD
+    const [customDateTo, setCustomDateTo] = useState<string>('');  // YYYY-MM-DD
     const [allSymbols, setAllSymbols] = useState<string[]>([]);
     const [pnlLoading, setPnlLoading] = useState(false);
 
@@ -75,8 +77,10 @@ const TradingHistoryTab: React.FC = () => {
         try {
             // Calculate date_from based on dateFilter
             let dateFromStr: string | undefined = undefined;
-            if (dateFilter) {
-                const months = parseInt(dateFilter, 10);
+            if (dateFilter === 'custom' && customDateFrom) {
+                dateFromStr = customDateFrom;  // Already YYYY-MM-DD
+            } else if (dateFilter && dateFilter !== 'custom') {
+                const months = parseFloat(dateFilter);
                 const dateFrom = new Date();
                 dateFrom.setMonth(dateFrom.getMonth() - months);
                 dateFromStr = dateFrom.toISOString().split('T')[0];  // YYYY-MM-DD
@@ -96,7 +100,7 @@ const TradingHistoryTab: React.FC = () => {
         } finally {
             setPnlLoading(false);
         }
-    }, [pnlPage, pnlPageSize, symbolFilter, typeFilter, dateFilter]);
+    }, [pnlPage, pnlPageSize, symbolFilter, typeFilter, dateFilter, customDateFrom]);
 
     useEffect(() => {
         loadData();
@@ -109,7 +113,7 @@ const TradingHistoryTab: React.FC = () => {
             loadFuturesPnL();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pnlPage, symbolFilter, typeFilter, dateFilter]);
+    }, [pnlPage, symbolFilter, typeFilter, dateFilter, customDateFrom]);
 
     const TAX_TYPES = ['open_long', 'open_short', 'close_long', 'close_short', 'liquidation_long', 'liquidation_short'];
     const TIME_RANGES = [
@@ -120,7 +124,8 @@ const TradingHistoryTab: React.FC = () => {
         { value: '6', label: 'Last 6 Months' },
         { value: '12', label: 'Last 12 Months' },
         { value: '18', label: 'Last 18 Months' },
-        { value: '24', label: 'Last 24 Months' }
+        { value: '24', label: 'Last 24 Months' },
+        { value: 'custom', label: 'Custom Range' }
     ];
     const totalPages = Math.ceil(futuresPnLTotal / pnlPageSize);
 
@@ -300,14 +305,14 @@ const TradingHistoryTab: React.FC = () => {
                 ) : getTopBalances().length === 0 ? (
                     <div className="text-gray-500 italic">No balances found. Click "Sync Now" to fetch from Bitget.</div>
                 ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                         {getTopBalances().map(([coin, asset]) => (
-                            <div key={coin} className="bg-gray-900 rounded-lg p-4">
-                                <div className="font-bold text-white text-lg">{coin}</div>
-                                <div className="text-2xl font-mono text-green-400">
+                            <div key={coin} className="bg-gray-900 rounded-lg p-3 min-w-0 overflow-hidden">
+                                <div className="font-bold text-white text-sm truncate">{coin}</div>
+                                <div className="text-lg font-mono text-green-400 truncate" title={formatCurrency(asset.total)}>
                                     {formatCurrency(asset.total)}
                                 </div>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-xs text-gray-500 truncate">
                                     Available: {formatCurrency(asset.free)}
                                 </div>
                             </div>
@@ -442,10 +447,33 @@ const TradingHistoryTab: React.FC = () => {
                         </select>
                     </div>
 
+                    {/* Custom Date Range Picker */}
+                    {dateFilter === 'custom' && (
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm text-gray-400">From:</label>
+                            <input
+                                type="date"
+                                value={customDateFrom}
+                                onChange={(e) => { setCustomDateFrom(e.target.value); setPnlPage(0); }}
+                                max={customDateTo || undefined}
+                                className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500"
+                            />
+                            <label className="text-sm text-gray-400">To:</label>
+                            <input
+                                type="date"
+                                value={customDateTo}
+                                onChange={(e) => setCustomDateTo(e.target.value)}
+                                min={customDateFrom || undefined}
+                                max={new Date().toISOString().split('T')[0]}
+                                className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500"
+                            />
+                        </div>
+                    )}
+
                     {/* Clear Filters */}
-                    {(symbolFilter || typeFilter || dateFilter) && (
+                    {(symbolFilter || typeFilter || dateFilter || customDateFrom) && (
                         <button
-                            onClick={() => { setSymbolFilter(''); setTypeFilter(''); setDateFilter(''); setPnlPage(0); }}
+                            onClick={() => { setSymbolFilter(''); setTypeFilter(''); setDateFilter(''); setCustomDateFrom(''); setCustomDateTo(''); setPnlPage(0); }}
                             className="text-sm text-purple-400 hover:text-purple-300"
                         >
                             Clear Filters
