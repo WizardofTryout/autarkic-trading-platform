@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -276,6 +276,64 @@ async def export_csv(
             headers={
                 "Content-Disposition": f"attachment; filename={filename}"
             }
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+class ImportResponse(BaseModel):
+    success: bool
+    imported: int
+    skipped: int
+    total_rows: int
+    errors: List[str]
+
+
+@router.post("/import", response_model=ImportResponse)
+async def import_csv(
+    file: UploadFile,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Import Bitget Futures order CSV export.
+    
+    Upload a CSV file exported from Bitget with the following columns:
+    Date, Direction, Coin, Futures, order source, Transaction type,
+    Price, Average Price, Order amount, Executed, Realized P/L, NetProfits, Status
+    
+    Cancelled orders are automatically skipped.
+    Duplicate records are deduplicated (safe to upload same file multiple times).
+    """
+    # Validate file type
+    if not file.filename or not file.filename.endswith('.csv'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be a CSV file"
+        )
+    
+    try:
+        # Read file content
+        content = await file.read()
+        csv_content = content.decode('utf-8')
+        
+        service = HistoryService(db, current_user.id)
+        result = await service.import_csv(csv_content)
+        
+        return ImportResponse(
+            success=len(result.get("errors", [])) == 0,
+            imported=result.get("imported", 0),
+            skipped=result.get("skipped", 0),
+            total_rows=result.get("total_rows", 0),
+            errors=result.get("errors", [])
+        )
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File encoding error. Please ensure the CSV is UTF-8 encoded."
         )
     except Exception as e:
         raise HTTPException(
