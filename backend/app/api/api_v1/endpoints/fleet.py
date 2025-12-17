@@ -102,6 +102,29 @@ async def deploy_agent(
     Creates the agent and locks budget from paper_account.
     Agent starts in PAUSED state - call /agents/{id}/start to begin.
     """
+    # LIVE mode requires valid Bitget API keys
+    if agent_data.mode == "LIVE":
+        from app.models.base import UserSecret
+        result = await db.execute(
+            select(UserSecret).where(
+                UserSecret.user_id == current_user.id,
+                UserSecret.provider == 'bitget'
+            )
+        )
+        bitget_keys = result.scalars().all()
+        
+        # Check we have all required keys (api_key, secret, passphrase)
+        key_types = [s.key_name.lower() for s in bitget_keys]
+        has_api_key = any('api_key' in k or 'apikey' in k for k in key_types)
+        has_secret = any('secret' in k for k in key_types)
+        has_passphrase = any('passphrase' in k for k in key_types)
+        
+        if not (has_api_key and has_secret and has_passphrase):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Live Trading requires valid Bitget API keys. Please add your API Key, Secret, and Passphrase in Settings."
+            )
+    
     manager = AgentFleetManager(db)
     
     try:

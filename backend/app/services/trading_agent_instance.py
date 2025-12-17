@@ -632,9 +632,46 @@ class TradingAgentInstance:
                     await self._log(f"Trade executed: Order {order.id}")
             
             else:
-                # LIVE TRADING (TODO)
-                # from app.services.ccxt_live_service import CCXTLiveService
-                pass
+            # LIVE TRADING - Route to Bitget via LiveTradingService
+                from app.services.live_trading_service import LiveTradingService
+                from app.db.session import AsyncSessionLocal
+                
+                async with AsyncSessionLocal() as session:
+                    service = LiveTradingService(session, self.user_id)
+                    
+                    try:
+                        # Initialize (loads and validates API keys)
+                        await service.initialize()
+                        
+                        # Calculate margin based on risk_per_trade
+                        margin = float(self.budget * self.risk_per_trade)
+                        
+                        # Set leverage and margin mode BEFORE placing order
+                        # This is required by Bitget for futures
+                        if self.leverage > 1:
+                            await service.set_leverage(
+                                symbol=self.symbol,
+                                leverage=self.leverage,
+                                margin_mode=self.margin_mode.lower() if hasattr(self, 'margin_mode') else 'isolated'
+                            )
+                        
+                        # Execute via live trading
+                        order = await service.place_order(
+                            symbol=self.symbol,
+                            side=proposal['side'],
+                            amount_usdt=margin,
+                            leverage=self.leverage,
+                            order_type="MARKET",
+                            price=proposal['entry'],
+                            stop_loss=proposal['stop_loss'],
+                            take_profit=proposal['take_profit'],
+                            strategy_id=self.agent_id
+                        )
+                        
+                        await self._log(f"[LIVE] Trade executed: Order {order.get('id', 'unknown')}")
+                        
+                    finally:
+                        await service.close()    
             
             self.status = AgentStatus.IN_POSITION
             # NOTE: total_trades is incremented when position is CLOSED, not opened
