@@ -28,7 +28,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.models.base import UserSecret
 from app.models.history import LiveOrder, LiveTrade, FinancialRecord
 from app.services.exchanges import BitgetService
-from app.core.security import decrypt_api_key
+from app.core.encryption import decrypt_value
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class HistoryService:
         credentials = {}
         for secret in secrets:
             try:
-                decrypted = decrypt_api_key(secret.encrypted_value)
+                decrypted = decrypt_value(secret.encrypted_value)
                 key_type = secret.key_name.lower()
                 if 'api_key' in key_type or 'apikey' in key_type:
                     credentials['api_key'] = decrypted
