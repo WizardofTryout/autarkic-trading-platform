@@ -547,9 +547,9 @@ const UserDashboard: React.FC = () => {
             </header>
 
             {/* Main Content */}
-            <div className="flex">
+            <div className="flex h-[calc(100vh-3.5rem)]">
                 {/* Sidebar */}
-                <aside className="w-64 bg-gray-900 border-r border-gray-800 min-h-[calc(100vh-3.5rem)]">
+                <aside className="w-64 bg-gray-900 border-r border-gray-800 h-full overflow-y-auto">
                     <div className="p-4">
                         <h2 className="text-xl font-bold text-white mb-6">User Dashboard</h2>
                         <nav className="space-y-1">
@@ -586,7 +586,7 @@ const UserDashboard: React.FC = () => {
                 </aside>
 
                 {/* Content Area */}
-                <main className="flex-1 p-6 overflow-auto">
+                <main className="flex-1 p-6 pb-16 overflow-auto">
                     <div className="max-w-4xl mx-auto">
                         {renderContent()}
                     </div>
