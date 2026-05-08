@@ -14,6 +14,7 @@ celerybeat.pid
 
 # Environment
 .env
+.env.*
 .venv
 env/
 venv/
@@ -34,6 +35,9 @@ Thumbs.db
 # Database
 *.db
 *.sqlite3
+*.sql
+*.dump
+*.rdb
 
 # Docker
 *.pid
@@ -70,6 +74,8 @@ tools/
 # 📚 Personal Research & Notes
 research/
 specs/
+screenshots/
+.agent/
 
 # 📝 Development Logs & Session Notes
 SESSION-NOTES_*.md

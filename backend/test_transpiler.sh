@@ -8,9 +8,15 @@ echo "=================================="
 echo ""
 
 # Configuration
-BACKEND_URL="http://localhost:8000"
-USERNAME="testuser"
-PASSWORD="testpass"
+BACKEND_URL="${BACKEND_URL:-http://localhost:8000}"
+USERNAME="${TEST_USERNAME:-}"
+PASSWORD="${TEST_PASSWORD:-}"
+
+if [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
+  echo "❌ Missing credentials. Set TEST_USERNAME and TEST_PASSWORD in your shell."
+  echo "Example: TEST_USERNAME=demo TEST_PASSWORD=demo ./backend/test_transpiler.sh"
+  exit 1
+fi
 
 echo "1️⃣  Logging in..."
 LOGIN_RESPONSE=$(curl -s -X POST "$BACKEND_URL/api/v1/auth/login" \
