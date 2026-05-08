@@ -1,54 +1,56 @@
 # Autarkic Trading Platform
 
-Production-grade, multi-service trading platform with a React 19 frontend, FastAPI backend, TimescaleDB ledger, Redis, Celery background jobs, a sandboxed strategy engine, and an isolated AI sentinel service. This repository is prepared for open-source collaboration and excludes all personal, local-only artifacts.
+Production-grade, multi-service trading platform with a React 19 frontend, FastAPI backend, TimescaleDB ledger, Redis, Celery background jobs, a sandboxed strategy engine, and an isolated AI sentinel service.
 
-## Status Quo
+## Disclaimer
 
-- Core microservices are wired via Docker Compose with isolated networks.
-- Trading agent lifecycle and fleet management are implemented in the backend.
-- Strategy execution runs in a sandboxed service.
-- Frontend provides the Fleet dashboard and charting UI.
-- Background jobs collect OHLCV data and clean old records.
+This software is for educational and research purposes only. Do not risk money you are afraid to lose. Use the software at your own risk. The authors and contributors assume no responsibility for your trading results.
 
-### Current Capabilities (Highlights)
+## Platform Preview
+
+Add a screenshot of the frontend UI here, for example:
+
+```
+![Dashboard](docs/assets/dashboard.png)
+```
+
+## Table of Contents
+
+- Overview
+- Capabilities (Highlights)
+- Architecture and Service Map
+- Core Flows
+- Tech Stack
+- Data Model (Key Tables)
+- API Surface (High-Level)
+- Quick Start (Docker)
+- Local Development (Without Docker)
+- Configuration and Secrets
+- Observability and Troubleshooting
+- Security and Data Hygiene
+- Contributing
+- Roadmap
+- License
+
+## Overview
+
+The platform orchestrates autonomous trading agents that analyze multi-timeframe market data, generate proposals, and execute trades only after explicit approval. It combines strict network isolation with a sandboxed strategy execution model and a centralized fleet manager.
+
+## Capabilities (Highlights)
 
 - Agent lifecycle: PAUSED -> SCANNING -> PROPOSING -> AWAITING_APPROVAL -> ACTIVE -> IN_POSITION -> COOLDOWN
-- Fleet manager: registry of active agents, budget locking, and status broadcasting
-- Strategy execution: Python sandbox with restricted imports (pandas/numpy only)
-- Market data: OHLCV caching with retention policies by timeframe
-- Background jobs: scheduled cleanup of logs and candles via Celery Beat
+- Fleet manager: registry of active agents, budget locking, and real-time status broadcasting via Redis WebSockets
+- Sandboxed strategy execution: Python sandbox with restricted imports (pandas/numpy only)
+- Market data ledger: high-frequency OHLCV caching with retention policies using TimescaleDB
+- Background orchestration: scheduled cleanup of logs and market data via Celery Beat
 
-## Tech Stack (Current)
-
-### Frontend
-- React 19 + Vite
-- TailwindCSS
-- Zustand
-- KlineCharts + Lightweight Charts + D3
-- React Router
-
-### Backend
-- FastAPI + Uvicorn
-- SQLAlchemy (async)
-- Celery + Redis
-- CCXT (exchange integration)
-- pandas + numpy
-
-### Data
-- TimescaleDB (PostgreSQL 15)
-- Redis (cache + broker)
-
-### Services
-- strategy-engine: sandboxed Python execution for strategies
-- ai-sentinel: isolated AI analysis service
-
-## Architecture Diagram
+## Architecture and Service Map
 
 ```mermaid
 graph TD;
-  UI["Frontend (React Vite)"] -->|"HTTP"| API["Backend (FastAPI)"];
-  API -->|"SQL"| DB["TimescaleDB"];
-  API -->|"Broker"| R["Redis"];
+  UI["Frontend (React Vite)"] -->|"HTTP/WS"| API["Backend (FastAPI)"];
+  API -->|"SQL"| DB[("TimescaleDB")];
+  API -->|"Broker/Cache"| R[("Redis")];
   API -->|"Sandboxed Exec"| SE["Strategy Engine"];
   R -->|"Tasks"| CW["Celery Worker"];
   R -->|"Schedules"| CB["Celery Beat"];
@@ -58,121 +60,21 @@ graph TD;
 
   subgraph Networks
     PN["public_net"];
-    AN["app_net (internal)"];
-    DN["data_net (internal)"];
+    AN["app_net"];
+    DN["data_net"];
   end;
 ```
 
-## Repository Layout (High Level)
-
-- `frontend/` React UI (Vite)
-- `backend/` FastAPI + Celery + DB models
-- `strategy-engine/` sandboxed strategy execution
-- `ai-sentinel/` isolated AI analysis service
-- `infra/` Docker Compose and secrets
-- `market-gateway/` exchange gateway components
-
-## Requirements
-
-- Docker Desktop (or compatible Docker Engine)
-- Docker Compose
-
-## Quick Start (Docker)
-
-1. Ensure the database password secret exists:
-   - `infra/secrets/db_password.txt`
-
-2. Start the stack:
-
-```bash
-cd infra
-docker compose up -d --build
-```
-
-3. Open the UI:
-
-- Frontend: http://localhost:5173
-- Backend:  http://localhost:8000
-- Strategy Engine: http://localhost:8001
-
-## Local Development (Without Docker)
-
-This mode is intended for contributors who want to run services directly on their machine.
-
-### Prerequisites
-
-- Python 3.11+
-- Node.js 20+
-- PostgreSQL 15 (TimescaleDB recommended)
-- Redis
-
-### Backend
-
-```bash
-# Autarkic Trading Platform
-
-Autarkic Trading Platform is a production-grade, multi-service trading system with a React 19 frontend, FastAPI backend, TimescaleDB ledger, Redis, Celery background jobs, a sandboxed strategy engine, and an isolated AI sentinel service. The repository is prepared for open-source collaboration and excludes all local-only artifacts.
-
-## Table of Contents
-
-- Overview
-- Architecture
-- Service Map
-- Core Flows
-- Tech Stack
-- Data Model (Key Tables)
-- API Surface (High-Level)
-- Quick Start (Docker)
-- Local Development (Without Docker)
-- Configuration and Secrets
-- Observability and Troubleshooting
-- Contributing
-- Roadmap
-- License
-
-## Overview
-
-The platform orchestrates autonomous trading agents that analyze multi-timeframe market data, generate proposals, and execute trades only after explicit approval. It combines strict network isolation with a sandboxed strategy execution model and a centralized fleet manager.
-
-### Current Capabilities (Highlights)
-
-- Agent lifecycle: PAUSED -> SCANNING -> PROPOSING -> AWAITING_APPROVAL -> ACTIVE -> IN_POSITION -> COOLDOWN
-- Fleet manager: registry of active agents, budget locking, and status broadcasting
-- Strategy execution: Python sandbox with restricted imports (pandas/numpy only)
-- Market data: OHLCV caching with retention policies by timeframe
-- Background jobs: scheduled cleanup of logs and candles via Celery Beat
-
-## Architecture
-
-```mermaid
-graph TD
-  UI[Frontend (React/Vite)] -->|HTTP| API[Backend (FastAPI)]
-  API -->|SQL| DB[TimescaleDB]
-  API -->|Broker| R[Redis]
-  API -->|Sandboxed Exec| SE[Strategy Engine]
-  R -->|Tasks| CW[Celery Worker]
-  R -->|Schedules| CB[Celery Beat]
-  CW -->|Read/Write| DB
-  SE -->|Market Data| DB
-  API -->|Internal| AS[AI Sentinel]
-
-  subgraph Networks
-    PN[public_net]
-    AN[app_net (internal)]
-    DN[data_net (internal)]
-  end
-```
-
-## Service Map
+### Service Map
 
 | Service | Port | Purpose | Network |
 | --- | --- | --- | --- |
-| frontend | 5173 | React UI and charts | public_net, app_net |
-| backend | 8000 | API, agent orchestration | public_net, app_net, data_net |
+| frontend | 5173 | React UI and charting | public_net, app_net |
+| backend | 8000 | Core API, agent orchestration | public_net, app_net, data_net |
 | strategy-engine | 8001 | Sandboxed strategy execution | app_net, data_net |
-| ai-sentinel | - | AI analysis (isolated) | app_net |
-| ledger-db | - | TimescaleDB ledger | data_net |
-| redis | - | Cache + broker | app_net, data_net |
+| ai-sentinel | - | Isolated AI analysis | app_net |
+| ledger-db | 5432 | TimescaleDB ledger | data_net |
+| redis | 6379 | Message broker and cache | app_net, data_net |
 | celery_worker | - | Background tasks | app_net, data_net |
 | celery_beat | - | Scheduled tasks | app_net |
 
@@ -201,7 +103,7 @@ graph TD
 - Fleet manager emits updates via Redis channels
 - UI consumes and renders real-time status changes
 
-## Tech Stack (Current)
+## Tech Stack
 
 ### Frontend
 
@@ -278,27 +180,46 @@ curl http://localhost:8000/api/v1/fleet
 
 ## Quick Start (Docker)
 
-### Requirements
+### Prerequisites
 
 - Docker Desktop (or compatible Docker Engine)
 - Docker Compose
 
-### Steps
+### Environment Configuration
 
-1. Ensure the database password secret exists:
-   - `infra/secrets/db_password.txt`
+Create the required secret file and optional environment variables.
 
-2. Start the stack:
+```bash
+mkdir -p infra/secrets
+echo "your_super_secret_password" > infra/secrets/db_password.txt
+```
+
+If you use an `.env` file:
+
+```bash
+touch infra/.env
+```
+
+Required environment variables (examples):
+
+| Variable | Description | Example |
+| --- | --- | --- |
+| POSTGRES_SERVER | Database hostname | ledger-db |
+| POSTGRES_DB | Database name | trading_db |
+| REDIS_URL | Redis connection string | redis://redis:6379/0 |
+| EXCHANGE_API_KEY | Optional CCXT key | sk-123... |
+
+### Launch the Stack
 
 ```bash
 cd infra
 docker compose up -d --build
 ```
 
-3. Open the UI:
+Access the services:
 
 - Frontend: http://localhost:5173
-- Backend:  http://localhost:8000
+- Backend API Docs: http://localhost:8000/docs
 - Strategy Engine: http://localhost:8001
 
 ## Local Development (Without Docker)
@@ -385,23 +306,22 @@ curl http://localhost:8000/health
 
 ## Security and Data Hygiene
 
-This repository intentionally excludes local-only artifacts (session notes, credentials, workspace files, debug scripts, and personal research). See `.gitignore` for details.
+This repository intentionally excludes local-only artifacts (session notes, credentials, .env files, debug scripts, and personal research). The strategy engine executes code in a heavily restricted namespace.
 
 ## Contributing
 
 1. Fork the repository and create a feature branch.
 2. Keep changes focused and include context in the commit message.
 3. Ensure Docker builds and the stack starts via `infra/docker-compose.yml`.
-4. Open a PR with a short summary, test notes, and screenshots (frontend changes).
+4. Open a PR with a short summary and screenshots for UI changes.
 
-## Roadmap (High-Level)
+## Roadmap
 
-- Hardened auth and role-based access for multi-user deployments
-- Extended strategy SDK and backtest workflow
-- Live trading connectors beyond Bitget
-- Observability: structured tracing and metrics across services
-- Public API documentation and SDK examples
+- [ ] Hardened auth and role-based access (RBAC)
+- [ ] Extended strategy SDK and backtest workflows
+- [ ] Live trading connectors beyond Bitget
+- [ ] OpenTelemetry structured tracing
 
 ## License
 
-MIT
+Released under the MIT License.
