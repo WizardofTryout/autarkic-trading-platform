@@ -8,11 +8,7 @@ This software is for educational and research purposes only. Do not risk money y
 
 ## Platform Preview
 
-Add a screenshot of the frontend UI here, for example:
-
-```
 ![Dashboard](docs/assets/dashboard.png)
-```
 
 ## Table of Contents
 
