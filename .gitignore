@@ -70,3 +70,27 @@ tools/
 # 📚 Personal Research & Notes
 research/
 specs/
+
+# 📝 Development Logs & Session Notes
+SESSION-NOTES_*.md
+IMPLEMENTATION-NOTES_*.md
+IMPLEMENTATION-PLAN_*.md
+TASK-PLAN_*.md
+technical-overview-*.md
+
+# 💼 Workspace & Debug Files
+*.code-workspace
+debug_*.py
+verify_*.py
+test_*.py
+solution_*.py
+
+# 📋 Planning & Integration Docs (Development Only)
+*-plan.md
+*-integration-plan.md
+AI-Strategy-*.md
+credentials.md
+development_guidelines.md
+
+# 📁 Archive & Old Plans
+old-plans/
