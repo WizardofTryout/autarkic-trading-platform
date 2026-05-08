@@ -37,3 +37,23 @@ Thumbs.db
 
 # Docker
 *.pid
+
+# 🔒 SENSITIVE DATA - NEVER COMMIT
+credentials.md
+credentials/
+secrets/
+.env.local
+*.key
+*.pem
+
+# 📊 Personal Trading Data
+Orderverlauf-*/
+*.csv
+*.xls
+*.xlsx
+trade_history/
+
+# 🔐 API Keys & Secrets
+API_KEYS.md
+secrets.json
+config.local.json
