@@ -57,3 +57,16 @@ trade_history/
 API_KEYS.md
 secrets.json
 config.local.json
+
+# 🔒 PERSONAL DEVELOPMENT SETUP - NEVER COMMIT
+.github/
+.serena/
+.specify/
+.vscode/
+
+# 📊 Personal Tools & Scripts
+tools/
+
+# 📚 Personal Research & Notes
+research/
+specs/
