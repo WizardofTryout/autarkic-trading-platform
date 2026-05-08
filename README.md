@@ -45,22 +45,22 @@ Production-grade, multi-service trading platform with a React 19 frontend, FastA
 ## Architecture Diagram
 
 ```mermaid
-graph TD
-  UI[Frontend (React/Vite)] -->|HTTP| API[Backend (FastAPI)]
-  API -->|SQL| DB[TimescaleDB]
-  API -->|Broker| R[Redis]
-  API -->|Sandboxed Exec| SE[Strategy Engine]
-  R -->|Tasks| CW[Celery Worker]
-  R -->|Schedules| CB[Celery Beat]
-  CW -->|Read/Write| DB
-  SE -->|Market Data| DB
-  API -->|Internal| AS[AI Sentinel]
+graph TD;
+  UI["Frontend (React Vite)"] -->|"HTTP"| API["Backend (FastAPI)"];
+  API -->|"SQL"| DB["TimescaleDB"];
+  API -->|"Broker"| R["Redis"];
+  API -->|"Sandboxed Exec"| SE["Strategy Engine"];
+  R -->|"Tasks"| CW["Celery Worker"];
+  R -->|"Schedules"| CB["Celery Beat"];
+  CW -->|"Read/Write"| DB;
+  SE -->|"Market Data"| DB;
+  API -->|"Internal"| AS["AI Sentinel"];
 
   subgraph Networks
-    PN[public_net]
-    AN[app_net (internal)]
-    DN[data_net (internal)]
-  end
+    PN["public_net"];
+    AN["app_net (internal)"];
+    DN["data_net (internal)"];
+  end;
 ```
 
 ## Repository Layout (High Level)
